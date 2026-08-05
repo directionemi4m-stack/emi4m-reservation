@@ -95,3 +95,46 @@ export async function verifierDisponibilite(
 
   return { disponible: true };
 }
+
+export interface CreneauRecurrentCandidat {
+  salleId: string;
+  jourSemaine: JourSemaine;
+  heureDebut: string; // "HH:mm"
+  heureFin: string; // "HH:mm"
+  dateDebut: Date;
+  dateFin: Date | null;
+}
+
+// Vérifie qu'un nouveau créneau récurrent ne chevauche pas un créneau récurrent
+// existant sur la même salle et le même jour, pour une plage de validité qui se recoupe.
+export async function verifierConflitRecurrent(
+  candidat: CreneauRecurrentCandidat,
+  options: { excludeId?: string } = {}
+): Promise<ResultatDisponibilite> {
+  const debut = versDateHeure(candidat.heureDebut);
+  const fin = versDateHeure(candidat.heureFin);
+
+  const existants = await db.creneauRecurrent.findMany({
+    where: {
+      salleId: candidat.salleId,
+      jourSemaine: candidat.jourSemaine,
+      actif: true,
+      ...(options.excludeId ? { id: { not: options.excludeId } } : {}),
+      AND: [
+        { dateDebut: candidat.dateFin ? { lte: candidat.dateFin } : {} },
+        { OR: [{ dateFin: null }, { dateFin: { gte: candidat.dateDebut } }] },
+      ],
+    },
+  });
+
+  for (const e of existants) {
+    if (seChevauchent(debut, fin, e.heureDebut, e.heureFin)) {
+      return {
+        disponible: false,
+        creneauBloquant: `Cours récurrent existant du ${LIBELLES_JOUR[candidat.jourSemaine]} ${formatterHeure(e.heureDebut)}–${formatterHeure(e.heureFin)}`,
+      };
+    }
+  }
+
+  return { disponible: true };
+}
