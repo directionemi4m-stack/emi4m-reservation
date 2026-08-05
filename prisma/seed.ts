@@ -1,11 +1,9 @@
-import { neonConfig } from "@neondatabase/serverless";
-import { PrismaNeon } from "@prisma/adapter-neon";
-import ws from "ws";
+import { Pool } from "pg";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
-neonConfig.webSocketConstructor = ws;
-
-const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
 const db = new PrismaClient({ adapter });
 
 const COMMUNES: Array<{ nom: string; slug: string; salles: string[] }> = [
