@@ -130,6 +130,74 @@ function htmlNouvelleDemande({ prof, salle, enAttente, refusees }: ParametresNou
 </body>`;
 }
 
+interface ParametresDecision {
+  prof: { nom: string; prenom: string; email: string };
+  salle: { nom: string; commune: { nom: string } };
+  ligne: { date: Date; heureDebut: Date; heureFin: Date };
+  motif?: string;
+}
+
+export async function envoyerMailDemandeValidee(params: ParametresDecision) {
+  const { prof, salle, ligne } = params;
+  const transport = creerTransporteur();
+
+  const descriptifCreneau = `${salle.commune.nom} — ${salle.nom}\n${formatterDateFr(ligne.date)} ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}`;
+
+  await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    subject: `Réservation validée — ${salle.commune.nom} / ${salle.nom}`,
+    text: `Bonjour ${prof.prenom},\n\nVotre demande de réservation a été validée :\n${descriptifCreneau}\n\nÀ bientôt,\nDirection EMI4M`,
+    html: htmlDecision({
+      couleur: "#27AE60",
+      titre: "Votre réservation est validée",
+      corps: `<p style="margin:0 0 16px;">Bonjour ${prof.prenom},</p><p style="margin:0 0 20px;">Votre demande de réservation a été validée :</p><p style="margin:0 0 20px;font-weight:bold;">${salle.commune.nom} — ${salle.nom}<br>${formatterDateFr(ligne.date)} · ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}</p>`,
+    }),
+  });
+}
+
+export async function envoyerMailDemandeRefusee(params: ParametresDecision) {
+  const { prof, salle, ligne, motif } = params;
+  const transport = creerTransporteur();
+
+  const descriptifCreneau = `${salle.commune.nom} — ${salle.nom}\n${formatterDateFr(ligne.date)} ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}`;
+  const ligneMotif = motif ? `\nMotif : ${motif}` : "";
+
+  await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    subject: `Réservation refusée — ${salle.commune.nom} / ${salle.nom}`,
+    text: `Bonjour ${prof.prenom},\n\nVotre demande de réservation a été refusée :\n${descriptifCreneau}${ligneMotif}\n\nDirection EMI4M`,
+    html: htmlDecision({
+      couleur: "#C0392B",
+      titre: "Votre réservation est refusée",
+      corps: `<p style="margin:0 0 16px;">Bonjour ${prof.prenom},</p><p style="margin:0 0 20px;">Votre demande de réservation a été refusée :</p><p style="margin:0 0 12px;font-weight:bold;">${salle.commune.nom} — ${salle.nom}<br>${formatterDateFr(ligne.date)} · ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}</p>${motif ? `<p style="margin:0;color:#7f8c8d;">Motif : ${motif}</p>` : ""}`,
+    }),
+  });
+}
+
+function htmlDecision({ couleur, titre, corps }: { couleur: string; titre: string; corps: string }) {
+  return `
+<body style="background:#f4f6f8;padding:32px 0;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center">
+        <table width="480" border="0" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="background:${couleur};padding:24px;text-align:center;">
+              <span style="color:#ffffff;font-size:18px;font-weight:bold;">${titre}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;color:#2C3E50;">${corps}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>`;
+}
+
 function htmlConnexion({ url, host }: { url: string; host: string }) {
   return `
 <body style="background:#f4f6f8;padding:32px 0;font-family:Arial,Helvetica,sans-serif;">

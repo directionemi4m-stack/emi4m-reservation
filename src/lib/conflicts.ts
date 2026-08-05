@@ -37,7 +37,7 @@ function versDateHeure(heureHHmm: string): Date {
   return new Date(`1970-01-01T${heureHHmm}:00.000Z`);
 }
 
-function formatterHeure(date: Date): string {
+export function formatterHeure(date: Date): string {
   return date.toISOString().slice(11, 16);
 }
 
