@@ -1,0 +1,166 @@
+// Prisma schema — EMI4M Réservation de salles
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  PROF
+  ADMIN
+}
+
+enum JourSemaine {
+  LUNDI
+  MARDI
+  MERCREDI
+  JEUDI
+  VENDREDI
+  SAMEDI
+  DIMANCHE
+}
+
+enum StatutCreneau {
+  EN_ATTENTE
+  VALIDEE
+  REFUSEE
+}
+
+// Compte prof/admin. Provisionné par la direction (pas d'auto-inscription).
+// Sert aussi de modèle "User" pour Auth.js (magic-link).
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  nom           String
+  prenom        String
+  role          Role      @default(PROF)
+  actif         Boolean   @default(true)
+  creeLe        DateTime  @default(now())
+
+  accounts Account[]
+  sessions Session[]
+
+  creneauxRecurrents CreneauRecurrent[]
+  demandes           Demande[]          @relation("DemandeAuteur")
+  creneauxTraites    DemandeCreneau[]   @relation("CreneauTraitePar")
+}
+
+model Commune {
+  id     String  @id @default(cuid())
+  nom    String  @unique
+  slug   String  @unique
+  salles Salle[]
+}
+
+model Salle {
+  id        String  @id @default(cuid())
+  nom       String
+  communeId String
+  commune   Commune @relation(fields: [communeId], references: [id])
+  actif     Boolean @default(true)
+
+  creneauxRecurrents CreneauRecurrent[]
+  demandes           Demande[]
+  demandeCreneaux    DemandeCreneau[]
+
+  @@unique([communeId, nom])
+}
+
+// Emploi du temps de base, récurrent hebdomadaire
+model CreneauRecurrent {
+  id          String      @id @default(cuid())
+  profId      String
+  prof        User        @relation(fields: [profId], references: [id])
+  salleId     String
+  salle       Salle       @relation(fields: [salleId], references: [id])
+  jourSemaine JourSemaine
+  heureDebut  DateTime    @db.Time
+  heureFin    DateTime    @db.Time
+  dateDebut   DateTime    @db.Date
+  dateFin     DateTime?   @db.Date
+  actif       Boolean     @default(true)
+  creeLe      DateTime    @default(now())
+
+  @@index([salleId, jourSemaine])
+}
+
+// "Panier" de dates soumises ensemble par un prof, pour une même salle.
+model Demande {
+  id      String   @id @default(cuid())
+  profId  String
+  prof    User     @relation("DemandeAuteur", fields: [profId], references: [id])
+  salleId String
+  salle   Salle    @relation(fields: [salleId], references: [id])
+  creeLe  DateTime @default(now())
+
+  creneaux DemandeCreneau[]
+
+  @@index([profId])
+}
+
+// Une ligne = une date + un horaire précis. Le statut vit ici (pas sur Demande)
+// car un même lot peut mélanger dates rejetées automatiquement et dates en attente.
+model DemandeCreneau {
+  id         String   @id @default(cuid())
+  demandeId  String
+  demande    Demande  @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+  salleId    String
+  salle      Salle    @relation(fields: [salleId], references: [id])
+  date       DateTime @db.Date
+  heureDebut DateTime @db.Time
+  heureFin   DateTime @db.Time
+
+  statut           StatutCreneau @default(EN_ATTENTE)
+  rejetAutomatique Boolean       @default(false)
+  creneauBloquant  String?
+  motifRefus       String?
+  traiteeLe        DateTime?
+  traiteeParId     String?
+  traiteePar       User?         @relation("CreneauTraitePar", fields: [traiteeParId], references: [id])
+
+  @@index([salleId, date])
+}
+
+// --- Modèles requis par l'adapter Prisma d'Auth.js ---
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
