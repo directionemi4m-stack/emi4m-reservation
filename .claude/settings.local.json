@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"/c/Users/nicol/AppData/Local/Temp/claude\" -iname \"*.jpg\" -o -iname \"*.jpeg\" -o -iname \"*.png\" 2>/dev/null | grep -i -E \"clipboard|paste|image\" | head -20)",
+      "Bash(npx --yes create-next-app@latest . --typescript --eslint --tailwind --app --src-dir --import-alias \"@/*\" --use-npm --no-turbopack)",
+      "Bash(git config *)"
+    ]
+  }
+}
