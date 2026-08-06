@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SEUIL_ALERTE_ABSENCES } from "@/lib/presences";
 import { envoyerMailAlerteAbsences } from "@/lib/mail";
+import { synchroniserFeuillePresence } from "@/lib/sheets";
 import type { StatutPresence } from "@/generated/prisma/client";
 
 export type EtatAction = { succes: boolean; message?: string };
@@ -52,6 +53,12 @@ export async function enregistrerPointage(
 
   revalidatePath(`/presences/${classeId}`);
   revalidatePath("/presences/historique");
+
+  try {
+    await synchroniserFeuillePresence(classeId);
+  } catch (erreur) {
+    console.error("Échec de synchronisation Google Sheets :", erreur);
+  }
 
   // Seuil d'absences injustifiées, cumulées par élève sur ce cours.
   const alertes: Array<{ nom: string; total: number }> = [];
