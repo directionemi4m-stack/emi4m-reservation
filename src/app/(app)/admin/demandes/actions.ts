@@ -155,3 +155,34 @@ export async function annulerReservationValidee(
   revalidatePath("/demandes");
   return { succes: true };
 }
+
+// Suppression administrative silencieuse (pas de mail) : contrairement à
+// Refuser/Annuler qui notifient le prof d'une décision, ceci retire la ligne
+// sans laisser de trace, pour corriger une erreur de saisie ou nettoyer.
+export async function supprimerLigneDemande(
+  _etatPrecedent: EtatAction,
+  formData: FormData
+): Promise<EtatAction> {
+  await exigerAdmin();
+  const id = String(formData.get("id"));
+
+  const ligne = await db.demandeCreneau.findUnique({
+    where: { id },
+    select: { demandeId: true },
+  });
+  if (!ligne) {
+    return { succes: false, message: "Cette ligne n'existe plus." };
+  }
+
+  await db.demandeCreneau.delete({ where: { id } });
+
+  const restantes = await db.demandeCreneau.count({ where: { demandeId: ligne.demandeId } });
+  if (restantes === 0) {
+    await db.demande.delete({ where: { id: ligne.demandeId } });
+  }
+
+  revalidatePath("/admin/demandes");
+  revalidatePath("/planning");
+  revalidatePath("/demandes");
+  return { succes: true };
+}

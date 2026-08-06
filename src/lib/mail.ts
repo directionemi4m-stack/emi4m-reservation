@@ -26,7 +26,7 @@ export async function envoyerMagicLink(params: ParametresEnvoiVerification) {
 }
 
 function texteConnexion({ url, host }: { url: string; host: string }) {
-  return `Connexion à EMI4M Réservation de salles (${host})\n\nCliquez sur ce lien pour vous connecter :\n${url}\n\nCe lien est valable 15 minutes et ne peut être utilisé qu'une seule fois. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`;
+  return `Connexion à EMI4M Réservation de salles (${host})\n\nCliquez sur ce lien pour vous connecter :\n${url}\n\nCe lien est valable 30 minutes et ne peut être utilisé qu'une seule fois. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`;
 }
 
 const EMAIL_DIRECTION = process.env.EMAIL_DIRECTION || "direction.emi4m@gmail.com";
@@ -237,7 +237,7 @@ function htmlBienvenue({ prof, urlConnexion }: ParametresBienvenue) {
                   </td>
                 </tr>
               </table>
-              <p style="margin:24px 0 0;font-size:13px;color:#7f8c8d;">Connectez-vous avec votre adresse : ${prof.email}. Un lien de connexion à usage unique valable 15 minutes vous sera envoyé par email.</p>
+              <p style="margin:24px 0 0;font-size:13px;color:#7f8c8d;">Connectez-vous avec votre adresse : ${prof.email}. Un lien de connexion à usage unique valable 30 minutes vous sera envoyé par email.</p>
             </td>
           </tr>
         </table>
@@ -292,7 +292,7 @@ function htmlConnexion({ url, host }: { url: string; host: string }) {
                   </td>
                 </tr>
               </table>
-              <p style="margin:24px 0 0;font-size:13px;color:#7f8c8d;">Ce lien est valable 15 minutes et à usage unique. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.</p>
+              <p style="margin:24px 0 0;font-size:13px;color:#7f8c8d;">Ce lien est valable 30 minutes et à usage unique. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.</p>
             </td>
           </tr>
         </table>

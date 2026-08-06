@@ -78,3 +78,34 @@ export async function basculerActifSalle(formData: FormData) {
   await db.salle.update({ where: { id: salleId }, data: { actif } });
   revalidatePath("/admin/parametres/salles");
 }
+
+export async function supprimerSalle(
+  _etatPrecedent: EtatAction,
+  formData: FormData
+): Promise<EtatAction> {
+  await exigerAdmin();
+
+  const salleId = String(formData.get("salleId"));
+
+  try {
+    await db.salle.delete({ where: { id: salleId } });
+  } catch (erreur) {
+    if (
+      erreur &&
+      typeof erreur === "object" &&
+      "code" in erreur &&
+      (erreur.code === "P2003" || erreur.code === "P2039")
+    ) {
+      return {
+        succes: false,
+        message:
+          "Impossible de supprimer : cette salle a des demandes ou créneaux récurrents liés. Désactivez-la à la place.",
+      };
+    }
+    throw erreur;
+  }
+
+  revalidatePath("/admin/parametres/salles");
+  revalidatePath("/planning");
+  return { succes: true };
+}

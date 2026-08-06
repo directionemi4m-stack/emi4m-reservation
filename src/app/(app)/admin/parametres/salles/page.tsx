@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { AjouterCommuneForm } from "@/components/admin/AjouterCommuneForm";
 import { AjouterSalleForm } from "@/components/admin/AjouterSalleForm";
-import { basculerActifSalle } from "./actions";
+import { ActionsSalle } from "@/components/admin/ActionsSalle";
 
 export default async function AdminSallesPage() {
   const communes = await db.commune.findMany({
@@ -42,16 +42,7 @@ export default async function AdminSallesPage() {
                         </span>
                       </td>
                       <td className="py-2 text-right">
-                        <form action={basculerActifSalle}>
-                          <input type="hidden" name="salleId" value={salle.id} />
-                          <input type="hidden" name="actif" value={(!salle.actif).toString()} />
-                          <button
-                            type="submit"
-                            className="text-xs font-medium text-brand-accent hover:underline"
-                          >
-                            {salle.actif ? "Désactiver" : "Activer"}
-                          </button>
-                        </form>
+                        <ActionsSalle salleId={salle.id} actif={salle.actif} />
                       </td>
                     </tr>
                   ))}

@@ -1,15 +1,13 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { signIn } from "@/lib/auth";
 
 export type EtatDemandeLien = {
-  statut: "idle" | "envoye" | "erreur";
+  statut: "idle" | "erreur";
   message?: string;
 };
-
-const MESSAGE_GENERIQUE =
-  "Si cette adresse est associée à un compte EMI4M actif, un lien de connexion vient de vous être envoyé.";
 
 export async function demanderLien(
   _etatPrecedent: EtatDemandeLien,
@@ -27,7 +25,7 @@ export async function demanderLien(
     const compte = await db.user.findUnique({ where: { email } });
 
     // On ne déclenche l'envoi que si le compte existe et est actif, mais on
-    // renvoie toujours le même message pour ne pas révéler qui a un compte.
+    // redirige dans tous les cas pour ne pas révéler qui a un compte.
     if (compte?.actif) {
       await signIn("nodemailer", { email, redirect: false });
     }
@@ -35,5 +33,5 @@ export async function demanderLien(
     console.error("Échec d'envoi du lien de connexion :", erreur);
   }
 
-  return { statut: "envoye", message: MESSAGE_GENERIQUE };
+  redirect("/verify");
 }

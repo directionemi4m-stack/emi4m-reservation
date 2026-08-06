@@ -27,6 +27,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/login",
     verifyRequest: "/verify",
+    // Sans ceci, un lien expiré/déjà utilisé atterrit sur la page d'erreur
+    // générique d'Auth.js (/api/auth/error), hors de notre charte et sans
+    // explication claire — on ramène plutôt vers /login avec un message.
+    error: "/login",
   },
   providers: [
     Nodemailer({
@@ -39,7 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         },
       },
       from: process.env.EMAIL_FROM,
-      maxAge: 15 * 60, // lien valable 15 minutes
+      maxAge: 30 * 60, // lien valable 30 minutes
       sendVerificationRequest: envoyerMagicLink,
     }),
   ],

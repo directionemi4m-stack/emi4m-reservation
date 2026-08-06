@@ -3,25 +3,43 @@
 import { useActionState, useState } from "react";
 import {
   annulerReservationValidee,
+  supprimerLigneDemande,
   type EtatAction,
 } from "@/app/(app)/admin/demandes/actions";
+import { BoutonConfirmation } from "@/components/admin/BoutonConfirmation";
 
 const etatInitial: EtatAction = { succes: true };
 
 export function LigneAnnulation({ id }: { id: string }) {
   const [etat, action, enCours] = useActionState(annulerReservationValidee, etatInitial);
+  const [etatSupprimer, actionSupprimer, enCoursSupprimer] = useActionState(
+    supprimerLigneDemande,
+    etatInitial
+  );
   const [afficherMotif, setAfficherMotif] = useState(false);
 
   return (
     <div className="flex flex-col items-end gap-2">
       {!afficherMotif && (
-        <button
-          type="button"
-          onClick={() => setAfficherMotif(true)}
-          className="rounded-md border border-slate-400 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100"
-        >
-          Annuler cette réservation
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setAfficherMotif(true)}
+            className="rounded-md border border-slate-400 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+          >
+            Annuler cette réservation
+          </button>
+          <form action={actionSupprimer}>
+            <input type="hidden" name="id" value={id} />
+            <BoutonConfirmation
+              message="Supprimer définitivement cette réservation ? Le prof ne sera pas prévenu."
+              disabled={enCoursSupprimer}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-400 hover:bg-slate-100 disabled:opacity-60"
+            >
+              Supprimer
+            </BoutonConfirmation>
+          </form>
+        </div>
       )}
 
       {afficherMotif && (
@@ -53,6 +71,9 @@ export function LigneAnnulation({ id }: { id: string }) {
       )}
 
       {etat.message && <p className="max-w-56 text-right text-xs text-status-occupee">{etat.message}</p>}
+      {etatSupprimer.message && (
+        <p className="max-w-56 text-right text-xs text-status-occupee">{etatSupprimer.message}</p>
+      )}
     </div>
   );
 }

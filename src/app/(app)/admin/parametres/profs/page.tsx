@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { AjouterProfForm } from "@/components/admin/AjouterProfForm";
-import { basculerActifProf } from "./actions";
+import { ActionsProf } from "@/components/admin/ActionsProf";
 
 export default async function AdminProfsPage() {
   const profs = await db.user.findMany({ orderBy: [{ actif: "desc" }, { nom: "asc" }] });
@@ -44,16 +44,7 @@ export default async function AdminProfsPage() {
                   </span>
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <form action={basculerActifProf}>
-                    <input type="hidden" name="profId" value={prof.id} />
-                    <input type="hidden" name="actif" value={(!prof.actif).toString()} />
-                    <button
-                      type="submit"
-                      className="text-xs font-medium text-brand-accent hover:underline"
-                    >
-                      {prof.actif ? "Désactiver" : "Activer"}
-                    </button>
-                  </form>
+                  <ActionsProf profId={prof.id} actif={prof.actif} />
                 </td>
               </tr>
             ))}

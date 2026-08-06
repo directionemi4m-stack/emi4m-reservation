@@ -3,14 +3,11 @@
 import { useActionState } from "react";
 import { demanderLien, type EtatDemandeLien } from "@/app/(auth)/login/actions";
 
-const etatInitial: EtatDemandeLien = { statut: "idle" };
-
-export function LoginForm() {
+export function LoginForm({ erreurInitiale }: { erreurInitiale?: string | null }) {
+  const etatInitial: EtatDemandeLien = erreurInitiale
+    ? { statut: "erreur", message: erreurInitiale }
+    : { statut: "idle" };
   const [etat, action, enCours] = useActionState(demanderLien, etatInitial);
-
-  if (etat.statut === "envoye") {
-    return <p className="text-sm text-slate-700">{etat.message}</p>;
-  }
 
   return (
     <form action={action} className="flex flex-col gap-4">
@@ -33,6 +30,9 @@ export function LoginForm() {
       >
         {enCours ? "Envoi en cours…" : "Recevoir le lien de connexion"}
       </button>
+      <p className="text-center text-xs text-slate-400">
+        Pas de mot de passe : un lien de connexion à usage unique vous sera envoyé par email.
+      </p>
     </form>
   );
 }

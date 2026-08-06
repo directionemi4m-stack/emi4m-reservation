@@ -74,3 +74,33 @@ export async function basculerActifProf(formData: FormData) {
   await db.user.update({ where: { id: profId }, data: { actif } });
   revalidatePath("/admin/parametres/profs");
 }
+
+export async function supprimerProf(
+  _etatPrecedent: EtatAjoutProf,
+  formData: FormData
+): Promise<EtatAjoutProf> {
+  await exigerAdmin();
+
+  const profId = String(formData.get("profId"));
+
+  try {
+    await db.user.delete({ where: { id: profId } });
+  } catch (erreur) {
+    if (
+      erreur &&
+      typeof erreur === "object" &&
+      "code" in erreur &&
+      (erreur.code === "P2003" || erreur.code === "P2039")
+    ) {
+      return {
+        statut: "erreur",
+        message:
+          "Impossible de supprimer : ce compte a des demandes ou créneaux récurrents liés. Désactivez-le à la place.",
+      };
+    }
+    throw erreur;
+  }
+
+  revalidatePath("/admin/parametres/profs");
+  return { statut: "succes" };
+}
