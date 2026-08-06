@@ -33,11 +33,45 @@ async function idOngletExistant(sheets: ReturnType<typeof google.sheets>, idFeui
   return data.sheets?.find((s) => s.properties?.title === titre)?.properties?.sheetId ?? null;
 }
 
-async function creerOnglet(sheets: ReturnType<typeof google.sheets>, idFeuille: string, titre: string) {
+const COULEURS_STATUT: Record<StatutPresence, { red: number; green: number; blue: number }> = {
+  PRESENT: { red: 0.85, green: 0.94, blue: 0.85 },
+  ABSENT: { red: 0.96, green: 0.8, blue: 0.8 },
+  EXCUSE: { red: 1, green: 0.93, blue: 0.7 },
+};
+
+// Colore une cellule dès que son texte correspond exactement au statut — la règle
+// reste active même après relecture manuelle du Sheet, pas besoin de la reposer à chaque sync.
+async function appliquerMiseEnFormeCouleur(
+  sheets: ReturnType<typeof google.sheets>,
+  idFeuille: string,
+  sheetId: number
+) {
+  const plage = { sheetId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 1, endColumnIndex: 50 };
   await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: idFeuille,
+    requestBody: {
+      requests: (Object.keys(COULEURS_STATUT) as StatutPresence[]).map((statut) => ({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [plage],
+            booleanRule: {
+              condition: { type: "TEXT_EQ", values: [{ userEnteredValue: LIBELLES_STATUT[statut] }] },
+              format: { backgroundColor: COULEURS_STATUT[statut] },
+            },
+          },
+        },
+      })),
+    },
+  });
+}
+
+async function creerOnglet(sheets: ReturnType<typeof google.sheets>, idFeuille: string, titre: string) {
+  const { data } = await sheets.spreadsheets.batchUpdate({
     spreadsheetId: idFeuille,
     requestBody: { requests: [{ addSheet: { properties: { title: titre } } }] },
   });
+  const sheetId = data.replies?.[0]?.addSheet?.properties?.sheetId;
+  if (sheetId != null) await appliquerMiseEnFormeCouleur(sheets, idFeuille, sheetId);
 }
 
 // Réécrit entièrement l'onglet du cours à partir de l'état actuel en base :
