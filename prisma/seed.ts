@@ -34,6 +34,31 @@ const COMMUNES: Array<{ nom: string; slug: string; salles: string[] }> = [
   },
 ];
 
+const LIEUX_PRESENCES = [
+  "Villard-de-Lans",
+  "Lans-en-Vercors",
+  "Méaudre",
+  "Autrans",
+  "Corrençon",
+  "Engins",
+  "Saint-Nizier",
+];
+
+const NIVEAUX_FM = [
+  "Éveil",
+  "Initiation",
+  "FM Débutant",
+  "FM1",
+  "FM2",
+  "FM3",
+  "FM4",
+  "FM5",
+  "FM6",
+  "FM7",
+  "FM8",
+  "Ados/Adultes",
+];
+
 async function main() {
   for (const { nom, slug, salles } of COMMUNES) {
     const commune = await db.commune.upsert({
@@ -52,6 +77,16 @@ async function main() {
 
     console.log(`${nom} : ${salles.length} salle(s)`);
   }
+
+  for (const nom of LIEUX_PRESENCES) {
+    await db.lieuPresence.upsert({ where: { nom }, update: {}, create: { nom } });
+  }
+  console.log(`Présences : ${LIEUX_PRESENCES.length} lieu(x)`);
+
+  for (const nom of NIVEAUX_FM) {
+    await db.niveauFM.upsert({ where: { nom }, update: {}, create: { nom } });
+  }
+  console.log(`Présences : ${NIVEAUX_FM.length} niveau(x) FM`);
 
   // Premier compte admin, pour pouvoir se connecter et provisionner les
   // profs ensuite depuis l'interface d'administration.

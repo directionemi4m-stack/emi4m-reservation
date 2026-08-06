@@ -9,15 +9,19 @@ export function AppHeader({ role }: { role: "PROF" | "ADMIN" }) {
         <Image src="/logo-emi4m.png" alt="EMI4M" width={40} height={40} className="rounded-full" />
         <span className="font-semibold">Réservation des salles</span>
       </div>
-      <nav className="flex items-center gap-5 text-sm">
+      <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
         <Link href="/planning" className="hover:text-brand-accent">
           Planning
         </Link>
         <Link href="/demandes" className="hover:text-brand-accent">
           Mes demandes
         </Link>
+        <Link href="/presences" className="hover:text-brand-accent">
+          Présences
+        </Link>
         {role === "ADMIN" && (
           <>
+            <span className="text-white/30">·</span>
             <Link href="/admin/demandes" className="hover:text-brand-accent">
               Demandes à traiter
             </Link>
@@ -26,6 +30,12 @@ export function AppHeader({ role }: { role: "PROF" | "ADMIN" }) {
             </Link>
             <Link href="/admin/parametres/salles" className="hover:text-brand-accent">
               Salles
+            </Link>
+            <Link href="/admin/parametres/creneaux-recurrents" className="hover:text-brand-accent">
+              Emplois du temps
+            </Link>
+            <Link href="/admin/parametres/presences" className="hover:text-brand-accent">
+              Lieux & niveaux
             </Link>
           </>
         )}

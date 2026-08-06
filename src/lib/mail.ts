@@ -247,6 +247,39 @@ function htmlBienvenue({ prof, urlConnexion }: ParametresBienvenue) {
 </body>`;
 }
 
+interface AlerteAbsence {
+  nom: string;
+  total: number;
+}
+
+interface ParametresAlerteAbsences {
+  prof: { nom: string; prenom: string };
+  classe: string;
+  alertes: AlerteAbsence[];
+}
+
+export async function envoyerMailAlerteAbsences(params: ParametresAlerteAbsences) {
+  const { prof, classe, alertes } = params;
+  const transport = creerTransporteur();
+
+  const lignesTexte = alertes.map((a) => `- ${a.nom} : ${a.total} absences injustifiées`).join("\n");
+  const lignesHtml = alertes
+    .map((a) => `<li style="margin:0 0 6px;"><strong>${a.nom}</strong> — ${a.total} absences injustifiées</li>`)
+    .join("");
+
+  await transport.sendMail({
+    to: EMAIL_DIRECTION,
+    from: process.env.EMAIL_FROM,
+    subject: `Alerte assiduité — ${classe} (${alertes.length} élève${alertes.length > 1 ? "s" : ""})`,
+    text: `${prof.prenom} ${prof.nom} vient de pointer le cours ${classe}.\n\nSeuil d'absences injustifiées atteint pour :\n${lignesTexte}`,
+    html: htmlDecision({
+      couleur: "#C0392B",
+      titre: "Alerte assiduité",
+      corps: `<p style="margin:0 0 16px;">${prof.prenom} ${prof.nom} vient de pointer le cours <strong>${classe}</strong>.</p><p style="margin:0 0 8px;font-weight:bold;">Seuil d'absences injustifiées atteint pour :</p><ul style="margin:0;padding-left:20px;">${lignesHtml}</ul>`,
+    }),
+  });
+}
+
 function htmlDecision({ couleur, titre, corps }: { couleur: string; titre: string; corps: string }) {
   return `
 <body style="background:#f4f6f8;padding:32px 0;font-family:Arial,Helvetica,sans-serif;">
