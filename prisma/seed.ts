@@ -52,6 +52,24 @@ async function main() {
 
     console.log(`${nom} : ${salles.length} salle(s)`);
   }
+
+  // Premier compte admin, pour pouvoir se connecter et provisionner les
+  // profs ensuite depuis l'interface d'administration.
+  const emailAdmin = process.env.SEED_ADMIN_EMAIL;
+  if (emailAdmin) {
+    await db.user.upsert({
+      where: { email: emailAdmin },
+      update: { role: "ADMIN", actif: true },
+      create: {
+        email: emailAdmin,
+        nom: process.env.SEED_ADMIN_NOM ?? "Direction",
+        prenom: process.env.SEED_ADMIN_PRENOM ?? "EMI4M",
+        role: "ADMIN",
+        actif: true,
+      },
+    });
+    console.log(`Compte admin : ${emailAdmin}`);
+  }
 }
 
 main()
