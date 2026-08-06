@@ -1,21 +1,89 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-const LIENS_BASE = [
-  { href: "/planning", label: "Planning" },
-  { href: "/demandes", label: "Mes demandes" },
-  { href: "/presences", label: "Présences" },
-];
+interface Lien {
+  href: string;
+  label: string;
+}
 
-const LIENS_ADMIN = [
-  { href: "/admin/demandes", label: "Demandes à traiter" },
-  { href: "/admin/parametres/profs", label: "Profs" },
-  { href: "/admin/parametres/salles", label: "Salles" },
-  { href: "/admin/parametres/creneaux-recurrents", label: "Emplois du temps" },
-  { href: "/admin/parametres/presences", label: "Lieux & niveaux" },
-];
+interface Groupe {
+  label: string;
+  liens: Lien[];
+}
+
+function groupes(role: "PROF" | "ADMIN"): Groupe[] {
+  return [
+    {
+      label: "Réservation",
+      liens: [
+        { href: "/planning", label: "Planning" },
+        { href: "/demandes", label: "Mes demandes" },
+        ...(role === "ADMIN"
+          ? [
+              { href: "/admin/demandes", label: "Demandes à traiter" },
+              { href: "/admin/parametres/salles", label: "Salles" },
+              { href: "/admin/parametres/creneaux-recurrents", label: "Emplois du temps" },
+            ]
+          : []),
+      ],
+    },
+    {
+      label: "Présences",
+      liens: [
+        { href: "/presences", label: "Présences" },
+        ...(role === "ADMIN"
+          ? [{ href: "/admin/parametres/presences", label: "Lieux & niveaux" }]
+          : []),
+      ],
+    },
+  ];
+}
+
+function GroupeDesktop({ groupe }: { groupe: Groupe }) {
+  const [ouvert, setOuvert] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ouvert) return;
+    function fermerSiExterieur(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOuvert(false);
+    }
+    document.addEventListener("click", fermerSiExterieur);
+    return () => document.removeEventListener("click", fermerSiExterieur);
+  }, [ouvert]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOuvert((v) => !v)}
+        aria-expanded={ouvert}
+        className="flex items-center gap-1 hover:text-brand-accent"
+      >
+        {groupe.label}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {ouvert && (
+        <div className="absolute left-0 top-full z-10 mt-2 flex min-w-44 flex-col gap-0.5 rounded-md bg-brand-slate py-2 text-left shadow-lg ring-1 ring-white/10">
+          {groupe.liens.map((lien) => (
+            <Link
+              key={lien.href}
+              href={lien.href}
+              onClick={() => setOuvert(false)}
+              className="px-3 py-1.5 hover:bg-white/10"
+            >
+              {lien.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function HeaderNav({
   role,
@@ -25,7 +93,7 @@ export function HeaderNav({
   deconnexion: () => Promise<void>;
 }) {
   const [ouvert, setOuvert] = useState(false);
-  const liens = role === "ADMIN" ? [...LIENS_BASE, ...LIENS_ADMIN] : LIENS_BASE;
+  const grps = groupes(role);
 
   const boutonDeconnexion = (className: string) => (
     <form action={deconnexion}>
@@ -37,22 +105,20 @@ export function HeaderNav({
 
   return (
     <>
-      {/* Desktop : nav horizontale complète */}
-      <nav className="hidden flex-wrap items-center gap-x-4 gap-y-1 text-sm sm:flex">
-        {liens.map((lien, i) => (
-          <span key={lien.href} className="flex items-center gap-x-4">
-            {role === "ADMIN" && i === LIENS_BASE.length && (
-              <span className="text-white/30">·</span>
-            )}
-            <Link href={lien.href} className="hover:text-brand-accent">
-              {lien.label}
-            </Link>
-          </span>
+      {/* Desktop : un menu déroulant par domaine */}
+      <nav className="hidden items-center gap-x-5 text-sm sm:flex">
+        {grps.map((groupe) => (
+          <GroupeDesktop key={groupe.label} groupe={groupe} />
         ))}
+        {role === "ADMIN" && (
+          <Link href="/admin/parametres/profs" className="hover:text-brand-accent">
+            Profs
+          </Link>
+        )}
         {boutonDeconnexion("rounded-md bg-white/10 px-3 py-1.5 transition hover:bg-white/20")}
       </nav>
 
-      {/* Mobile : bouton hamburger + panneau déroulant */}
+      {/* Mobile : bouton hamburger + panneau déroulant organisé par domaine */}
       <button
         type="button"
         onClick={() => setOuvert((v) => !v)}
@@ -70,22 +136,41 @@ export function HeaderNav({
       </button>
 
       {ouvert && (
-        <div className="absolute inset-x-0 top-full z-10 flex flex-col gap-1 bg-brand-slate px-4 pb-4 text-sm shadow-lg sm:hidden">
-          {liens.map((lien, i) => (
-            <div key={lien.href}>
-              {role === "ADMIN" && i === LIENS_BASE.length && (
-                <div className="my-1 border-t border-white/10" />
-              )}
+        <div className="absolute inset-x-0 top-full z-10 flex flex-col gap-3 bg-brand-slate px-4 pb-4 text-sm shadow-lg sm:hidden">
+          {grps.map((groupe) => (
+            <div key={groupe.label}>
+              <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-white/40">
+                {groupe.label}
+              </p>
+              <div className="flex flex-col gap-0.5">
+                {groupe.liens.map((lien) => (
+                  <Link
+                    key={lien.href}
+                    href={lien.href}
+                    onClick={() => setOuvert(false)}
+                    className="block rounded-md px-2 py-2 hover:bg-white/10"
+                  >
+                    {lien.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
+          {role === "ADMIN" && (
+            <div>
+              <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-white/40">
+                Administration
+              </p>
               <Link
-                href={lien.href}
+                href="/admin/parametres/profs"
                 onClick={() => setOuvert(false)}
                 className="block rounded-md px-2 py-2 hover:bg-white/10"
               >
-                {lien.label}
+                Profs
               </Link>
             </div>
-          ))}
-          <div className="mt-2">
+          )}
+          <div className="border-t border-white/10 pt-3">
             {boutonDeconnexion(
               "w-full rounded-md bg-white/10 px-3 py-2 text-left transition hover:bg-white/20"
             )}
