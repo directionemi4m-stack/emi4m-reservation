@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { verifierDisponibilite, formatterHeure } from "@/lib/conflicts";
-import { envoyerMailDemandeValidee, envoyerMailDemandeRefusee } from "@/lib/mail";
+import {
+  envoyerMailDemandeValidee,
+  envoyerMailDemandeRefusee,
+  envoyerMailReservationAnnulee,
+} from "@/lib/mail";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -107,5 +111,47 @@ export async function refuserCreneau(
   }
 
   revalidatePath("/admin/demandes");
+  return { succes: true };
+}
+
+export async function annulerReservationValidee(
+  _etatPrecedent: EtatAction,
+  formData: FormData
+): Promise<EtatAction> {
+  const session = await exigerAdmin();
+  const id = String(formData.get("id"));
+  const motif = String(formData.get("motif") ?? "").trim() || undefined;
+
+  const ligne = await db.demandeCreneau.findUnique({
+    where: { id },
+    include: {
+      demande: { include: { prof: true } },
+      salle: { include: { commune: true } },
+    },
+  });
+
+  if (!ligne || ligne.statut !== "VALIDEE") {
+    return { succes: false, message: "Cette réservation n'est plus validée." };
+  }
+
+  await db.demandeCreneau.update({
+    where: { id },
+    data: {
+      statut: "ANNULEE",
+      motifRefus: motif,
+      traiteeLe: new Date(),
+      traiteeParId: session!.user.id,
+    },
+  });
+
+  try {
+    await envoyerMailReservationAnnulee({ prof: ligne.demande.prof, salle: ligne.salle, ligne, motif });
+  } catch (erreur) {
+    console.error("Échec d'envoi du mail d'annulation :", erreur);
+  }
+
+  revalidatePath("/admin/demandes");
+  revalidatePath("/planning");
+  revalidatePath("/demandes");
   return { succes: true };
 }

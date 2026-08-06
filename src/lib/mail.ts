@@ -176,6 +176,26 @@ export async function envoyerMailDemandeRefusee(params: ParametresDecision) {
   });
 }
 
+export async function envoyerMailReservationAnnulee(params: ParametresDecision) {
+  const { prof, salle, ligne, motif } = params;
+  const transport = creerTransporteur();
+
+  const descriptifCreneau = `${salle.commune.nom} — ${salle.nom}\n${formatterDateFr(ligne.date)} ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}`;
+  const ligneMotif = motif ? `\nMotif : ${motif}` : "";
+
+  await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    subject: `Réservation annulée — ${salle.commune.nom} / ${salle.nom}`,
+    text: `Bonjour ${prof.prenom},\n\nUne réservation déjà validée vient d'être annulée par la direction :\n${descriptifCreneau}${ligneMotif}\n\nDirection EMI4M`,
+    html: htmlDecision({
+      couleur: "#7f8c8d",
+      titre: "Une réservation validée a été annulée",
+      corps: `<p style="margin:0 0 16px;">Bonjour ${prof.prenom},</p><p style="margin:0 0 20px;">Une réservation déjà validée vient d'être annulée par la direction :</p><p style="margin:0 0 12px;font-weight:bold;">${salle.commune.nom} — ${salle.nom}<br>${formatterDateFr(ligne.date)} · ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}</p>${motif ? `<p style="margin:0;color:#7f8c8d;">Motif : ${motif}</p>` : ""}`,
+    }),
+  });
+}
+
 function htmlDecision({ couleur, titre, corps }: { couleur: string; titre: string; corps: string }) {
   return `
 <body style="background:#f4f6f8;padding:32px 0;font-family:Arial,Helvetica,sans-serif;">

@@ -50,7 +50,8 @@ export default async function MesDemandesPage() {
                     {formatterHeure(creneau.heureFin)}
                   </span>
                   <div className="flex items-center gap-3">
-                    {creneau.statut === "REFUSEE" && (creneau.creneauBloquant || creneau.motifRefus) && (
+                    {(creneau.statut === "REFUSEE" || creneau.statut === "ANNULEE") &&
+                      (creneau.creneauBloquant || creneau.motifRefus) && (
                       <span className="text-xs text-slate-400">
                         {creneau.creneauBloquant ?? creneau.motifRefus}
                       </span>

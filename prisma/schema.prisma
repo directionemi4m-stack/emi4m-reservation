@@ -29,6 +29,7 @@ enum StatutCreneau {
   EN_ATTENTE
   VALIDEE
   REFUSEE
+  ANNULEE
 }
 
 // Compte prof/admin. Provisionné par la direction (pas d'auto-inscription).
