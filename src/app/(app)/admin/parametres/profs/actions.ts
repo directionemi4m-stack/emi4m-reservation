@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { envoyerMailBienvenue } from "@/lib/mail";
 
 export type EtatAjoutProf = {
   statut: "idle" | "succes" | "erreur";
@@ -41,10 +43,26 @@ export async function ajouterProf(
     return { statut: "erreur", message: "Un compte existe déjà avec cet email." };
   }
 
-  await db.user.create({ data: { email, prenom, nom, role } });
+  const prof = await db.user.create({ data: { email, prenom, nom, role } });
   revalidatePath("/admin/parametres/profs");
 
-  return { statut: "succes", message: `${prenom} ${nom} a été ajouté·e avec succès.` };
+  try {
+    const enTetes = await headers();
+    const hote = enTetes.get("host");
+    const protocole = hote?.startsWith("localhost") ? "http" : "https";
+    await envoyerMailBienvenue({ prof, urlConnexion: `${protocole}://${hote}/login` });
+  } catch (erreur) {
+    console.error("Échec d'envoi du mail de bienvenue :", erreur);
+    return {
+      statut: "succes",
+      message: `${prenom} ${nom} a été ajouté·e, mais l'envoi du mail de bienvenue a échoué.`,
+    };
+  }
+
+  return {
+    statut: "succes",
+    message: `${prenom} ${nom} a été ajouté·e, un email de bienvenue lui a été envoyé.`,
+  };
 }
 
 export async function basculerActifProf(formData: FormData) {

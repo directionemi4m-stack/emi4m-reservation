@@ -4,8 +4,24 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
 import { envoyerMagicLink } from "@/lib/mail";
 
+const adapterPrisma = PrismaAdapter(db);
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(db),
+  adapter: {
+    ...adapterPrisma,
+    // Un cookie de session peut survivre à une session supprimée côté base
+    // (réinitialisation, changement de compte) ; Auth.js tente quand même
+    // de la supprimer, ce qui ne doit pas faire échouer la connexion.
+    async deleteSession(sessionToken) {
+      try {
+        await adapterPrisma.deleteSession!(sessionToken);
+      } catch (erreur) {
+        if (!erreur || typeof erreur !== "object" || !("code" in erreur) || erreur.code !== "P2025") {
+          throw erreur;
+        }
+      }
+    },
+  },
   session: { strategy: "database" },
   trustHost: true,
   pages: {

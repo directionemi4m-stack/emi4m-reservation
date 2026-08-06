@@ -196,6 +196,57 @@ export async function envoyerMailReservationAnnulee(params: ParametresDecision) 
   });
 }
 
+interface ParametresBienvenue {
+  prof: { nom: string; prenom: string; email: string };
+  urlConnexion: string;
+}
+
+export async function envoyerMailBienvenue(params: ParametresBienvenue) {
+  const { prof, urlConnexion } = params;
+  const transport = creerTransporteur();
+
+  await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    subject: "Votre compte EMI4M Réservation est prêt",
+    text: `Bonjour ${prof.prenom},\n\nLa direction vient de créer votre compte sur l'application de réservation des salles EMI4M. Vous pouvez dès maintenant consulter le planning et déposer vos demandes de réservation.\n\nConnectez-vous avec votre adresse email (${prof.email}) sur ${urlConnexion} : un lien de connexion à usage unique vous sera envoyé.\n\nÀ bientôt,\nDirection EMI4M`,
+    html: htmlBienvenue(params),
+  });
+}
+
+function htmlBienvenue({ prof, urlConnexion }: ParametresBienvenue) {
+  return `
+<body style="background:#f4f6f8;padding:32px 0;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center">
+        <table width="480" border="0" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="background:${COULEUR_SLATE};padding:24px;text-align:center;">
+              <span style="color:#ffffff;font-size:18px;font-weight:bold;">Bienvenue sur EMI4M Réservation</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;color:#2C3E50;">
+              <p style="margin:0 0 16px;">Bonjour ${prof.prenom},</p>
+              <p style="margin:0 0 24px;">La direction vient de créer votre compte sur l'application de réservation des salles EMI4M. Vous pouvez dès maintenant consulter le planning et déposer vos demandes de réservation.</p>
+              <table border="0" cellspacing="0" cellpadding="0" style="margin:0 auto;">
+                <tr>
+                  <td style="border-radius:6px;background:${COULEUR_ACCENT};">
+                    <a href="${urlConnexion}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:bold;">Se connecter</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:24px 0 0;font-size:13px;color:#7f8c8d;">Connectez-vous avec votre adresse : ${prof.email}. Un lien de connexion à usage unique valable 15 minutes vous sera envoyé par email.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>`;
+}
+
 function htmlDecision({ couleur, titre, corps }: { couleur: string; titre: string; corps: string }) {
   return `
 <body style="background:#f4f6f8;padding:32px 0;font-family:Arial,Helvetica,sans-serif;">
