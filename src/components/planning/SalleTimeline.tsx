@@ -76,7 +76,8 @@ export function SalleTimeline({
       <p className="mb-3 text-sm font-semibold text-brand-slate">
         {salle.commune.nom} — {salle.nom}
       </p>
-      <div className="grid grid-cols-7 gap-2">
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
+      <div className="grid grid-cols-7 gap-2" style={{ minWidth: "560px" }}>
         {jours.map((jour) => {
           const jourEnum = JOUR_ENUM_PAR_INDEX[jour.getUTCDay()];
           const blocs: Bloc[] = [
@@ -123,7 +124,7 @@ export function SalleTimeline({
                       key={i}
                       title={`${b.label} · ${formatterHeure(b.heureDebut)}–${formatterHeure(b.heureFin)}`}
                       className={
-                        "absolute inset-x-0.5 overflow-hidden rounded px-1 text-[9px] leading-tight text-white " +
+                        "absolute inset-x-0.5 overflow-hidden rounded px-1 text-[10px] leading-tight text-white " +
                         (b.variante === "recurrent" ? "bg-brand-slate" : "bg-status-occupee")
                       }
                       style={{ top: `${top}%`, height: `${Math.max(hauteur, 4)}%` }}
@@ -136,6 +137,7 @@ export function SalleTimeline({
             </div>
           );
         })}
+      </div>
       </div>
       <div className="mt-2 flex justify-between text-[10px] text-slate-400">
         <span>{heureMinAxe}h</span>

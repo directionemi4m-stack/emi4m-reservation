@@ -11,8 +11,8 @@ export default async function AdminProfsPage() {
 
       <AjouterProfForm />
 
-      <div className="overflow-hidden rounded-lg bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-lg bg-white shadow-sm">
+        <table className="w-full min-w-[560px] text-left text-sm">
           <thead className="bg-slate-100 text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Nom</th>
