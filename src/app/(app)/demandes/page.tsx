@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { StatutBadge } from "@/components/demandes/StatutBadge";
+import { SupprimerLigneAdmin } from "@/components/demandes/SupprimerLigneAdmin";
 
 function formatterDate(date: Date) {
   return date.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
@@ -13,6 +14,8 @@ function formatterHeure(date: Date) {
 
 export default async function MesDemandesPage() {
   const session = await auth();
+
+  const estAdmin = session!.user.role === "ADMIN";
 
   const demandes = await db.demande.findMany({
     where: { profId: session!.user.id },
@@ -57,6 +60,7 @@ export default async function MesDemandesPage() {
                       </span>
                     )}
                     <StatutBadge statut={creneau.statut} />
+                    {estAdmin && <SupprimerLigneAdmin id={creneau.id} />}
                   </div>
                 </li>
               ))}
