@@ -1,33 +1,7 @@
 import { createTransport } from "nodemailer";
-import type { NodemailerConfig } from "next-auth/providers/nodemailer";
-
-type ParametresEnvoiVerification = Parameters<NodemailerConfig["sendVerificationRequest"]>[0];
 
 const COULEUR_SLATE = "#2C3E50";
 const COULEUR_ACCENT = "#2980B9";
-
-export async function envoyerMagicLink(params: ParametresEnvoiVerification) {
-  const { identifier: email, url, provider } = params;
-  const { host } = new URL(url);
-  const transport = createTransport(provider.server);
-
-  const resultat = await transport.sendMail({
-    to: email,
-    from: provider.from,
-    subject: "Connexion à EMI4M Réservation de salles",
-    text: texteConnexion({ url, host }),
-    html: htmlConnexion({ url, host }),
-  });
-
-  const echecs = resultat.rejected.filter(Boolean);
-  if (echecs.length > 0) {
-    throw new Error(`Envoi du lien de connexion impossible (${echecs.join(", ")})`);
-  }
-}
-
-function texteConnexion({ url, host }: { url: string; host: string }) {
-  return `Connexion à EMI4M Réservation de salles (${host})\n\nCliquez sur ce lien pour vous connecter :\n${url}\n\nCe lien est valable 30 minutes et ne peut être utilisé qu'une seule fois. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`;
-}
 
 const EMAIL_DIRECTION = process.env.EMAIL_DIRECTION || "direction.emi4m@gmail.com";
 
@@ -198,23 +172,61 @@ export async function envoyerMailReservationAnnulee(params: ParametresDecision) 
 
 interface ParametresBienvenue {
   prof: { nom: string; prenom: string; email: string };
-  urlConnexion: string;
+  urlDefinirMotDePasse: string;
 }
 
 export async function envoyerMailBienvenue(params: ParametresBienvenue) {
-  const { prof, urlConnexion } = params;
+  const { prof, urlDefinirMotDePasse } = params;
   const transport = creerTransporteur();
 
   await transport.sendMail({
     to: prof.email,
     from: process.env.EMAIL_FROM,
     subject: "Votre compte EMI4M Réservation est prêt",
-    text: `Bonjour ${prof.prenom},\n\nLa direction vient de créer votre compte sur l'application de réservation des salles EMI4M. Vous pouvez dès maintenant consulter le planning et déposer vos demandes de réservation.\n\nConnectez-vous avec votre adresse email (${prof.email}) sur ${urlConnexion} : un lien de connexion à usage unique vous sera envoyé.\n\nÀ bientôt,\nDirection EMI4M`,
-    html: htmlBienvenue(params),
+    text: `Bonjour ${prof.prenom},\n\nLa direction vient de créer votre compte sur l'application de réservation des salles EMI4M (identifiant : ${prof.email}). Définissez votre mot de passe pour activer votre compte :\n${urlDefinirMotDePasse}\n\nCe lien est valable 24h et à usage unique.\n\nÀ bientôt,\nDirection EMI4M`,
+    html: htmlLienMotDePasse({
+      titre: "Bienvenue sur EMI4M Réservation",
+      intro: `La direction vient de créer votre compte sur l'application de réservation des salles EMI4M (identifiant : ${prof.email}). Cliquez ci-dessous pour définir votre mot de passe et activer votre compte.`,
+      url: urlDefinirMotDePasse,
+      libelleBouton: "Définir mon mot de passe",
+    }),
   });
 }
 
-function htmlBienvenue({ prof, urlConnexion }: ParametresBienvenue) {
+interface ParametresReinitialisation {
+  prof: { prenom: string; email: string };
+  urlDefinirMotDePasse: string;
+}
+
+export async function envoyerMailReinitialisationMotDePasse(params: ParametresReinitialisation) {
+  const { prof, urlDefinirMotDePasse } = params;
+  const transport = creerTransporteur();
+
+  await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    subject: "Réinitialisation de votre mot de passe EMI4M",
+    text: `Bonjour ${prof.prenom},\n\nVoici votre lien pour définir un nouveau mot de passe :\n${urlDefinirMotDePasse}\n\nCe lien est valable 24h et à usage unique. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\nDirection EMI4M`,
+    html: htmlLienMotDePasse({
+      titre: "Réinitialisation de mot de passe",
+      intro: `Bonjour ${prof.prenom}, cliquez ci-dessous pour définir un nouveau mot de passe. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`,
+      url: urlDefinirMotDePasse,
+      libelleBouton: "Définir mon mot de passe",
+    }),
+  });
+}
+
+function htmlLienMotDePasse({
+  titre,
+  intro,
+  url,
+  libelleBouton,
+}: {
+  titre: string;
+  intro: string;
+  url: string;
+  libelleBouton: string;
+}) {
   return `
 <body style="background:#f4f6f8;padding:32px 0;font-family:Arial,Helvetica,sans-serif;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0">
@@ -223,21 +235,20 @@ function htmlBienvenue({ prof, urlConnexion }: ParametresBienvenue) {
         <table width="480" border="0" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
           <tr>
             <td style="background:${COULEUR_SLATE};padding:24px;text-align:center;">
-              <span style="color:#ffffff;font-size:18px;font-weight:bold;">Bienvenue sur EMI4M Réservation</span>
+              <span style="color:#ffffff;font-size:18px;font-weight:bold;">${titre}</span>
             </td>
           </tr>
           <tr>
             <td style="padding:32px;color:#2C3E50;">
-              <p style="margin:0 0 16px;">Bonjour ${prof.prenom},</p>
-              <p style="margin:0 0 24px;">La direction vient de créer votre compte sur l'application de réservation des salles EMI4M. Vous pouvez dès maintenant consulter le planning et déposer vos demandes de réservation.</p>
+              <p style="margin:0 0 24px;">${intro}</p>
               <table border="0" cellspacing="0" cellpadding="0" style="margin:0 auto;">
                 <tr>
                   <td style="border-radius:6px;background:${COULEUR_ACCENT};">
-                    <a href="${urlConnexion}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:bold;">Se connecter</a>
+                    <a href="${url}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:bold;">${libelleBouton}</a>
                   </td>
                 </tr>
               </table>
-              <p style="margin:24px 0 0;font-size:13px;color:#7f8c8d;">Connectez-vous avec votre adresse : ${prof.email}. Un lien de connexion à usage unique valable 30 minutes vous sera envoyé par email.</p>
+              <p style="margin:24px 0 0;font-size:13px;color:#7f8c8d;">Ce lien est valable 24h et à usage unique.</p>
             </td>
           </tr>
         </table>
@@ -294,39 +305,6 @@ function htmlDecision({ couleur, titre, corps }: { couleur: string; titre: strin
           </tr>
           <tr>
             <td style="padding:32px;color:#2C3E50;">${corps}</td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>`;
-}
-
-function htmlConnexion({ url, host }: { url: string; host: string }) {
-  return `
-<body style="background:#f4f6f8;padding:32px 0;font-family:Arial,Helvetica,sans-serif;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0">
-    <tr>
-      <td align="center">
-        <table width="480" border="0" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
-          <tr>
-            <td style="background:${COULEUR_SLATE};padding:24px;text-align:center;">
-              <span style="color:#ffffff;font-size:18px;font-weight:bold;">EMI4M — Réservation de salles</span>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:32px;color:#2C3E50;">
-              <p style="margin:0 0 16px;">Bonjour,</p>
-              <p style="margin:0 0 24px;">Cliquez sur le bouton ci-dessous pour vous connecter à l'application de réservation des salles EMI4M (${host}).</p>
-              <table border="0" cellspacing="0" cellpadding="0" style="margin:0 auto;">
-                <tr>
-                  <td style="border-radius:6px;background:${COULEUR_ACCENT};">
-                    <a href="${url}" target="_blank" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:bold;">Se connecter</a>
-                  </td>
-                </tr>
-              </table>
-              <p style="margin:24px 0 0;font-size:13px;color:#7f8c8d;">Ce lien est valable 30 minutes et à usage unique. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.</p>
-            </td>
           </tr>
         </table>
       </td>

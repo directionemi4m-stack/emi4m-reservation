@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { envoyerMailBienvenue } from "@/lib/mail";
+import { genererTokenMotDePasse } from "@/lib/tokensMotDePasse";
+import { urlBase } from "@/lib/url";
 
 export type EtatAjoutProf = {
   statut: "idle" | "succes" | "erreur";
@@ -47,10 +48,9 @@ export async function ajouterProf(
   revalidatePath("/admin/parametres/profs");
 
   try {
-    const enTetes = await headers();
-    const hote = enTetes.get("host");
-    const protocole = hote?.startsWith("localhost") ? "http" : "https";
-    await envoyerMailBienvenue({ prof, urlConnexion: `${protocole}://${hote}/login` });
+    const token = await genererTokenMotDePasse(prof.id);
+    const urlDefinirMotDePasse = `${await urlBase()}/definir-mot-de-passe?token=${token}`;
+    await envoyerMailBienvenue({ prof, urlDefinirMotDePasse });
   } catch (erreur) {
     console.error("Échec d'envoi du mail de bienvenue :", erreur);
     return {

@@ -1,35 +1,38 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState } from "react";
-import { connecter, type EtatConnexion } from "@/app/(auth)/login/actions";
+import {
+  definirMotDePasse,
+  type EtatDefinitionMotDePasse,
+} from "@/app/(auth)/definir-mot-de-passe/actions";
 
-export function LoginForm({ erreurInitiale }: { erreurInitiale?: string | null }) {
-  const etatInitial: EtatConnexion = erreurInitiale
-    ? { statut: "erreur", message: erreurInitiale }
-    : { statut: "idle" };
-  const [etat, action, enCours] = useActionState(connecter, etatInitial);
+const ETAT_INITIAL: EtatDefinitionMotDePasse = { statut: "idle" };
+
+export function DefinirMotDePasseForm({ token }: { token: string }) {
+  const [etat, action, enCours] = useActionState(definirMotDePasse, ETAT_INITIAL);
 
   return (
     <form action={action} className="flex flex-col gap-4">
+      <input type="hidden" name="token" value={token} />
       <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-        Adresse email
-        <input
-          type="email"
-          name="email"
-          required
-          autoComplete="email"
-          placeholder="prenom.nom@exemple.fr"
-          className="rounded-md border border-slate-300 px-3 py-2 text-base focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-        Mot de passe
+        Nouveau mot de passe
         <input
           type="password"
           name="password"
           required
-          autoComplete="current-password"
+          minLength={8}
+          autoComplete="new-password"
+          className="rounded-md border border-slate-300 px-3 py-2 text-base focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+        Confirmez le mot de passe
+        <input
+          type="password"
+          name="confirmation"
+          required
+          minLength={8}
+          autoComplete="new-password"
           className="rounded-md border border-slate-300 px-3 py-2 text-base focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
         />
       </label>
@@ -39,11 +42,8 @@ export function LoginForm({ erreurInitiale }: { erreurInitiale?: string | null }
         disabled={enCours}
         className="rounded-md bg-brand-accent px-4 py-2 font-semibold text-white transition hover:bg-brand-accent/90 disabled:opacity-60"
       >
-        {enCours ? "Connexion…" : "Se connecter"}
+        {enCours ? "Enregistrement…" : "Valider"}
       </button>
-      <Link href="/mot-de-passe-oublie" className="text-center text-sm text-brand-accent hover:underline">
-        Mot de passe oublié ?
-      </Link>
     </form>
   );
 }

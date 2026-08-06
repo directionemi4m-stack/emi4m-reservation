@@ -3,10 +3,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 
 function messageErreur(code?: string): string | null {
   if (!code) return null;
-  if (code === "Verification") {
-    return "Ce lien de connexion n'est plus valide : il a déjà été utilisé ou a expiré. Redemandez-en un ci-dessous.";
-  }
-  return "La connexion a échoué. Redemandez un lien ci-dessous.";
+  return "La connexion a échoué. Réessayez.";
 }
 
 export default async function LoginPage({

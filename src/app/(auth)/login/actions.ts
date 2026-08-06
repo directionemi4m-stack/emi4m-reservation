@@ -1,37 +1,33 @@
 "use server";
 
-import { redirect } from "next/navigation";
-import { db } from "@/lib/db";
+import { AuthError } from "next-auth";
 import { signIn } from "@/lib/auth";
 
-export type EtatDemandeLien = {
+export type EtatConnexion = {
   statut: "idle" | "erreur";
   message?: string;
 };
 
-export async function demanderLien(
-  _etatPrecedent: EtatDemandeLien,
+export async function connecter(
+  _etatPrecedent: EtatConnexion,
   formData: FormData
-): Promise<EtatDemandeLien> {
+): Promise<EtatConnexion> {
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
+  const motDePasse = String(formData.get("password") ?? "");
 
-  if (!email || !email.includes("@")) {
-    return { statut: "erreur", message: "Adresse email invalide." };
+  if (!email || !motDePasse) {
+    return { statut: "erreur", message: "Merci de renseigner votre email et votre mot de passe." };
   }
 
   try {
-    const compte = await db.user.findUnique({ where: { email } });
-
-    // On ne déclenche l'envoi que si le compte existe et est actif, mais on
-    // redirige dans tous les cas pour ne pas révéler qui a un compte.
-    if (compte?.actif) {
-      await signIn("nodemailer", { email, redirect: false });
-    }
+    await signIn("credentials", { email, password: motDePasse, redirectTo: "/" });
+    return { statut: "idle" };
   } catch (erreur) {
-    console.error("Échec d'envoi du lien de connexion :", erreur);
+    if (erreur instanceof AuthError) {
+      return { statut: "erreur", message: "Email ou mot de passe incorrect." };
+    }
+    throw erreur;
   }
-
-  redirect("/verify");
 }

@@ -44,19 +44,18 @@ enum StatutPresence {
 }
 
 // Compte prof/admin. Provisionné par la direction (pas d'auto-inscription).
-// Sert aussi de modèle "User" pour Auth.js (magic-link).
+// Connexion par email + mot de passe (défini via un lien envoyé par email).
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified DateTime?
-  nom           String
-  prenom        String
-  role          Role      @default(PROF)
-  actif         Boolean   @default(true)
-  creeLe        DateTime  @default(now())
+  id              String    @id @default(cuid())
+  email           String    @unique
+  motDePasseHash  String?
+  nom             String
+  prenom          String
+  role            Role      @default(PROF)
+  actif           Boolean   @default(true)
+  creeLe          DateTime  @default(now())
 
-  accounts Account[]
-  sessions Session[]
+  tokensMotDePasse TokenMotDePasse[]
 
   creneauxRecurrents CreneauRecurrent[]
   demandes           Demande[]          @relation("DemandeAuteur")
@@ -64,6 +63,17 @@ model User {
 
   classes   Classe[]   @relation("ClasseProf")
   pointages Pointage[] @relation("PointageProf")
+}
+
+// Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
+// passe. Le token stocké est haché (sha256) ; le brut ne vit que dans l'email.
+model TokenMotDePasse {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token  String   @unique
+  expire DateTime
+  creeLe DateTime @default(now())
 }
 
 model Commune {
@@ -230,40 +240,3 @@ model PresenceMarque {
   @@unique([pointageId, eleveId])
 }
 
-// --- Modèles requis par l'adapter Prisma d'Auth.js ---
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}

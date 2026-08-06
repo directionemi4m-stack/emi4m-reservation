@@ -1,64 +1,54 @@
 import NextAuth from "next-auth";
-import Nodemailer from "next-auth/providers/nodemailer";
-import { PrismaAdapter } from "@auth/prisma-adapter";
+import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import { envoyerMagicLink } from "@/lib/mail";
-
-const adapterPrisma = PrismaAdapter(db);
+import type { Role } from "@/generated/prisma/client";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: {
-    ...adapterPrisma,
-    // Un cookie de session peut survivre à une session supprimée côté base
-    // (réinitialisation, changement de compte) ; Auth.js tente quand même
-    // de la supprimer, ce qui ne doit pas faire échouer la connexion.
-    async deleteSession(sessionToken) {
-      try {
-        await adapterPrisma.deleteSession!(sessionToken);
-      } catch (erreur) {
-        if (!erreur || typeof erreur !== "object" || !("code" in erreur) || erreur.code !== "P2025") {
-          throw erreur;
-        }
-      }
-    },
-  },
-  session: { strategy: "database" },
+  session: { strategy: "jwt" },
   trustHost: true,
   pages: {
     signIn: "/login",
-    verifyRequest: "/verify",
-    // Sans ceci, un lien expiré/déjà utilisé atterrit sur la page d'erreur
-    // générique d'Auth.js (/api/auth/error), hors de notre charte et sans
-    // explication claire — on ramène plutôt vers /login avec un message.
     error: "/login",
   },
   providers: [
-    Nodemailer({
-      server: {
-        host: process.env.EMAIL_SERVER_HOST,
-        port: Number(process.env.EMAIL_SERVER_PORT ?? 587),
-        auth: {
-          user: process.env.EMAIL_SERVER_USER,
-          pass: process.env.EMAIL_SERVER_PASSWORD,
-        },
+    Credentials({
+      credentials: {
+        email: { label: "Email" },
+        password: { label: "Mot de passe", type: "password" },
       },
-      from: process.env.EMAIL_FROM,
-      maxAge: 30 * 60, // lien valable 30 minutes
-      sendVerificationRequest: envoyerMagicLink,
+      async authorize(credentials) {
+        const email = typeof credentials?.email === "string" ? credentials.email.trim().toLowerCase() : null;
+        const motDePasse = typeof credentials?.password === "string" ? credentials.password : null;
+        if (!email || !motDePasse) return null;
+
+        const compte = await db.user.findUnique({ where: { email } });
+        if (!compte || !compte.actif || !compte.motDePasseHash) return null;
+
+        const valide = await bcrypt.compare(motDePasse, compte.motDePasseHash);
+        if (!valide) return null;
+
+        return {
+          id: compte.id,
+          email: compte.email,
+          name: `${compte.prenom} ${compte.nom}`,
+          role: compte.role,
+        };
+      },
     }),
   ],
   callbacks: {
-    // Défense en profondeur : même si un compte existe déjà, on bloque
-    // la connexion si la direction l'a désactivé entre-temps.
-    async signIn({ user }) {
-      if (!user?.id) return false;
-      const compte = await db.user.findUnique({ where: { id: user.id } });
-      return !!compte?.actif;
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id as string;
+        token.role = (user as { role: Role }).role;
+      }
+      return token;
     },
-    async session({ session, user }) {
+    async session({ session, token }) {
       if (session.user) {
-        session.user.id = user.id;
-        session.user.role = user.role;
+        session.user.id = token.id as string;
+        session.user.role = token.role as Role;
       }
       return session;
     },

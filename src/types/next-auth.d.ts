@@ -10,9 +10,9 @@ declare module "next-auth" {
   }
 }
 
-declare module "@auth/core/adapters" {
-  interface AdapterUser {
-    role: Role;
-    actif: boolean;
+declare module "next-auth/jwt" {
+  interface JWT {
+    id?: string;
+    role?: Role;
   }
 }
