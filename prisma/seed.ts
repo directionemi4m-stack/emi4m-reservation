@@ -79,6 +79,25 @@ const DISCIPLINES: Array<{ nom: string; type: "INSTRUMENT" | "FM" }> = [
   { nom: "FM", type: "FM" },
 ];
 
+// Barème kilométrique existant (fichier comptage_kilometre_type.xlsx, onglet
+// « type de trajet ») — km et prix repris tels quels, pas recalculés.
+const TYPES_TRAJET: Array<{ nom: string; km: number; prix: number }> = [
+  { nom: "Villard/Autrans", km: 36, prix: 6.4 },
+  { nom: "Villard/Lans en Vercors", km: 18, prix: 3.6 },
+  { nom: "Villard/Méaudre", km: 20, prix: 4.2 },
+  { nom: "Villard/Saint Nizier", km: 36, prix: 7.2 },
+  { nom: "Villard/Engins", km: 31, prix: 6.4 },
+  { nom: "Villard/Grenoble", km: 76, prix: 15.2 },
+  { nom: "Autrans/Méaudre", km: 14, prix: 2.8 },
+  { nom: "Autrans/Lans en Vercors", km: 21, prix: 4.2 },
+  { nom: "Autrans/Saint Nizier", km: 39, prix: 8.4 },
+  { nom: "Méaudre/Lans en Vercors", km: 24, prix: 6.0 },
+  { nom: "Méaudre/Saint Nizier", km: 42, prix: 8.4 },
+  { nom: "Lans en Vercors/Saint Nizier", km: 18, prix: 3.6 },
+  { nom: "Lans en Vercors/Grenoble", km: 60, prix: 13.6 },
+  { nom: "Saint Nizier/Grenoble", km: 38, prix: 7.2 },
+];
+
 async function main() {
   for (const { nom, slug, salles } of COMMUNES) {
     const commune = await db.commune.upsert({
@@ -112,6 +131,11 @@ async function main() {
     await db.discipline.upsert({ where: { nom }, update: { type }, create: { nom, type } });
   }
   console.log(`Présences : ${DISCIPLINES.length} discipline(s)`);
+
+  for (const { nom, km, prix } of TYPES_TRAJET) {
+    await db.typeTrajet.upsert({ where: { nom }, update: { km, prix }, create: { nom, km, prix } });
+  }
+  console.log(`Frais : ${TYPES_TRAJET.length} type(s) de trajet`);
 
   // Premier compte admin, pour pouvoir se connecter et provisionner les
   // profs ensuite depuis l'interface d'administration.

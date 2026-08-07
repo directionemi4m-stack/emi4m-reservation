@@ -69,6 +69,7 @@ model User {
   classes      Classe[]      @relation("ClasseProf")
   pointages    Pointage[]    @relation("PointageProf")
   absencesProf AbsenceProf[] @relation("AbsenceProf")
+  trajets      Trajet[]      @relation("TrajetProf")
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -285,5 +286,37 @@ model PresenceMarque {
   statut     StatutPresence @default(PRESENT)
 
   @@unique([pointageId, eleveId])
+}
+
+// --- Frais de déplacement ---
+
+// Trajet type de référence (ex. « Villard/Autrans »), géré par l'admin — km et
+// prix fixes, saisis une fois (barème kilométrique), pas recalculés à la volée.
+model TypeTrajet {
+  id      String   @id @default(cuid())
+  nom     String   @unique
+  km      Float
+  prix    Float
+  actif   Boolean  @default(true)
+  trajets Trajet[]
+}
+
+// Un trajet loggé par un prof. km/prix/nom sont une copie de TypeTrajet au
+// moment de la saisie : un trajet déjà enregistré ne doit pas bouger si le
+// barème change plus tard.
+model Trajet {
+  id           String     @id @default(cuid())
+  profId       String
+  prof         User       @relation("TrajetProf", fields: [profId], references: [id])
+  date         DateTime   @db.Date
+  mission      String
+  typeTrajetId String
+  typeTrajet   TypeTrajet @relation(fields: [typeTrajetId], references: [id])
+  trajetNom    String
+  km           Float
+  prix         Float
+  creeLe       DateTime   @default(now())
+
+  @@index([profId, date])
 }
 

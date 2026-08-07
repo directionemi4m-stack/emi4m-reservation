@@ -28,9 +28,16 @@ function creerClientSheets() {
 }
 
 // Les titres d'onglet Google Sheets interdisent []*?/\: et sont limités à 100 caractères.
+function sanitiserNomOnglet(brut: string, secours: string) {
+  return brut.replace(/[[\]*?/\\:]/g, " ").trim().slice(0, 100) || secours;
+}
+
 function nomOnglet(classe: { emoji: string; nom: string }) {
-  const brut = `${classe.emoji} ${classe.nom}`.replace(/[[\]*?/\\:]/g, " ").trim();
-  return brut.slice(0, 100) || "Cours";
+  return sanitiserNomOnglet(`${classe.emoji} ${classe.nom}`, "Cours");
+}
+
+function nomOngletProf(prof: { prenom: string; nom: string }) {
+  return sanitiserNomOnglet(`${prof.prenom} ${prof.nom}`, "Prof");
 }
 
 async function idOngletExistant(sheets: ReturnType<typeof google.sheets>, idFeuille: string, titre: string) {
@@ -206,5 +213,41 @@ export async function synchroniserAbsencesProf() {
     range: `'${TITRE_ONGLET_ABSENCES}'!A1`,
     valueInputOption: "RAW",
     requestBody: { values: [entete, ...lignes] },
+  });
+}
+
+// Un onglet par prof, réécrit en entier — mêmes colonnes que le fichier Excel
+// existant (date, mission, trajet, km, €), avec un total en bas de tableau.
+export async function synchroniserFraisProf(profId: string) {
+  const client = creerClientSheets();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+
+  const prof = await db.user.findUnique({
+    where: { id: profId },
+    include: { trajets: { orderBy: { date: "asc" } } },
+  });
+  if (!prof) return;
+
+  const titre = nomOngletProf(prof);
+  const idOnglet = await idOngletExistant(sheets, idFeuille, titre);
+  if (idOnglet === null) {
+    await creerOnglet(sheets, idFeuille, titre);
+  }
+
+  const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  const entete = ["Date", "Mission", "Trajet", "Km", "€"];
+  const lignes = prof.trajets.map((t) => [formatDate(t.date), t.mission, t.trajetNom, t.km, t.prix]);
+  const totalKm = prof.trajets.reduce((s, t) => s + t.km, 0);
+  const totalPrix = prof.trajets.reduce((s, t) => s + t.prix, 0);
+  const ligneTotal = ["", "", "Total", totalKm, Math.round(totalPrix * 100) / 100];
+
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titre}'!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [entete, ...lignes, ligneTotal] },
   });
 }
