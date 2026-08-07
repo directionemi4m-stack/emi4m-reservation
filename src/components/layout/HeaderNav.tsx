@@ -45,7 +45,10 @@ function groupes(role: "PROF" | "ADMIN"): Groupe[] {
         { href: "/frais", label: "Mes frais" },
         { href: "/frais/identite", label: "Ma fiche identité" },
         ...(role === "ADMIN"
-          ? [{ href: "/admin/parametres/trajets", label: "Types de trajet" }]
+          ? [
+              { href: "/admin/parametres/trajets", label: "Types de trajet" },
+              { href: "/admin/parametres/google-drive", label: "Connexion Google Drive" },
+            ]
           : []),
       ],
     },

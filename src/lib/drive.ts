@@ -3,17 +3,23 @@ import { Readable } from "stream";
 import { db } from "@/lib/db";
 import type { TypeDocument } from "@/generated/prisma/client";
 
-function creerClientDrive() {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const cle = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+// Un compte de service n'a pas de quota de stockage Drive : il peut modifier des
+// fichiers existants (d'où la sync Sheets qui fonctionne) mais pas y déposer de
+// nouveaux fichiers binaires. On utilise donc ici un vrai compte Google, connecté
+// une fois via OAuth par un admin (cf. /admin/parametres/google-drive), dont le
+// jeton de rafraîchissement est stocké en base.
+async function creerClientDrive() {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   const dossierParentId = process.env.GOOGLE_DRIVE_DOCUMENTS_FOLDER_ID;
-  if (!email || !cle || !dossierParentId) return null;
+  if (!clientId || !clientSecret || !dossierParentId) return null;
 
-  const auth = new google.auth.JWT({
-    email,
-    key: cle.replace(/\\n/g, "\n"),
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
+  const config = await db.configGoogle.findUnique({ where: { id: "singleton" } });
+  if (!config) return null;
+
+  const auth = new google.auth.OAuth2(clientId, clientSecret);
+  auth.setCredentials({ refresh_token: config.refreshToken });
+
   return { drive: google.drive({ version: "v3", auth }), dossierParentId };
 }
 
@@ -53,7 +59,7 @@ export async function televerserDocumentProf(
   mimeType: string,
   extension: string
 ) {
-  const client = creerClientDrive();
+  const client = await creerClientDrive();
   if (!client) return null;
   const { drive, dossierParentId } = client;
 
@@ -99,7 +105,7 @@ export async function supprimerDocumentProf(profId: string, type: TypeDocument) 
   const document = await db.documentProf.findUnique({ where: { profId_type: { profId, type } } });
   if (!document) return;
 
-  const client = creerClientDrive();
+  const client = await creerClientDrive();
   if (client) {
     try {
       await client.drive.files.delete({ fileId: document.driveFileId });

@@ -368,3 +368,12 @@ model DocumentProf {
   @@unique([profId, type])
 }
 
+// Jeton OAuth d'un vrai compte Google (pas le compte de service — celui-ci n'a pas
+// de quota de stockage Drive et ne peut donc pas y déposer de fichiers). Ligne unique.
+model ConfigGoogle {
+  id           String   @id @default("singleton")
+  refreshToken String
+  compteEmail  String?
+  majLe        DateTime @updatedAt
+}
+
