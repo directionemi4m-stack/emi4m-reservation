@@ -72,7 +72,15 @@ export function PlanningFiltres({
         >
           ←
         </button>
-        <span className="text-sm font-medium text-slate-700">Semaine du {libelleSemaine}</span>
+        <label className="flex items-center gap-2">
+          <input
+            type="date"
+            value={semaine}
+            onChange={(e) => e.target.value && naviguer({ semaine: e.target.value })}
+            className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+          />
+          <span className="text-sm text-slate-500">Semaine du {libelleSemaine}</span>
+        </label>
         <button
           type="button"
           onClick={() => naviguer({ semaine: ajouterJoursISO(semaine, 7) })}
