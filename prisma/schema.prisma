@@ -55,6 +55,11 @@ enum TypeMission {
   AUTRE
 }
 
+enum TypeDocument {
+  PERMIS_CONDUIRE
+  CARTE_IDENTITE
+}
+
 // Compte prof/admin. Provisionné par la direction (pas d'auto-inscription).
 // Connexion par email + mot de passe (défini via un lien envoyé par email).
 model User {
@@ -78,6 +83,7 @@ model User {
   absencesProf AbsenceProf[] @relation("AbsenceProf")
   trajets      Trajet[]      @relation("TrajetProf")
   identite     IdentiteProf?
+  documents    DocumentProf[]
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -343,5 +349,22 @@ model IdentiteProf {
   marqueModeleVehicule    String?
   puissanceFiscale        String?
   majLe                   DateTime @updatedAt
+}
+
+// Copie d'une pièce justificative (permis, carte d'identité) — le fichier lui-même
+// vit uniquement dans Google Drive (dossier personnel du prof) ; ici on ne garde
+// que la référence. Un envoi remplace le précédent (un seul document par type et par prof).
+model DocumentProf {
+  id          String       @id @default(cuid())
+  profId      String
+  prof        User         @relation(fields: [profId], references: [id], onDelete: Cascade)
+  type        TypeDocument
+  nomFichier  String
+  driveFileId String
+  driveUrl    String
+  creeLe      DateTime     @default(now())
+  majLe       DateTime     @updatedAt
+
+  @@unique([profId, type])
 }
 

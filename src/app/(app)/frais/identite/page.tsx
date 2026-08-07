@@ -2,13 +2,18 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { FicheIdentiteForm } from "@/components/frais/FicheIdentiteForm";
+import { DocumentUploadForm } from "@/components/frais/DocumentUploadForm";
+import type { TypeDocument } from "@/generated/prisma/client";
 
 export default async function FicheIdentitePage() {
   const session = await auth();
 
-  const identite = await db.identiteProf.findUnique({
-    where: { profId: session!.user.id },
-  });
+  const [identite, documents] = await Promise.all([
+    db.identiteProf.findUnique({ where: { profId: session!.user.id } }),
+    db.documentProf.findMany({ where: { profId: session!.user.id } }),
+  ]);
+
+  const documentParType = (type: TypeDocument) => documents.find((d) => d.type === type) ?? null;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -24,6 +29,20 @@ export default async function FicheIdentitePage() {
       </div>
 
       <FicheIdentiteForm identite={identite} />
+
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-brand-slate">Pièces justificatives</h2>
+        <DocumentUploadForm
+          type="PERMIS_CONDUIRE"
+          label="Copie du permis de conduire"
+          document={documentParType("PERMIS_CONDUIRE")}
+        />
+        <DocumentUploadForm
+          type="CARTE_IDENTITE"
+          label="Copie de la carte d'identité"
+          document={documentParType("CARTE_IDENTITE")}
+        />
+      </div>
     </div>
   );
 }

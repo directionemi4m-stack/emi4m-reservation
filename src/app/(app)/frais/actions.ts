@@ -4,11 +4,20 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { synchroniserFraisProf } from "@/lib/sheets";
-import type { TypeMission } from "@/generated/prisma/client";
+import { televerserDocumentProf, supprimerDocumentProf } from "@/lib/drive";
+import type { TypeMission, TypeDocument } from "@/generated/prisma/client";
 
 export type EtatAction = { succes: boolean; message?: string };
 
 const TYPES_MISSION: TypeMission[] = ["COURS", "CONCERT", "REUNION", "AUTRE"];
+const TYPES_DOCUMENT: TypeDocument[] = ["PERMIS_CONDUIRE", "CARTE_IDENTITE"];
+const TYPES_MIME_AUTORISES: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "application/pdf": ".pdf",
+};
+const TAILLE_MAX_OCTETS = 10 * 1024 * 1024;
 
 export async function ajouterTrajet(
   _etatPrecedent: EtatAction,
@@ -119,4 +128,55 @@ export async function enregistrerIdentite(
   }
 
   return { succes: true, message: "Fiche identité enregistrée." };
+}
+
+export async function televerserDocument(
+  _etatPrecedent: EtatAction,
+  formData: FormData
+): Promise<EtatAction> {
+  const session = await auth();
+  if (!session?.user) return { succes: false, message: "Non connecté." };
+
+  const type = String(formData.get("type") ?? "") as TypeDocument;
+  if (!TYPES_DOCUMENT.includes(type)) {
+    return { succes: false, message: "Type de document invalide." };
+  }
+
+  const fichier = formData.get("fichier");
+  if (!(fichier instanceof File) || fichier.size === 0) {
+    return { succes: false, message: "Merci de choisir un fichier." };
+  }
+  const extension = TYPES_MIME_AUTORISES[fichier.type];
+  if (!extension) {
+    return { succes: false, message: "Format non accepté (photo ou PDF uniquement)." };
+  }
+  if (fichier.size > TAILLE_MAX_OCTETS) {
+    return { succes: false, message: "Fichier trop volumineux (10 Mo max)." };
+  }
+
+  const buffer = Buffer.from(await fichier.arrayBuffer());
+  const document = await televerserDocumentProf(session.user.id, type, buffer, fichier.type, extension);
+  if (!document) {
+    return { succes: false, message: "Synchronisation Google Drive indisponible." };
+  }
+
+  revalidatePath("/frais/identite");
+  return { succes: true, message: "Document envoyé." };
+}
+
+export async function supprimerDocument(
+  _etatPrecedent: EtatAction,
+  formData: FormData
+): Promise<EtatAction> {
+  const session = await auth();
+  if (!session?.user) return { succes: false, message: "Non connecté." };
+
+  const type = String(formData.get("type") ?? "") as TypeDocument;
+  if (!TYPES_DOCUMENT.includes(type)) {
+    return { succes: false, message: "Type de document invalide." };
+  }
+
+  await supprimerDocumentProf(session.user.id, type);
+  revalidatePath("/frais/identite");
+  return { succes: true };
 }
