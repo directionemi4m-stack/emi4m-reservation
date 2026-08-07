@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { db } from "@/lib/db";
 import type { StatutPresence, TypeAbsenceProf } from "@/generated/prisma/client";
+import { libelleMission } from "@/lib/mission";
 
 const LIBELLES_STATUT: Record<StatutPresence, string> = {
   PRESENT: "Présent",
@@ -225,7 +226,7 @@ export async function synchroniserFraisProf(profId: string) {
 
   const prof = await db.user.findUnique({
     where: { id: profId },
-    include: { trajets: { orderBy: { date: "asc" } } },
+    include: { trajets: { orderBy: { date: "asc" } }, identite: true },
   });
   if (!prof) return;
 
@@ -237,8 +238,28 @@ export async function synchroniserFraisProf(profId: string) {
 
   const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+  const blocIdentite = [
+    ["Fiche identité", ""],
+    ["Nom", prof.nom],
+    ["Prénom", prof.prenom],
+    ["Adresse domicile", prof.identite?.adresseDomicile ?? ""],
+    ["N° permis de conduire", prof.identite?.numeroPermis ?? ""],
+    ["N° carte grise", prof.identite?.numeroCarteGrise ?? ""],
+    ["N° assurance auto", prof.identite?.numeroAssuranceAuto ?? ""],
+    ["Immatriculation véhicule", prof.identite?.immatriculationVehicule ?? ""],
+    ["Marque et modèle", prof.identite?.marqueModeleVehicule ?? ""],
+    ["Puissance fiscale", prof.identite?.puissanceFiscale ?? ""],
+    [],
+  ];
+
   const entete = ["Date", "Mission", "Trajet", "Km", "€"];
-  const lignes = prof.trajets.map((t) => [formatDate(t.date), t.mission, t.trajetNom, t.km, t.prix]);
+  const lignes = prof.trajets.map((t) => [
+    formatDate(t.date),
+    libelleMission(t.typeMission, t.precisionMission),
+    t.trajetNom,
+    t.km,
+    t.prix,
+  ]);
   const totalKm = prof.trajets.reduce((s, t) => s + t.km, 0);
   const totalPrix = prof.trajets.reduce((s, t) => s + t.prix, 0);
   const ligneTotal = ["", "", "Total", totalKm, Math.round(totalPrix * 100) / 100];
@@ -248,6 +269,6 @@ export async function synchroniserFraisProf(profId: string) {
     spreadsheetId: idFeuille,
     range: `'${titre}'!A1`,
     valueInputOption: "RAW",
-    requestBody: { values: [entete, ...lignes, ligneTotal] },
+    requestBody: { values: [...blocIdentite, entete, ...lignes, ligneTotal] },
   });
 }

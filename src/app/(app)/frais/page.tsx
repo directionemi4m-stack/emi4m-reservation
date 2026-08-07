@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AjouterTrajetForm } from "@/components/frais/AjouterTrajetForm";
 import { SupprimerTrajetBouton } from "@/components/frais/SupprimerTrajetBouton";
+import { libelleMission } from "@/lib/mission";
 
 function formatterDate(date: Date) {
   return date.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
@@ -32,7 +34,12 @@ export default async function FraisPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <h1 className="text-xl font-semibold text-brand-slate">Mes frais de déplacement</h1>
+      <div className="flex items-baseline justify-between">
+        <h1 className="text-xl font-semibold text-brand-slate">Mes frais de déplacement</h1>
+        <Link href="/frais/identite" className="text-sm text-brand-accent hover:underline">
+          Ma fiche identité
+        </Link>
+      </div>
 
       <AjouterTrajetForm typesTrajet={typesTrajet} />
 
@@ -59,7 +66,8 @@ export default async function FraisPage() {
                 >
                   <div>
                     <p className="text-sm font-medium text-slate-700">
-                      {formatterDate(trajet.date)} · {trajet.mission}
+                      {formatterDate(trajet.date)} ·{" "}
+                      {libelleMission(trajet.typeMission, trajet.precisionMission)}
                     </p>
                     <p className="text-xs text-slate-500">
                       {trajet.trajetNom} — {trajet.km} km · {trajet.prix.toFixed(2)} €

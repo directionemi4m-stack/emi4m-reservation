@@ -48,6 +48,13 @@ enum TypeAbsenceProf {
   ARRET_MALADIE
 }
 
+enum TypeMission {
+  COURS
+  CONCERT
+  REUNION
+  AUTRE
+}
+
 // Compte prof/admin. Provisionné par la direction (pas d'auto-inscription).
 // Connexion par email + mot de passe (défini via un lien envoyé par email).
 model User {
@@ -70,6 +77,7 @@ model User {
   pointages    Pointage[]    @relation("PointageProf")
   absencesProf AbsenceProf[] @relation("AbsenceProf")
   trajets      Trajet[]      @relation("TrajetProf")
+  identite     IdentiteProf?
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -305,18 +313,35 @@ model TypeTrajet {
 // moment de la saisie : un trajet déjà enregistré ne doit pas bouger si le
 // barème change plus tard.
 model Trajet {
-  id           String     @id @default(cuid())
-  profId       String
-  prof         User       @relation("TrajetProf", fields: [profId], references: [id])
-  date         DateTime   @db.Date
-  mission      String
-  typeTrajetId String
-  typeTrajet   TypeTrajet @relation(fields: [typeTrajetId], references: [id])
-  trajetNom    String
-  km           Float
-  prix         Float
-  creeLe       DateTime   @default(now())
+  id                String      @id @default(cuid())
+  profId            String
+  prof              User        @relation("TrajetProf", fields: [profId], references: [id])
+  date              DateTime    @db.Date
+  typeMission       TypeMission
+  precisionMission  String?
+  typeTrajetId      String
+  typeTrajet        TypeTrajet  @relation(fields: [typeTrajetId], references: [id])
+  trajetNom         String
+  km                Float
+  prix              Float
+  creeLe            DateTime    @default(now())
 
   @@index([profId, date])
+}
+
+// Fiche identité/véhicule d'un prof, saisie une fois — sert de justificatif
+// pour les remboursements de frais kilométriques (permis, assurance, véhicule).
+model IdentiteProf {
+  id                      String   @id @default(cuid())
+  profId                  String   @unique
+  prof                    User     @relation(fields: [profId], references: [id], onDelete: Cascade)
+  adresseDomicile         String?
+  numeroPermis            String?
+  numeroCarteGrise        String?
+  numeroAssuranceAuto     String?
+  immatriculationVehicule String?
+  marqueModeleVehicule    String?
+  puissanceFiscale        String?
+  majLe                   DateTime @updatedAt
 }
 
