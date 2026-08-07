@@ -186,6 +186,15 @@ model NiveauFM {
   classes Classe[]
 }
 
+// Liste fermée des matières enseignées, proposée au choix à la création d'un cours
+// (remplace la saisie libre du nom). Le type détermine si niveau/lieu FM s'affichent.
+model Discipline {
+  id    String    @id @default(cuid())
+  nom   String    @unique
+  type  TypeCours @default(INSTRUMENT)
+  actif Boolean   @default(true)
+}
+
 model Classe {
   id         String        @id @default(cuid())
   profId     String

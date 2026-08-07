@@ -22,25 +22,28 @@ export async function creerClasse(
 ): Promise<EtatAction> {
   const session = await exigerConnecte();
 
-  const type = formData.get("type") === "FM" ? "FM" : "INSTRUMENT";
   const jour = String(formData.get("jour") ?? "").trim() || null;
   const dateDebutStr = String(formData.get("dateDebut") ?? "");
   const emoji = String(formData.get("emoji") ?? "🎼");
+  const disciplineId = String(formData.get("disciplineId") ?? "");
 
   if (!dateDebutStr) {
     return { succes: false, message: "La date du premier cours est requise." };
   }
   const dateDebut = new Date(`${dateDebutStr}T00:00:00.000Z`);
 
+  const discipline = await db.discipline.findUnique({ where: { id: disciplineId } });
+  if (!discipline) {
+    return { succes: false, message: "Discipline introuvable." };
+  }
+  const type = discipline.type;
+
   let nom: string;
   let lieuId: string | null = null;
   let niveauFMId: string | null = null;
 
   if (type === "INSTRUMENT") {
-    nom = String(formData.get("nom") ?? "").trim();
-    if (!nom) {
-      return { succes: false, message: "Le nom du cours est requis." };
-    }
+    nom = discipline.nom;
   } else {
     niveauFMId = String(formData.get("niveauFMId") ?? "") || null;
     const lieuIdBrut = String(formData.get("lieuId") ?? "");

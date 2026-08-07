@@ -69,6 +69,41 @@ export async function supprimerLieu(
   return { succes: true };
 }
 
+export async function ajouterDiscipline(
+  _etatPrecedent: EtatAction,
+  formData: FormData
+): Promise<EtatAction> {
+  await exigerAdmin();
+  const nom = String(formData.get("nom") ?? "").trim();
+  if (!nom) return { succes: false, message: "Le nom de la discipline est requis." };
+
+  const existant = await db.discipline.findUnique({ where: { nom } });
+  if (existant) return { succes: false, message: "Cette discipline existe déjà." };
+
+  await db.discipline.create({ data: { nom } });
+  revalidatePath("/admin/parametres/presences");
+  return { succes: true, message: `Discipline « ${nom} » ajoutée.` };
+}
+
+export async function basculerActifDiscipline(formData: FormData) {
+  await exigerAdmin();
+  const id = String(formData.get("id"));
+  const actif = formData.get("actif") === "true";
+  await db.discipline.update({ where: { id }, data: { actif } });
+  revalidatePath("/admin/parametres/presences");
+}
+
+export async function supprimerDiscipline(
+  _etatPrecedent: EtatAction,
+  formData: FormData
+): Promise<EtatAction> {
+  await exigerAdmin();
+  const id = String(formData.get("id"));
+  await db.discipline.delete({ where: { id } });
+  revalidatePath("/admin/parametres/presences");
+  return { succes: true };
+}
+
 export async function ajouterNiveauFM(
   _etatPrecedent: EtatAction,
   formData: FormData

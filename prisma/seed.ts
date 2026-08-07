@@ -59,6 +59,26 @@ const NIVEAUX_FM = [
   "Ados/Adultes",
 ];
 
+const DISCIPLINES: Array<{ nom: string; type: "INSTRUMENT" | "FM" }> = [
+  { nom: "Trompette", type: "INSTRUMENT" },
+  { nom: "Flûte", type: "INSTRUMENT" },
+  { nom: "Clarinette", type: "INSTRUMENT" },
+  { nom: "Saxophone", type: "INSTRUMENT" },
+  { nom: "Violon", type: "INSTRUMENT" },
+  { nom: "Violoncelle", type: "INSTRUMENT" },
+  { nom: "Guitare électrique", type: "INSTRUMENT" },
+  { nom: "Guitare sèche", type: "INSTRUMENT" },
+  { nom: "Piano", type: "INSTRUMENT" },
+  { nom: "Piano musique actuelle", type: "INSTRUMENT" },
+  { nom: "Batterie", type: "INSTRUMENT" },
+  { nom: "Chorale primaire", type: "INSTRUMENT" },
+  { nom: "Ensemble de guitare", type: "INSTRUMENT" },
+  { nom: "Orchestre cycle I", type: "INSTRUMENT" },
+  { nom: "Orchestre cycle II/III", type: "INSTRUMENT" },
+  { nom: "Histoire de la musique", type: "INSTRUMENT" },
+  { nom: "FM", type: "FM" },
+];
+
 async function main() {
   for (const { nom, slug, salles } of COMMUNES) {
     const commune = await db.commune.upsert({
@@ -87,6 +107,11 @@ async function main() {
     await db.niveauFM.upsert({ where: { nom }, update: {}, create: { nom } });
   }
   console.log(`Présences : ${NIVEAUX_FM.length} niveau(x) FM`);
+
+  for (const { nom, type } of DISCIPLINES) {
+    await db.discipline.upsert({ where: { nom }, update: { type }, create: { nom, type } });
+  }
+  console.log(`Présences : ${DISCIPLINES.length} discipline(s)`);
 
   // Premier compte admin, pour pouvoir se connecter et provisionner les
   // profs ensuite depuis l'interface d'administration.
