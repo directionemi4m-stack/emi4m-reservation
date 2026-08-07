@@ -1,11 +1,16 @@
 import { google } from "googleapis";
 import { db } from "@/lib/db";
-import type { StatutPresence } from "@/generated/prisma/client";
+import type { StatutPresence, TypeAbsenceProf } from "@/generated/prisma/client";
 
 const LIBELLES_STATUT: Record<StatutPresence, string> = {
   PRESENT: "Présent",
   ABSENT: "Absent",
   EXCUSE: "Excusé",
+};
+
+const LIBELLES_TYPE_ABSENCE: Record<TypeAbsenceProf, string> = {
+  RATTRAPAGE: "Rattrapage",
+  ARRET_MALADIE: "Arrêt maladie",
 };
 
 function creerClientSheets() {
@@ -39,24 +44,37 @@ const COULEURS_STATUT: Record<StatutPresence, { red: number; green: number; blue
   EXCUSE: { red: 1, green: 0.93, blue: 0.7 },
 };
 
-// Colore une cellule dès que son texte correspond exactement au statut — la règle
-// reste active même après relecture manuelle du Sheet, pas besoin de la reposer à chaque sync.
+const COULEURS_TYPE_ABSENCE: Record<TypeAbsenceProf, { red: number; green: number; blue: number }> = {
+  RATTRAPAGE: { red: 0.82, green: 0.88, blue: 0.98 },
+  ARRET_MALADIE: { red: 0.96, green: 0.8, blue: 0.8 },
+};
+
+// Colore une cellule dès que son texte correspond exactement à une valeur donnée — la
+// règle reste active même après relecture manuelle du Sheet, pas besoin de la reposer à chaque sync.
 async function appliquerMiseEnFormeCouleur(
   sheets: ReturnType<typeof google.sheets>,
   idFeuille: string,
-  sheetId: number
+  sheetId: number,
+  colonne: { debut: number; fin: number },
+  couleursParTexte: Record<string, { red: number; green: number; blue: number }>
 ) {
-  const plage = { sheetId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 1, endColumnIndex: 50 };
+  const plage = {
+    sheetId,
+    startRowIndex: 1,
+    endRowIndex: 1000,
+    startColumnIndex: colonne.debut,
+    endColumnIndex: colonne.fin,
+  };
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: idFeuille,
     requestBody: {
-      requests: (Object.keys(COULEURS_STATUT) as StatutPresence[]).map((statut) => ({
+      requests: Object.entries(couleursParTexte).map(([texte, couleur]) => ({
         addConditionalFormatRule: {
           rule: {
             ranges: [plage],
             booleanRule: {
-              condition: { type: "TEXT_EQ", values: [{ userEnteredValue: LIBELLES_STATUT[statut] }] },
-              format: { backgroundColor: COULEURS_STATUT[statut] },
+              condition: { type: "TEXT_EQ", values: [{ userEnteredValue: texte }] },
+              format: { backgroundColor: couleur },
             },
           },
         },
@@ -65,13 +83,18 @@ async function appliquerMiseEnFormeCouleur(
   });
 }
 
-async function creerOnglet(sheets: ReturnType<typeof google.sheets>, idFeuille: string, titre: string) {
+async function creerOnglet(
+  sheets: ReturnType<typeof google.sheets>,
+  idFeuille: string,
+  titre: string,
+  appliquerFormat?: (sheetId: number) => Promise<void>
+) {
   const { data } = await sheets.spreadsheets.batchUpdate({
     spreadsheetId: idFeuille,
     requestBody: { requests: [{ addSheet: { properties: { title: titre } } }] },
   });
   const sheetId = data.replies?.[0]?.addSheet?.properties?.sheetId;
-  if (sheetId != null) await appliquerMiseEnFormeCouleur(sheets, idFeuille, sheetId);
+  if (sheetId != null && appliquerFormat) await appliquerFormat(sheetId);
 }
 
 // Réécrit entièrement l'onglet du cours à partir de l'état actuel en base :
@@ -97,7 +120,17 @@ export async function synchroniserFeuillePresence(classeId: string) {
   const titre = nomOnglet(classe);
   const idOnglet = await idOngletExistant(sheets, idFeuille, titre);
   if (idOnglet === null) {
-    await creerOnglet(sheets, idFeuille, titre);
+    await creerOnglet(sheets, idFeuille, titre, (sheetId) =>
+      appliquerMiseEnFormeCouleur(
+        sheets,
+        idFeuille,
+        sheetId,
+        { debut: 1, fin: 50 },
+        Object.fromEntries(
+          (Object.keys(COULEURS_STATUT) as StatutPresence[]).map((s) => [LIBELLES_STATUT[s], COULEURS_STATUT[s]])
+        )
+      )
+    );
   }
 
   const entete = ["Date", ...classe.eleves.map((e) => e.nom)];
@@ -118,6 +151,59 @@ export async function synchroniserFeuillePresence(classeId: string) {
   await sheets.spreadsheets.values.update({
     spreadsheetId: idFeuille,
     range: `'${titre}'!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [entete, ...lignes] },
+  });
+}
+
+const TITRE_ONGLET_ABSENCES = "Absences profs";
+
+// Un seul onglet, partagé par tous les cours, pour suivre les absences des profs
+// (rattrapage à prévoir ou arrêt maladie) — réécrit en entier à chaque changement.
+export async function synchroniserAbsencesProf() {
+  const client = creerClientSheets();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+
+  const absences = await db.absenceProf.findMany({
+    include: { seance: true, classe: true, prof: true },
+    orderBy: { seance: { date: "asc" } },
+  });
+
+  const idOnglet = await idOngletExistant(sheets, idFeuille, TITRE_ONGLET_ABSENCES);
+  if (idOnglet === null) {
+    await creerOnglet(sheets, idFeuille, TITRE_ONGLET_ABSENCES, (sheetId) =>
+      appliquerMiseEnFormeCouleur(
+        sheets,
+        idFeuille,
+        sheetId,
+        { debut: 3, fin: 4 },
+        Object.fromEntries(
+          (Object.keys(COULEURS_TYPE_ABSENCE) as TypeAbsenceProf[]).map((t) => [
+            LIBELLES_TYPE_ABSENCE[t],
+            COULEURS_TYPE_ABSENCE[t],
+          ])
+        )
+      )
+    );
+  }
+
+  const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  const entete = ["Date séance", "Prof", "Cours", "Type", "Date de rattrapage", "Commentaire"];
+  const lignes = absences.map((a) => [
+    formatDate(a.seance.date),
+    `${a.prof.prenom} ${a.prof.nom}`,
+    `${a.classe.emoji} ${a.classe.nom}`,
+    LIBELLES_TYPE_ABSENCE[a.type],
+    a.dateRattrapage ? formatDate(a.dateRattrapage) : "",
+    a.commentaire ?? "",
+  ]);
+
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${TITRE_ONGLET_ABSENCES}'` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${TITRE_ONGLET_ABSENCES}'!A1`,
     valueInputOption: "RAW",
     requestBody: { values: [entete, ...lignes] },
   });

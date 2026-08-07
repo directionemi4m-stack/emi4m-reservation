@@ -3,11 +3,25 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { modifierDateSeance, type EtatAction } from "@/app/(app)/presences/[classeId]/actions";
+import type { TypeAbsenceProf } from "@/generated/prisma/client";
 
 const etatInitial: EtatAction = { succes: true };
 
 function formatterDateLongue(date: Date) {
   return date.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+}
+
+interface Absence {
+  type: TypeAbsenceProf;
+  dateRattrapage: Date | null;
+}
+
+function libelleAbsence(absence: Absence) {
+  if (absence.type === "ARRET_MALADIE") return "🤒 Arrêt maladie";
+  if (absence.dateRattrapage) {
+    return `🔁 Rattrapage le ${absence.dateRattrapage.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`;
+  }
+  return "🔁 Rattrapage à prévoir";
 }
 
 export function SeanceRow({
@@ -17,6 +31,7 @@ export function SeanceRow({
   numero,
   fait,
   prochaine,
+  absence,
 }: {
   classeId: string;
   seanceId: string;
@@ -24,6 +39,7 @@ export function SeanceRow({
   numero: number;
   fait: boolean;
   prochaine: boolean;
+  absence: Absence | null;
 }) {
   const [etat, action, enCours] = useActionState(modifierDateSeance, etatInitial);
   const [modifier, setModifier] = useState(false);
@@ -31,7 +47,15 @@ export function SeanceRow({
   return (
     <div
       className={`flex items-center gap-3 rounded-lg p-3 ${
-        fait ? "bg-status-dispo/10" : prochaine ? "bg-brand-accent/10" : "bg-white"
+        absence
+          ? absence.type === "ARRET_MALADIE"
+            ? "bg-status-occupee/10"
+            : "bg-status-attente/10"
+          : fait
+            ? "bg-status-dispo/10"
+            : prochaine
+              ? "bg-brand-accent/10"
+              : "bg-white"
       } shadow-sm`}
     >
       <span className="w-6 text-center text-xs font-semibold text-slate-400">{numero}</span>
@@ -41,7 +65,13 @@ export function SeanceRow({
           <Link href={`/presences/${classeId}/${seanceId}`} className="flex-1">
             <p className="text-sm font-medium text-slate-700">{formatterDateLongue(date)}</p>
             <p className="text-xs text-slate-500">
-              {fait ? "✓ Appel fait" : prochaine ? "Prochaine séance" : "À venir"}
+              {absence
+                ? libelleAbsence(absence)
+                : fait
+                  ? "✓ Appel fait"
+                  : prochaine
+                    ? "Prochaine séance"
+                    : "À venir"}
             </p>
           </Link>
           <button

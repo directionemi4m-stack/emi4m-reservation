@@ -20,7 +20,7 @@ export default async function ClassePage({
     where: { id: classeId },
     include: {
       eleves: { where: { actif: true }, orderBy: { nom: "asc" } },
-      seances: { orderBy: { date: "asc" }, include: { pointage: true } },
+      seances: { orderBy: { date: "asc" }, include: { pointage: true, absenceProf: true } },
       lieu: true,
       niveauFM: true,
     },
@@ -79,6 +79,14 @@ export default async function ClassePage({
             numero={i + 1}
             fait={!!seance.pointage}
             prochaine={seance.id === idProchaine}
+            absence={
+              seance.absenceProf
+                ? {
+                    type: seance.absenceProf.type,
+                    dateRattrapage: seance.absenceProf.dateRattrapage,
+                  }
+                : null
+            }
           />
         ))}
         <AjouterSeanceForm classeId={classe.id} dateSuggeree={dateSuggeree} />

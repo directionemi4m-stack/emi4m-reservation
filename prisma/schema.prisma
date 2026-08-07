@@ -43,6 +43,11 @@ enum StatutPresence {
   EXCUSE
 }
 
+enum TypeAbsenceProf {
+  RATTRAPAGE
+  ARRET_MALADIE
+}
+
 // Compte prof/admin. Provisionné par la direction (pas d'auto-inscription).
 // Connexion par email + mot de passe (défini via un lien envoyé par email).
 model User {
@@ -61,8 +66,9 @@ model User {
   demandes           Demande[]          @relation("DemandeAuteur")
   creneauxTraites    DemandeCreneau[]   @relation("CreneauTraitePar")
 
-  classes   Classe[]   @relation("ClasseProf")
-  pointages Pointage[] @relation("PointageProf")
+  classes      Classe[]      @relation("ClasseProf")
+  pointages    Pointage[]    @relation("PointageProf")
+  absencesProf AbsenceProf[] @relation("AbsenceProf")
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -196,9 +202,10 @@ model Classe {
   actif      Boolean       @default(true)
   creeLe     DateTime      @default(now())
 
-  eleves    Eleve[]
-  seances   Seance[]
-  pointages Pointage[]
+  eleves       Eleve[]
+  seances      Seance[]
+  pointages    Pointage[]
+  absencesProf AbsenceProf[]
 
   @@index([profId])
 }
@@ -219,9 +226,28 @@ model Seance {
   classe   Classe   @relation(fields: [classeId], references: [id], onDelete: Cascade)
   date     DateTime @db.Date
 
-  pointage Pointage?
+  pointage    Pointage?
+  absenceProf AbsenceProf?
 
   @@index([classeId, date])
+}
+
+// Une séance où le prof (pas un élève) était absent — rattrapage à prévoir,
+// ou arrêt maladie à suivre. Exclusif avec Pointage pour la même séance.
+model AbsenceProf {
+  id             String          @id @default(cuid())
+  seanceId       String          @unique
+  seance         Seance          @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+  classeId       String
+  classe         Classe          @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  profId         String
+  prof           User            @relation("AbsenceProf", fields: [profId], references: [id])
+  type           TypeAbsenceProf
+  dateRattrapage DateTime?       @db.Date
+  commentaire    String?
+  creeLe         DateTime        @default(now())
+
+  @@index([classeId])
 }
 
 // Une feuille de présence pour une séance donnée (au plus une par séance).

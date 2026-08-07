@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PointageForm } from "@/components/presences/PointageForm";
+import { SeanceContent } from "@/components/presences/SeanceContent";
 import type { StatutPresence } from "@/generated/prisma/client";
 
 export default async function SeancePage({
@@ -22,7 +22,7 @@ export default async function SeancePage({
 
   const seance = await db.seance.findUnique({
     where: { id: seanceId },
-    include: { pointage: { include: { marques: true } } },
+    include: { pointage: { include: { marques: true } }, absenceProf: true },
   });
   if (!seance || seance.classeId !== classeId) notFound();
 
@@ -30,6 +30,14 @@ export default async function SeancePage({
   seance.pointage?.marques.forEach((m) => {
     marquesExistantes[m.eleveId] = m.statut;
   });
+
+  const absenceExistante = seance.absenceProf
+    ? {
+        type: seance.absenceProf.type,
+        dateRattrapage: seance.absenceProf.dateRattrapage?.toISOString().slice(0, 10) ?? null,
+        commentaire: seance.absenceProf.commentaire,
+      }
+    : null;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -43,11 +51,12 @@ export default async function SeancePage({
           month: "long",
         })}
       </h1>
-      <PointageForm
+      <SeanceContent
         classeId={classeId}
         seanceId={seanceId}
         eleves={classe.eleves}
         marquesExistantes={marquesExistantes}
+        absenceExistante={absenceExistante}
       />
     </div>
   );
