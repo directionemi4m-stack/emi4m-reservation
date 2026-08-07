@@ -25,6 +25,7 @@ function groupes(role: "PROF" | "ADMIN"): Groupe[] {
               { href: "/admin/demandes", label: "Demandes à traiter" },
               { href: "/admin/parametres/salles", label: "Salles" },
               { href: "/admin/parametres/creneaux-recurrents", label: "Emplois du temps" },
+              { href: "/admin/parametres/contacts", label: "Contacts" },
             ]
           : []),
       ],

@@ -8,6 +8,7 @@ import {
   envoyerMailDemandeValidee,
   envoyerMailDemandeRefusee,
   envoyerMailReservationAnnulee,
+  envoyerMailDemandeSalle,
 } from "@/lib/mail";
 
 export type EtatAction = { succes: boolean; message?: string };
@@ -154,6 +155,32 @@ export async function annulerReservationValidee(
   revalidatePath("/planning");
   revalidatePath("/demandes");
   return { succes: true };
+}
+
+export type EtatEnvoiMail = { statut: "idle" | "envoye" | "erreur"; message?: string };
+
+export async function envoyerDemandeMail(params: {
+  destinataires: { nom: string; email: string }[];
+  sujet: string;
+  corps: string;
+}): Promise<EtatEnvoiMail> {
+  await exigerAdmin();
+
+  if (params.destinataires.length === 0) {
+    return { statut: "erreur", message: "Ajoutez au moins un destinataire." };
+  }
+  if (!params.sujet.trim() || !params.corps.trim()) {
+    return { statut: "erreur", message: "L'objet et le message ne peuvent pas être vides." };
+  }
+
+  try {
+    await envoyerMailDemandeSalle(params);
+  } catch (erreur) {
+    console.error("Échec d'envoi de la demande de salle :", erreur);
+    return { statut: "erreur", message: "L'envoi a échoué. Réessayez." };
+  }
+
+  return { statut: "envoye" };
 }
 
 // Suppression administrative silencieuse (pas de mail) : contrairement à

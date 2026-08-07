@@ -77,10 +77,22 @@ model TokenMotDePasse {
 }
 
 model Commune {
-  id     String  @id @default(cuid())
-  nom    String  @unique
-  slug   String  @unique
-  salles Salle[]
+  id       String    @id @default(cuid())
+  nom      String    @unique
+  slug     String    @unique
+  salles   Salle[]
+  contacts Contact[]
+}
+
+// Contact (mairie, gestionnaire de salle...) à qui adresser une demande de
+// réservation par email — proposé par défaut pour les salles de sa commune.
+model Contact {
+  id        String  @id @default(cuid())
+  nom       String
+  email     String
+  communeId String
+  commune   Commune @relation(fields: [communeId], references: [id], onDelete: Cascade)
+  actif     Boolean @default(true)
 }
 
 model Salle {

@@ -16,6 +16,32 @@ function creerTransporteur() {
   });
 }
 
+interface Destinataire {
+  nom: string;
+  email: string;
+}
+
+export async function envoyerMailDemandeSalle(params: {
+  destinataires: Destinataire[];
+  sujet: string;
+  corps: string;
+}) {
+  const { destinataires, sujet, corps } = params;
+  const transport = creerTransporteur();
+
+  const resultat = await transport.sendMail({
+    to: destinataires.map((d) => ({ name: d.nom, address: d.email })),
+    from: process.env.EMAIL_FROM,
+    subject: sujet,
+    text: corps,
+  });
+
+  const echecs = resultat.rejected.filter(Boolean);
+  if (echecs.length > 0) {
+    throw new Error(`Envoi impossible pour : ${echecs.join(", ")}`);
+  }
+}
+
 function formatterDateFr(date: Date) {
   return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }

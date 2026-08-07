@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { LigneAction } from "@/components/admin/LigneAction";
 import { LigneAnnulation } from "@/components/admin/LigneAnnulation";
+import { DemandeMailForm } from "@/components/admin/DemandeMailForm";
 
 function formatterDate(date: Date) {
   return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
@@ -18,7 +19,7 @@ function aujourdHuiUTC(): Date {
 }
 
 export default async function AdminDemandesPage() {
-  const [enAttente, validees] = await Promise.all([
+  const [enAttente, validees, contacts] = await Promise.all([
     db.demandeCreneau.findMany({
       where: { statut: "EN_ATTENTE" },
       include: {
@@ -35,6 +36,7 @@ export default async function AdminDemandesPage() {
       },
       orderBy: [{ date: "asc" }, { heureDebut: "asc" }],
     }),
+    db.contact.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
   ]);
 
   return (
@@ -65,6 +67,17 @@ export default async function AdminDemandesPage() {
                 {formatterDate(ligne.date)} · {formatterHeure(ligne.heureDebut)}–
                 {formatterHeure(ligne.heureFin)}
               </p>
+              <div className="mt-2">
+                <DemandeMailForm
+                  salleNom={ligne.salle.nom}
+                  communeNom={ligne.salle.commune.nom}
+                  communeId={ligne.salle.communeId}
+                  dateFormatee={formatterDate(ligne.date)}
+                  heureDebut={formatterHeure(ligne.heureDebut)}
+                  heureFin={formatterHeure(ligne.heureFin)}
+                  contacts={contacts}
+                />
+              </div>
             </div>
             <LigneAction id={ligne.id} />
           </div>
@@ -102,6 +115,17 @@ export default async function AdminDemandesPage() {
                 {formatterDate(ligne.date)} · {formatterHeure(ligne.heureDebut)}–
                 {formatterHeure(ligne.heureFin)}
               </p>
+              <div className="mt-2">
+                <DemandeMailForm
+                  salleNom={ligne.salle.nom}
+                  communeNom={ligne.salle.commune.nom}
+                  communeId={ligne.salle.communeId}
+                  dateFormatee={formatterDate(ligne.date)}
+                  heureDebut={formatterHeure(ligne.heureDebut)}
+                  heureFin={formatterHeure(ligne.heureFin)}
+                  contacts={contacts}
+                />
+              </div>
             </div>
             <LigneAnnulation id={ligne.id} />
           </div>
