@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { synchroniserFeuillePresence } from "@/lib/sheets";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -31,6 +32,13 @@ export async function ajouterEleve(
 
   await db.eleve.create({ data: { classeId, nom } });
   revalidatePath(`/presences/${classeId}`);
+
+  try {
+    await synchroniserFeuillePresence(classeId);
+  } catch (erreur) {
+    console.error("Échec de synchronisation Google Sheets (présences) :", erreur);
+  }
+
   return { succes: true };
 }
 
@@ -43,6 +51,12 @@ export async function supprimerEleve(formData: FormData) {
 
   await db.eleve.delete({ where: { id: eleveId } });
   revalidatePath(`/presences/${classeId}`);
+
+  try {
+    await synchroniserFeuillePresence(classeId);
+  } catch (erreur) {
+    console.error("Échec de synchronisation Google Sheets (présences) :", erreur);
+  }
 }
 
 export async function ajouterSeance(
@@ -80,5 +94,12 @@ export async function modifierDateSeance(
     data: { date: new Date(`${dateStr}T00:00:00.000Z`) },
   });
   revalidatePath(`/presences/${classeId}`);
+
+  try {
+    await synchroniserFeuillePresence(classeId);
+  } catch (erreur) {
+    console.error("Échec de synchronisation Google Sheets (présences) :", erreur);
+  }
+
   return { succes: true };
 }

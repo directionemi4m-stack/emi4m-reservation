@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { genererDatesSeances } from "@/lib/presences";
+import { supprimerFeuillePresence } from "@/lib/sheets";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -96,5 +97,12 @@ export async function supprimerClasse(
 
   await db.classe.delete({ where: { id } });
   revalidatePath("/presences");
+
+  try {
+    await supprimerFeuillePresence(classe);
+  } catch (erreur) {
+    console.error("Échec de suppression de l'onglet Google Sheets :", erreur);
+  }
+
   return { succes: true };
 }

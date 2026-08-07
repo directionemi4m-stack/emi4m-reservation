@@ -46,6 +46,15 @@ async function idOngletExistant(sheets: ReturnType<typeof google.sheets>, idFeui
   return data.sheets?.find((s) => s.properties?.title === titre)?.properties?.sheetId ?? null;
 }
 
+async function supprimerOngletSiExiste(sheets: ReturnType<typeof google.sheets>, idFeuille: string, titre: string) {
+  const idOnglet = await idOngletExistant(sheets, idFeuille, titre);
+  if (idOnglet === null) return;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: idFeuille,
+    requestBody: { requests: [{ deleteSheet: { sheetId: idOnglet } }] },
+  });
+}
+
 const COULEURS_STATUT: Record<StatutPresence, { red: number; green: number; blue: number }> = {
   PRESENT: { red: 0.85, green: 0.94, blue: 0.85 },
   ABSENT: { red: 0.96, green: 0.8, blue: 0.8 },
@@ -162,6 +171,15 @@ export async function synchroniserFeuillePresence(classeId: string) {
     valueInputOption: "RAW",
     requestBody: { values: [entete, ...lignes] },
   });
+}
+
+// Supprime l'onglet du cours — appelé quand le cours lui-même est supprimé, pour
+// qu'un cours effacé côté appli ne reste pas indéfiniment dans le classeur Drive.
+export async function supprimerFeuillePresence(classe: { emoji: string; nom: string }) {
+  const client = creerClientSheets();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+  await supprimerOngletSiExiste(sheets, idFeuille, nomOnglet(classe));
 }
 
 const TITRE_ONGLET_ABSENCES = "Absences profs";
