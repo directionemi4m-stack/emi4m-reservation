@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { genererDatesSeances } from "@/lib/presences";
-import { supprimerFeuillePresence } from "@/lib/sheets";
+import { supprimerFeuillePresence, synchroniserFeuillePresence } from "@/lib/sheets";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -99,9 +99,19 @@ export async function supprimerClasse(
   revalidatePath("/presences");
 
   try {
-    await supprimerFeuillePresence(classe);
+    // Un même onglet peut être partagé par plusieurs groupes de la même discipline
+    // (cf. lib/sheets) : on ne le supprime que si ce cours en était le dernier.
+    const groupeRestant = await db.classe.findFirst({
+      where: { nom: classe.nom, type: classe.type, actif: true },
+      select: { id: true },
+    });
+    if (groupeRestant) {
+      await synchroniserFeuillePresence(groupeRestant.id);
+    } else {
+      await supprimerFeuillePresence(classe);
+    }
   } catch (erreur) {
-    console.error("Échec de suppression de l'onglet Google Sheets :", erreur);
+    console.error("Échec de mise à jour de l'onglet Google Sheets :", erreur);
   }
 
   return { succes: true };

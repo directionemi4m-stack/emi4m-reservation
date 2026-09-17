@@ -1,6 +1,6 @@
 import { google } from "googleapis";
 import { db } from "@/lib/db";
-import type { StatutPresence, TypeAbsenceProf } from "@/generated/prisma/client";
+import type { StatutPresence, TypeAbsenceProf, TypeCours } from "@/generated/prisma/client";
 import { libelleMission } from "@/lib/mission";
 
 const LIBELLES_STATUT: Record<StatutPresence, string> = {
@@ -46,13 +46,18 @@ async function idOngletExistant(sheets: ReturnType<typeof google.sheets>, idFeui
   return data.sheets?.find((s) => s.properties?.title === titre)?.properties?.sheetId ?? null;
 }
 
-async function supprimerOngletSiExiste(sheets: ReturnType<typeof google.sheets>, idFeuille: string, titre: string) {
-  const idOnglet = await idOngletExistant(sheets, idFeuille, titre);
-  if (idOnglet === null) return;
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: idFeuille,
-    requestBody: { requests: [{ deleteSheet: { sheetId: idOnglet } }] },
+// Retrouve l'onglet d'un cours par son nom de discipline, quel que soit l'emoji utilisé
+// à sa création (chaque classe choisit le sien) — évite de dupliquer l'onglet si un
+// deuxième groupe de la même discipline a été créé avec une icône différente.
+async function ongletCoursExistant(sheets: ReturnType<typeof google.sheets>, idFeuille: string, nom: string) {
+  const { data } = await sheets.spreadsheets.get({ spreadsheetId: idFeuille });
+  const trouve = data.sheets?.find((s) => {
+    const titre = s.properties?.title ?? "";
+    return titre === nom || titre.endsWith(` ${nom}`);
   });
+  return trouve?.properties?.sheetId != null
+    ? { id: trouve.properties.sheetId, titre: trouve.properties.title! }
+    : null;
 }
 
 const COULEURS_STATUT: Record<StatutPresence, { red: number; green: number; blue: number }> = {
@@ -114,15 +119,12 @@ async function creerOnglet(
   if (sheetId != null && appliquerFormat) await appliquerFormat(sheetId);
 }
 
-// Réécrit entièrement l'onglet du cours à partir de l'état actuel en base :
-// simple et toujours cohérent, plutôt que de tenter une mise à jour incrémentale fragile.
-export async function synchroniserFeuillePresence(classeId: string) {
-  const client = creerClientSheets();
-  if (!client) return; // Sync Google Sheets non configurée : on ignore silencieusement.
-  const { sheets, idFeuille } = client;
-
-  const classe = await db.classe.findUnique({
-    where: { id: classeId },
+// Un même instrument peut être enseigné à plusieurs groupes (élèves et séances
+// distincts) — ils partagent un seul onglet plutôt que de se disputer un onglet
+// au même nom, ce qui écraserait alternativement les données de l'un et l'autre.
+async function classesDuMemeCours(nom: string, type: TypeCours) {
+  return db.classe.findMany({
+    where: { nom, type, actif: true },
     include: {
       eleves: { where: { actif: true }, orderBy: { nom: "asc" } },
       seances: {
@@ -131,12 +133,30 @@ export async function synchroniserFeuillePresence(classeId: string) {
         include: { pointage: { include: { marques: true } } },
       },
     },
+    orderBy: { creeLe: "asc" },
   });
-  if (!classe) return;
+}
 
-  const titre = nomOnglet(classe);
-  const idOnglet = await idOngletExistant(sheets, idFeuille, titre);
-  if (idOnglet === null) {
+// Réécrit entièrement l'onglet du cours à partir de l'état actuel en base :
+// simple et toujours cohérent, plutôt que de tenter une mise à jour incrémentale fragile.
+// Un même onglet regroupe TOUS les groupes de la discipline (cf. classesDuMemeCours).
+export async function synchroniserFeuillePresence(classeId: string) {
+  const client = creerClientSheets();
+  if (!client) return; // Sync Google Sheets non configurée : on ignore silencieusement.
+  const { sheets, idFeuille } = client;
+
+  const reference = await db.classe.findUnique({
+    where: { id: classeId },
+    select: { nom: true, type: true, emoji: true },
+  });
+  if (!reference) return;
+
+  const groupe = await classesDuMemeCours(reference.nom, reference.type);
+  if (groupe.length === 0) return; // Plus aucun groupe actif (dernier supprimé) : rien à réécrire.
+
+  const existant = await ongletCoursExistant(sheets, idFeuille, reference.nom);
+  const titre = existant?.titre ?? nomOnglet({ emoji: groupe[0].emoji, nom: reference.nom });
+  if (!existant) {
     await creerOnglet(sheets, idFeuille, titre, (sheetId) =>
       appliquerMiseEnFormeCouleur(
         sheets,
@@ -150,19 +170,22 @@ export async function synchroniserFeuillePresence(classeId: string) {
     );
   }
 
-  const entete = ["Date", ...classe.eleves.map((e) => e.nom)];
-  const lignes = classe.seances.map((seance) => {
-    const dateFormatee = seance.date.toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-    const marquesParEleve = new Map(seance.pointage!.marques.map((m) => [m.eleveId, m.statut]));
-    return [
-      dateFormatee,
-      ...classe.eleves.map((e) => (marquesParEleve.has(e.id) ? LIBELLES_STATUT[marquesParEleve.get(e.id)!] : "")),
-    ];
-  });
+  const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  const eleves = groupe.flatMap((c) => c.eleves);
+  const entete = ["Date", ...eleves.map((e) => e.nom)];
+
+  const lignesDatees = groupe.flatMap((c) =>
+    c.seances.map((seance) => {
+      const marquesParEleve = new Map(seance.pointage!.marques.map((m) => [m.eleveId, m.statut]));
+      return {
+        date: seance.date,
+        valeurs: eleves.map((e) => (marquesParEleve.has(e.id) ? LIBELLES_STATUT[marquesParEleve.get(e.id)!] : "")),
+      };
+    })
+  );
+  lignesDatees.sort((a, b) => a.date.getTime() - b.date.getTime());
+  const lignes = lignesDatees.map((l) => [formatDate(l.date), ...l.valeurs]);
 
   await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'` });
   await sheets.spreadsheets.values.update({
@@ -173,13 +196,18 @@ export async function synchroniserFeuillePresence(classeId: string) {
   });
 }
 
-// Supprime l'onglet du cours — appelé quand le cours lui-même est supprimé, pour
-// qu'un cours effacé côté appli ne reste pas indéfiniment dans le classeur Drive.
-export async function supprimerFeuillePresence(classe: { emoji: string; nom: string }) {
+// Supprime l'onglet du cours — appelé uniquement quand plus aucun groupe de cette
+// discipline n'est actif (sinon on resynchronise l'onglet partagé à la place).
+export async function supprimerFeuillePresence(classe: { nom: string }) {
   const client = creerClientSheets();
   if (!client) return;
   const { sheets, idFeuille } = client;
-  await supprimerOngletSiExiste(sheets, idFeuille, nomOnglet(classe));
+  const existant = await ongletCoursExistant(sheets, idFeuille, classe.nom);
+  if (!existant) return;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: idFeuille,
+    requestBody: { requests: [{ deleteSheet: { sheetId: existant.id } }] },
+  });
 }
 
 const TITRE_ONGLET_ABSENCES = "Absences profs";
