@@ -21,7 +21,12 @@ export async function GET(request: Request) {
     access_type: "offline",
     prompt: "consent",
     scope: [
-      "https://www.googleapis.com/auth/drive",
+      // Portée volontairement restreinte aux fichiers créés par l'appli elle-même
+      // (dossier "Documents profs" et son contenu) — un scope "sensible" plutôt que
+      // "restreint", ce qui allège beaucoup la vérification Google nécessaire pour
+      // publier l'appli en production et faire disparaître l'expiration à 7 jours
+      // du jeton (propre au mode Test).
+      "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/userinfo.email",
     ],
   });
