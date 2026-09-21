@@ -23,6 +23,52 @@ async function creerClientDrive() {
   return { drive: google.drive({ version: "v3", auth }), dossierParentId };
 }
 
+export type EtatConnexionDrive =
+  | { statut: "non_configure" }
+  | { statut: "non_connecte" }
+  | { statut: "expiree"; compteEmail: string | null; majLe: Date }
+  | { statut: "indisponible"; compteEmail: string | null; majLe: Date }
+  | { statut: "active"; compteEmail: string | null; majLe: Date; dossierAccessible: boolean };
+
+function estJetonRevoqueOuExpire(erreur: unknown) {
+  const e = erreur as { message?: string; response?: { data?: { error?: string } } };
+  return e?.response?.data?.error === "invalid_grant" || e?.message === "invalid_grant";
+}
+
+// Teste réellement la connexion (renouvellement du jeton + accès au dossier des
+// documents) pour l'afficher à l'admin : un jeton expiré ou révoqué ne se voit
+// autrement que par un prof dont l'envoi de document échoue.
+export async function verifierConnexionDrive(): Promise<EtatConnexionDrive> {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const dossierParentId = process.env.GOOGLE_DRIVE_DOCUMENTS_FOLDER_ID;
+  if (!clientId || !clientSecret || !dossierParentId) return { statut: "non_configure" };
+
+  const config = await db.configGoogle.findUnique({ where: { id: "singleton" } });
+  if (!config) return { statut: "non_connecte" };
+
+  const { compteEmail, majLe } = config;
+  const auth = new google.auth.OAuth2(clientId, clientSecret);
+  auth.setCredentials({ refresh_token: config.refreshToken });
+
+  try {
+    await auth.getAccessToken();
+  } catch (erreur) {
+    if (estJetonRevoqueOuExpire(erreur)) return { statut: "expiree", compteEmail, majLe };
+    console.error("Vérification de la connexion Drive impossible :", erreur);
+    return { statut: "indisponible", compteEmail, majLe };
+  }
+
+  try {
+    const drive = google.drive({ version: "v3", auth });
+    await drive.files.get({ fileId: dossierParentId, fields: "id" });
+    return { statut: "active", compteEmail, majLe, dossierAccessible: true };
+  } catch (erreur) {
+    console.error("Dossier des documents inaccessible :", erreur);
+    return { statut: "active", compteEmail, majLe, dossierAccessible: false };
+  }
+}
+
 function nomDossierProf(prof: { prenom: string; nom: string }) {
   return `${prof.prenom} ${prof.nom}`.trim() || "Prof";
 }
