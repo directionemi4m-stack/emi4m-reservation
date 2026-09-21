@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     await db.configGoogle.upsert({
       where: { id: "singleton" },
       create: { id: "singleton", refreshToken: tokens.refresh_token, compteEmail: profil.email ?? null },
-      update: { refreshToken: tokens.refresh_token, compteEmail: profil.email ?? null },
+      update: { refreshToken: tokens.refresh_token, compteEmail: profil.email ?? null, alerteEnvoyeeLe: null },
     });
 
     return NextResponse.redirect(new URL("/admin/parametres/google-drive?succes=1", url.origin));

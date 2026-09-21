@@ -243,6 +243,40 @@ export async function envoyerMailReinitialisationMotDePasse(params: ParametresRe
   });
 }
 
+export type MotifAlerteDrive = "expiree" | "dossier_introuvable";
+
+// Alerte envoyée à la direction quand la connexion Google Drive de l'appli ne
+// fonctionne plus : sans elle, les profs ne peuvent plus déposer leurs documents.
+export async function envoyerMailConnexionDriveInterrompue(params: {
+  motif: MotifAlerteDrive;
+  urlAdmin: string;
+}) {
+  const { motif, urlAdmin } = params;
+  const transport = creerTransporteur();
+
+  const explication =
+    motif === "expiree"
+      ? "L'autorisation d'accès à Google Drive a expiré ou a été révoquée."
+      : "Le dossier « Documents profs » est introuvable dans Google Drive (supprimé ou déplacé ?).";
+  const action =
+    motif === "expiree"
+      ? "Cliquez sur « Reconnecter » puis choisissez le compte de la direction."
+      : "Vérifiez le dossier dans Drive, ou reconnectez le compte depuis la page ci-dessous.";
+
+  await transport.sendMail({
+    to: EMAIL_DIRECTION,
+    from: process.env.EMAIL_FROM,
+    subject: "Action requise : la connexion Google Drive d'EMI4M est interrompue",
+    text: `Bonjour,\n\n${explication}\n\nTant que ce n'est pas réglé, les enseignants ne peuvent pas envoyer leurs documents (permis, carte d'identité). ${action}\n\n${urlAdmin}\n\nCe message est envoyé une fois, puis rappelé tous les 3 jours si le problème persiste.\n\nEMI4M Réservation`,
+    html: htmlLienMotDePasse({
+      titre: "Connexion Google Drive interrompue",
+      intro: `${explication} Tant que ce n'est pas réglé, les enseignants ne peuvent pas envoyer leurs documents (permis, carte d'identité). ${action}`,
+      url: urlAdmin,
+      libelleBouton: "Ouvrir la page Google Drive",
+    }),
+  });
+}
+
 function htmlLienMotDePasse({
   titre,
   intro,

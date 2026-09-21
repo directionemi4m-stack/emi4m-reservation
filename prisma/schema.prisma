@@ -374,6 +374,9 @@ model ConfigGoogle {
   id           String   @id @default("singleton")
   refreshToken String
   compteEmail  String?
+  // Dernier mail d'alerte « connexion interrompue » envoyé à la direction (évite de
+  // renvoyer le même mail à chaque vérification). Remis à null dès que la connexion revient.
+  alerteEnvoyeeLe DateTime?
   majLe        DateTime @updatedAt
 }
 

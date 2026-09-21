@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { synchroniserFraisProf } from "@/lib/sheets";
-import { televerserDocumentProf, supprimerDocumentProf } from "@/lib/drive";
+import {
+  televerserDocumentProf,
+  supprimerDocumentProf,
+  estJetonRevoqueOuExpire,
+  alerterConnexionDriveInterrompue,
+} from "@/lib/drive";
+import { urlBase } from "@/lib/url";
 import type { TypeMission, TypeDocument } from "@/generated/prisma/client";
 
 export type EtatAction = { succes: boolean; message?: string };
@@ -155,7 +161,24 @@ export async function televerserDocument(
   }
 
   const buffer = Buffer.from(await fichier.arrayBuffer());
-  const document = await televerserDocumentProf(session.user.id, type, buffer, fichier.type, extension);
+  let document;
+  try {
+    document = await televerserDocumentProf(session.user.id, type, buffer, fichier.type, extension);
+  } catch (erreur) {
+    console.error("Envoi du document vers Google Drive impossible :", erreur);
+    if (estJetonRevoqueOuExpire(erreur)) {
+      try {
+        await alerterConnexionDriveInterrompue("expiree", `${await urlBase()}/admin/parametres/google-drive`);
+      } catch (erreurAlerte) {
+        console.error("Alerte connexion Drive non envoyée :", erreurAlerte);
+      }
+      return {
+        succes: false,
+        message: "L'envoi est momentanément indisponible. La direction a été prévenue, réessayez plus tard.",
+      };
+    }
+    return { succes: false, message: "L'envoi a échoué. Réessayez dans quelques instants." };
+  }
   if (!document) {
     return { succes: false, message: "Synchronisation Google Drive indisponible." };
   }

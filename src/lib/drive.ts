@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import { Readable } from "stream";
 import { db } from "@/lib/db";
 import type { TypeDocument } from "@/generated/prisma/client";
+import { envoyerMailConnexionDriveInterrompue, type MotifAlerteDrive } from "@/lib/mail";
 
 // Un compte de service n'a pas de quota de stockage Drive : il peut modifier des
 // fichiers existants (d'où la sync Sheets qui fonctionne) mais pas y déposer de
@@ -30,7 +31,7 @@ export type EtatConnexionDrive =
   | { statut: "indisponible"; compteEmail: string | null; majLe: Date }
   | { statut: "active"; compteEmail: string | null; majLe: Date; dossierAccessible: boolean };
 
-function estJetonRevoqueOuExpire(erreur: unknown) {
+export function estJetonRevoqueOuExpire(erreur: unknown) {
   const e = erreur as { message?: string; response?: { data?: { error?: string } } };
   return e?.response?.data?.error === "invalid_grant" || e?.message === "invalid_grant";
 }
@@ -67,6 +68,38 @@ export async function verifierConnexionDrive(): Promise<EtatConnexionDrive> {
     console.error("Dossier des documents inaccessible :", erreur);
     return { statut: "active", compteEmail, majLe, dossierAccessible: false };
   }
+}
+
+const DELAI_RAPPEL_ALERTE_MS = 3 * 24 * 60 * 60 * 1000;
+
+// Prévient la direction par mail : une fois, puis un rappel tous les 3 jours si le
+// problème persiste (et pas à chaque vérification ou envoi raté d'un prof).
+export async function alerterConnexionDriveInterrompue(motif: MotifAlerteDrive, urlAdmin: string) {
+  const config = await db.configGoogle.findUnique({ where: { id: "singleton" } });
+  if (!config) return false;
+
+  const derniere = config.alerteEnvoyeeLe?.getTime();
+  if (derniere && Date.now() - derniere < DELAI_RAPPEL_ALERTE_MS) return false;
+
+  await envoyerMailConnexionDriveInterrompue({ motif, urlAdmin });
+  await db.configGoogle.update({ where: { id: "singleton" }, data: { alerteEnvoyeeLe: new Date() } });
+  return true;
+}
+
+// Vérification périodique (cron) : alerte si la connexion est coupée, et réarme
+// l'alerte dès qu'elle est de nouveau saine.
+export async function surveillerConnexionDrive(urlAdmin: string) {
+  const etat = await verifierConnexionDrive();
+
+  if (etat.statut === "expiree") {
+    await alerterConnexionDriveInterrompue("expiree", urlAdmin);
+  } else if (etat.statut === "active" && !etat.dossierAccessible) {
+    await alerterConnexionDriveInterrompue("dossier_introuvable", urlAdmin);
+  } else if (etat.statut === "active") {
+    await db.configGoogle.updateMany({ where: { id: "singleton" }, data: { alerteEnvoyeeLe: null } });
+  }
+
+  return etat;
 }
 
 function nomDossierProf(prof: { prenom: string; nom: string }) {
