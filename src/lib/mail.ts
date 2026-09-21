@@ -209,7 +209,7 @@ export async function envoyerMailBienvenue(params: ParametresBienvenue) {
     to: prof.email,
     from: process.env.EMAIL_FROM,
     subject: "Votre compte EMI4M Réservation est prêt",
-    text: `Bonjour ${prof.prenom},\n\nLa direction vient de créer votre compte sur l'application de réservation des salles EMI4M (identifiant : ${prof.email}). Définissez votre mot de passe pour activer votre compte :\n${urlDefinirMotDePasse}\n\nCe lien est valable 24h et à usage unique.\n\nÀ bientôt,\nDirection EMI4M`,
+    text: `Bonjour ${prof.prenom},\n\nLa direction vient de créer votre compte sur l'application de réservation des salles EMI4M (identifiant : ${prof.email}). Définissez votre mot de passe pour activer votre compte :\n${urlDefinirMotDePasse}\n\nCe lien est valable 7 jours et à usage unique. S'il a expiré, cliquez sur « Mot de passe oublié ? » sur la page de connexion pour en recevoir un nouveau.\n\nÀ bientôt,\nDirection EMI4M`,
     html: htmlLienMotDePasse({
       titre: "Bienvenue sur EMI4M Réservation",
       intro: `La direction vient de créer votre compte sur l'application de réservation des salles EMI4M (identifiant : ${prof.email}). Cliquez ci-dessous pour définir votre mot de passe et activer votre compte.`,
@@ -222,17 +222,18 @@ export async function envoyerMailBienvenue(params: ParametresBienvenue) {
 interface ParametresReinitialisation {
   prof: { prenom: string; email: string };
   urlDefinirMotDePasse: string;
+  validite?: string;
 }
 
 export async function envoyerMailReinitialisationMotDePasse(params: ParametresReinitialisation) {
-  const { prof, urlDefinirMotDePasse } = params;
+  const { prof, urlDefinirMotDePasse, validite = "24h" } = params;
   const transport = creerTransporteur();
 
   await transport.sendMail({
     to: prof.email,
     from: process.env.EMAIL_FROM,
     subject: "Réinitialisation de votre mot de passe EMI4M",
-    text: `Bonjour ${prof.prenom},\n\nVoici votre lien pour définir un nouveau mot de passe :\n${urlDefinirMotDePasse}\n\nCe lien est valable 24h et à usage unique. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\nDirection EMI4M`,
+    text: `Bonjour ${prof.prenom},\n\nVoici votre lien pour définir un nouveau mot de passe :\n${urlDefinirMotDePasse}\n\nCe lien est valable ${validite} et à usage unique. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\nDirection EMI4M`,
     html: htmlLienMotDePasse({
       titre: "Réinitialisation de mot de passe",
       intro: `Bonjour ${prof.prenom}, cliquez ci-dessous pour définir un nouveau mot de passe. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`,

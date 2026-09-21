@@ -42,9 +42,14 @@ export default async function AdminProfsPage() {
                   >
                     {prof.actif ? "Actif" : "Désactivé"}
                   </span>
+                  {prof.actif && !prof.motDePasseHash && (
+                    <span className="ml-1.5 rounded-full bg-status-attente/15 px-2.5 py-0.5 text-xs font-medium text-status-attente">
+                      Invitation en attente
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <ActionsProf profId={prof.id} actif={prof.actif} />
+                  <ActionsProf profId={prof.id} actif={prof.actif} aMotDePasse={!!prof.motDePasseHash} />
                 </td>
               </tr>
             ))}
