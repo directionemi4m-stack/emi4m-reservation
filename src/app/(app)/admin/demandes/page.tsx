@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { LigneAction } from "@/components/admin/LigneAction";
 import { LigneAnnulation } from "@/components/admin/LigneAnnulation";
 import { DemandeMailForm } from "@/components/admin/DemandeMailForm";
+import { ModifierReservation } from "@/components/admin/ModifierReservation";
 
 function formatterDate(date: Date) {
   return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
@@ -14,12 +15,17 @@ function formatterHeure(date: Date) {
 function aujourdHuiUTC(): Date {
   const maintenant = new Date();
   return new Date(
-    Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth(), maintenant.getUTCDate())
+    Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth(), maintenant.getUTCDate()),
   );
 }
 
-export default async function AdminDemandesPage() {
-  const [enAttente, validees, contacts] = await Promise.all([
+export default async function AdminDemandesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ modifier?: string }>;
+}) {
+  const { modifier } = await searchParams;
+  const [enAttente, validees, contacts, salles] = await Promise.all([
     db.demandeCreneau.findMany({
       where: { statut: "EN_ATTENTE" },
       include: {
@@ -29,7 +35,12 @@ export default async function AdminDemandesPage() {
       orderBy: [{ date: "asc" }, { heureDebut: "asc" }],
     }),
     db.demandeCreneau.findMany({
-      where: { statut: "VALIDEE", date: { gte: aujourdHuiUTC() } },
+      where: {
+        statut: "VALIDEE",
+        // La réservation ciblée par un lien « Modifier » (vue jour du planning) reste
+        // affichée même si elle est passée.
+        OR: [{ date: { gte: aujourdHuiUTC() } }, ...(modifier ? [{ id: modifier }] : [])],
+      },
       include: {
         demande: { include: { prof: true } },
         salle: { include: { commune: true } },
@@ -37,6 +48,11 @@ export default async function AdminDemandesPage() {
       orderBy: [{ date: "asc" }, { heureDebut: "asc" }],
     }),
     db.contact.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
+    db.salle.findMany({
+      where: { actif: true },
+      include: { commune: true },
+      orderBy: [{ commune: { nom: "asc" } }, { nom: "asc" }],
+    }),
   ]);
 
   return (
@@ -98,36 +114,57 @@ export default async function AdminDemandesPage() {
 
         {validees.map((ligne) => (
           <div
-            key={ligne.id}
-            className="flex items-start justify-between gap-4 rounded-lg bg-white p-4 shadow-sm"
+            key={[
+              ligne.id,
+              ligne.salleId,
+              ligne.date.getTime(),
+              formatterHeure(ligne.heureDebut),
+              formatterHeure(ligne.heureFin),
+            ].join("|")}
+            id={`ligne-${ligne.id}`}
+            className="flex scroll-mt-20 flex-col gap-3 rounded-lg bg-white p-4 shadow-sm"
           >
-            <div>
-              <p className="text-sm font-medium text-slate-700">
-                {ligne.demande.prof.prenom} {ligne.demande.prof.nom}
-                <span className="ml-2 text-xs font-normal text-slate-400">
-                  {ligne.demande.prof.email}
-                </span>
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                {ligne.salle.commune.nom} — {ligne.salle.nom}
-              </p>
-              <p className="text-sm text-slate-500">
-                {formatterDate(ligne.date)} · {formatterHeure(ligne.heureDebut)}–
-                {formatterHeure(ligne.heureFin)}
-              </p>
-              <div className="mt-2">
-                <DemandeMailForm
-                  salleNom={ligne.salle.nom}
-                  communeNom={ligne.salle.commune.nom}
-                  communeId={ligne.salle.communeId}
-                  dateFormatee={formatterDate(ligne.date)}
-                  heureDebut={formatterHeure(ligne.heureDebut)}
-                  heureFin={formatterHeure(ligne.heureFin)}
-                  contacts={contacts}
-                />
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-slate-700">
+                  {ligne.demande.prof.prenom} {ligne.demande.prof.nom}
+                  <span className="ml-2 text-xs font-normal text-slate-400">
+                    {ligne.demande.prof.email}
+                  </span>
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {ligne.salle.commune.nom} — {ligne.salle.nom}
+                </p>
+                <p className="text-sm text-slate-500">
+                  {formatterDate(ligne.date)} · {formatterHeure(ligne.heureDebut)}–
+                  {formatterHeure(ligne.heureFin)}
+                </p>
+                <div className="mt-2">
+                  <DemandeMailForm
+                    salleNom={ligne.salle.nom}
+                    communeNom={ligne.salle.commune.nom}
+                    communeId={ligne.salle.communeId}
+                    dateFormatee={formatterDate(ligne.date)}
+                    heureDebut={formatterHeure(ligne.heureDebut)}
+                    heureFin={formatterHeure(ligne.heureFin)}
+                    contacts={contacts}
+                  />
+                </div>
               </div>
+              <LigneAnnulation id={ligne.id} />
             </div>
-            <LigneAnnulation id={ligne.id} />
+            <ModifierReservation
+              id={ligne.id}
+              valeurs={{
+                salleId: ligne.salleId,
+                date: ligne.date.toISOString().slice(0, 10),
+                heureDebut: formatterHeure(ligne.heureDebut),
+                heureFin: formatterHeure(ligne.heureFin),
+              }}
+              salles={salles}
+              profPrenom={ligne.demande.prof.prenom}
+              ouvertParDefaut={modifier === ligne.id}
+            />
           </div>
         ))}
       </div>

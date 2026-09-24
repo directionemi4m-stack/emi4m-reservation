@@ -1,28 +1,14 @@
 import { db } from "@/lib/db";
 import { PlanningFiltres } from "@/components/planning/PlanningFiltres";
 import { SalleTimeline } from "@/components/planning/SalleTimeline";
-
-function lundiDe(date: Date): Date {
-  const jour = date.getUTCDay();
-  const decalage = (jour + 6) % 7; // jours écoulés depuis lundi
-  const lundi = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  lundi.setUTCDate(lundi.getUTCDate() - decalage);
-  return lundi;
-}
-
-function ajouterJours(date: Date, n: number): Date {
-  const resultat = new Date(date);
-  resultat.setUTCDate(resultat.getUTCDate() + n);
-  return resultat;
-}
-
-function versParamDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function heureDecimale(date: Date) {
-  return date.getUTCHours() + date.getUTCMinutes() / 60;
-}
+import {
+  ajouterJours,
+  axeHoraire,
+  chargerOccupation,
+  lireParamDate,
+  lundiDe,
+  versParamDate,
+} from "@/lib/planning";
 
 export default async function PlanningPage({
   searchParams,
@@ -31,11 +17,7 @@ export default async function PlanningPage({
 }) {
   const params = await searchParams;
 
-  const semaineDemandee = params.semaine ? new Date(`${params.semaine}T00:00:00.000Z`) : null;
-  const lundi =
-    semaineDemandee && !Number.isNaN(semaineDemandee.getTime())
-      ? lundiDe(semaineDemandee)
-      : lundiDe(new Date());
+  const lundi = lundiDe(lireParamDate(params.semaine) ?? new Date());
   const jours = Array.from({ length: 7 }, (_, i) => ajouterJours(lundi, i));
   const dimanche = jours[6];
 
@@ -54,41 +36,13 @@ export default async function PlanningPage({
     return true;
   });
 
-  const salleIds = salles.map((s) => s.id);
-
-  const [creneauxRecurrents, reservationsValidees] = await Promise.all([
-    salleIds.length
-      ? db.creneauRecurrent.findMany({
-          where: {
-            salleId: { in: salleIds },
-            actif: true,
-            dateDebut: { lte: dimanche },
-            OR: [{ dateFin: null }, { dateFin: { gte: lundi } }],
-          },
-        })
-      : Promise.resolve([]),
-    salleIds.length
-      ? db.demandeCreneau.findMany({
-          where: {
-            salleId: { in: salleIds },
-            statut: "VALIDEE",
-            date: { gte: lundi, lte: dimanche },
-          },
-          include: { demande: { include: { prof: true } } },
-        })
-      : Promise.resolve([]),
-  ]);
-
-  let heureMinAxe = 8;
-  let heureMaxAxe = 20;
-  for (const c of creneauxRecurrents) {
-    heureMinAxe = Math.min(heureMinAxe, Math.floor(heureDecimale(c.heureDebut)));
-    heureMaxAxe = Math.max(heureMaxAxe, Math.ceil(heureDecimale(c.heureFin)));
-  }
-  for (const r of reservationsValidees) {
-    heureMinAxe = Math.min(heureMinAxe, Math.floor(heureDecimale(r.heureDebut)));
-    heureMaxAxe = Math.max(heureMaxAxe, Math.ceil(heureDecimale(r.heureFin)));
-  }
+  const blocs = await chargerOccupation(
+    salles.map((s) => s.id),
+    lundi,
+    dimanche
+  );
+  const { min: heureMinAxe, max: heureMaxAxe } = axeHoraire(blocs);
+  const semaine = versParamDate(lundi);
 
   return (
     <div className="flex flex-col gap-6">
@@ -97,12 +51,12 @@ export default async function PlanningPage({
       <PlanningFiltres
         communes={communes}
         salles={sallesToutes.map((s) => ({ id: s.id, nom: s.nom, communeId: s.communeId }))}
-        semaine={versParamDate(lundi)}
+        semaine={semaine}
         communeSelectionnee={params.commune}
         salleSelectionnee={params.salle}
       />
 
-      <div className="flex items-center gap-4 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded-sm bg-status-dispo/20" /> Disponible
         </span>
@@ -112,6 +66,9 @@ export default async function PlanningPage({
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded-sm bg-status-occupee" /> Réservation validée
         </span>
+        <span className="text-slate-400">
+          Touchez une salle ou un jour pour en voir le détail.
+        </span>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -120,10 +77,10 @@ export default async function PlanningPage({
             key={salle.id}
             salle={salle}
             jours={jours}
-            creneauxRecurrents={creneauxRecurrents.filter((c) => c.salleId === salle.id)}
-            reservationsValidees={reservationsValidees.filter((r) => r.salleId === salle.id)}
+            blocs={blocs.filter((b) => b.salleId === salle.id)}
             heureMinAxe={heureMinAxe}
             heureMaxAxe={heureMaxAxe}
+            semaine={semaine}
           />
         ))}
         {salles.length === 0 && (

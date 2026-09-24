@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { verifierDisponibilite, formatterHeure } from "@/lib/conflicts";
@@ -8,6 +9,7 @@ import {
   envoyerMailDemandeValidee,
   envoyerMailDemandeRefusee,
   envoyerMailReservationAnnulee,
+  envoyerMailReservationModifiee,
   envoyerMailDemandeSalle,
 } from "@/lib/mail";
 
@@ -155,6 +157,91 @@ export async function annulerReservationValidee(
   revalidatePath("/planning");
   revalidatePath("/demandes");
   return { succes: true };
+}
+
+// Déplace une réservation DÉJÀ validée (salle, date, horaires) sans l'annuler puis la
+// refaire. Le conflit est recalculé en ignorant la réservation elle-même ; le prof est
+// prévenu par mail sauf si la direction décoche l'option.
+export async function modifierReservationValidee(
+  _etatPrecedent: EtatAction,
+  formData: FormData
+): Promise<EtatAction> {
+  await exigerAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const salleId = String(formData.get("salleId") ?? "");
+  const dateStr = String(formData.get("date") ?? "");
+  const heureDebut = String(formData.get("heureDebut") ?? "");
+  const heureFin = String(formData.get("heureFin") ?? "");
+  const prevenir = formData.get("prevenir") === "on";
+
+  if (!salleId || !dateStr || !heureDebut || !heureFin) {
+    return { succes: false, message: "Merci de remplir tous les champs." };
+  }
+  if (heureDebut >= heureFin) {
+    return { succes: false, message: "L'heure de fin doit être après l'heure de début." };
+  }
+  const date = new Date(`${dateStr}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) {
+    return { succes: false, message: "Date invalide." };
+  }
+
+  const ligne = await db.demandeCreneau.findUnique({
+    where: { id },
+    include: { demande: { include: { prof: true } }, salle: { include: { commune: true } } },
+  });
+  if (!ligne || ligne.statut !== "VALIDEE") {
+    return { succes: false, message: "Cette réservation n'est plus validée." };
+  }
+
+  const nouvelleSalle = await db.salle.findUnique({
+    where: { id: salleId },
+    include: { commune: true },
+  });
+  if (!nouvelleSalle || !nouvelleSalle.actif) {
+    return { succes: false, message: "Salle introuvable." };
+  }
+
+  const resultat = await verifierDisponibilite(
+    { salleId, date, heureDebut, heureFin },
+    { excludeDemandeCreneauId: id }
+  );
+  if (!resultat.disponible) {
+    return { succes: false, message: `Conflit : ${resultat.creneauBloquant}` };
+  }
+
+  const nouvelleDebut = new Date(`1970-01-01T${heureDebut}:00.000Z`);
+  const nouvelleFin = new Date(`1970-01-01T${heureFin}:00.000Z`);
+  const modifiee =
+    salleId !== ligne.salleId ||
+    date.getTime() !== ligne.date.getTime() ||
+    nouvelleDebut.getTime() !== ligne.heureDebut.getTime() ||
+    nouvelleFin.getTime() !== ligne.heureFin.getTime();
+
+  if (modifiee) {
+    await db.demandeCreneau.update({
+      where: { id },
+      data: { salleId, date, heureDebut: nouvelleDebut, heureFin: nouvelleFin },
+    });
+
+    if (prevenir) {
+      try {
+        await envoyerMailReservationModifiee({
+          prof: ligne.demande.prof,
+          ancienne: ligne,
+          nouvelle: { salle: nouvelleSalle, date, heureDebut: nouvelleDebut, heureFin: nouvelleFin },
+        });
+      } catch (erreur) {
+        console.error("Échec d'envoi du mail de modification :", erreur);
+      }
+    }
+  }
+
+  revalidatePath("/planning");
+  revalidatePath("/demandes");
+  revalidatePath("/admin/demandes");
+  // Repart sur la page sans « ?modifier= » : l'éditeur se referme, la liste est à jour.
+  redirect(`/admin/demandes#ligne-${id}`);
 }
 
 export type EtatEnvoiMail = { statut: "idle" | "envoye" | "erreur"; message?: string };

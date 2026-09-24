@@ -19,7 +19,10 @@ export default async function MesDemandesPage() {
 
   const demandes = await db.demande.findMany({
     where: { profId: session!.user.id },
-    include: { salle: { include: { commune: true } }, creneaux: true },
+    include: {
+      salle: { include: { commune: true } },
+      creneaux: { include: { salle: { include: { commune: true } } } },
+    },
     orderBy: { creeLe: "desc" },
   });
 
@@ -51,6 +54,12 @@ export default async function MesDemandesPage() {
                   <span className="text-slate-700">
                     {formatterDate(creneau.date)} · {formatterHeure(creneau.heureDebut)}–
                     {formatterHeure(creneau.heureFin)}
+                    {/* Réservation déplacée dans une autre salle par la direction */}
+                    {creneau.salleId !== demande.salleId && (
+                      <span className="ml-2 text-xs text-brand-accent">
+                        → {creneau.salle.commune.nom} — {creneau.salle.nom}
+                      </span>
+                    )}
                   </span>
                   <div className="flex items-center gap-3">
                     {(creneau.statut === "REFUSEE" || creneau.statut === "ANNULEE") &&

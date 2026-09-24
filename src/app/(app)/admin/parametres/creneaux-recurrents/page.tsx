@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { AjouterCreneauRecurrentForm } from "@/components/admin/AjouterCreneauRecurrentForm";
-import { desactiverCreneauRecurrent } from "./actions";
+import { LigneCreneauRecurrent } from "@/components/admin/LigneCreneauRecurrent";
 
 function formatterHeure(date: Date) {
   return date.toISOString().slice(11, 16);
@@ -26,11 +26,22 @@ const ORDRE_JOUR: Record<string, number> = {
   DIMANCHE: 6,
 };
 
-export default async function AdminCreneauxRecurrentsPage() {
+export default async function AdminCreneauxRecurrentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ modifier?: string }>;
+}) {
+  const { modifier } = await searchParams;
+
+  // On garde aussi le prof / la salle d'un créneau existant même s'ils ne figurent plus
+  // dans les listes « normales » (compte direction, salle désactivée), pour pouvoir l'éditer.
   const [profs, salles, creneaux] = await Promise.all([
-    db.user.findMany({ where: { role: "PROF" }, orderBy: [{ nom: "asc" }] }),
+    db.user.findMany({
+      where: { OR: [{ role: "PROF" }, { creneauxRecurrents: { some: { actif: true } } }] },
+      orderBy: [{ nom: "asc" }],
+    }),
     db.salle.findMany({
-      where: { actif: true },
+      where: { OR: [{ actif: true }, { creneauxRecurrents: { some: { actif: true } } }] },
       include: { commune: true },
       orderBy: [{ commune: { nom: "asc" } }, { nom: "asc" }],
     }),
@@ -63,37 +74,46 @@ export default async function AdminCreneauxRecurrentsPage() {
           if (lignes.length === 0) return null;
 
           return (
-            <div key={prof.id} className="rounded-lg bg-white p-4 shadow-sm">
+            <div key={prof.id} className="overflow-x-auto rounded-lg bg-white p-4 shadow-sm">
               <p className="mb-3 text-sm font-semibold text-brand-slate">
                 {prof.prenom} {prof.nom}
               </p>
-              <table className="w-full text-left text-sm">
+              <table className="w-full min-w-[560px] text-left text-sm">
                 <tbody>
                   {lignes.map((c) => (
-                    <tr key={c.id} className="border-t border-slate-100">
-                      <td className="py-2 text-slate-700">{LIBELLE_JOUR[c.jourSemaine]}</td>
-                      <td className="py-2 text-slate-700">
-                        {formatterHeure(c.heureDebut)}–{formatterHeure(c.heureFin)}
-                      </td>
-                      <td className="py-2 text-slate-600">
-                        {c.salle.commune.nom} — {c.salle.nom}
-                      </td>
-                      <td className="py-2 text-xs text-slate-400">
-                        depuis {c.dateDebut.toLocaleDateString("fr-FR")}
-                        {c.dateFin ? ` jusqu'au ${c.dateFin.toLocaleDateString("fr-FR")}` : ""}
-                      </td>
-                      <td className="py-2 text-right">
-                        <form action={desactiverCreneauRecurrent}>
-                          <input type="hidden" name="id" value={c.id} />
-                          <button
-                            type="submit"
-                            className="text-xs font-medium text-status-occupee hover:underline"
-                          >
-                            Désactiver
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
+                    <LigneCreneauRecurrent
+                      // La clé change dès qu'une valeur change : l'éditeur se referme après
+                      // l'enregistrement et repart des nouvelles valeurs.
+                      key={[
+                        c.id,
+                        c.profId,
+                        c.salleId,
+                        c.jourSemaine,
+                        formatterHeure(c.heureDebut),
+                        formatterHeure(c.heureFin),
+                        c.dateDebut.getTime(),
+                        c.dateFin?.getTime() ?? "",
+                      ].join("|")}
+                      id={c.id}
+                      jour={LIBELLE_JOUR[c.jourSemaine]}
+                      horaire={`${formatterHeure(c.heureDebut)}–${formatterHeure(c.heureFin)}`}
+                      salleLabel={`${c.salle.commune.nom} — ${c.salle.nom}`}
+                      periode={`depuis ${c.dateDebut.toLocaleDateString("fr-FR")}${
+                        c.dateFin ? ` jusqu'au ${c.dateFin.toLocaleDateString("fr-FR")}` : ""
+                      }`}
+                      valeurs={{
+                        profId: c.profId,
+                        salleId: c.salleId,
+                        jourSemaine: c.jourSemaine,
+                        heureDebut: formatterHeure(c.heureDebut),
+                        heureFin: formatterHeure(c.heureFin),
+                        dateDebut: c.dateDebut.toISOString().slice(0, 10),
+                        dateFin: c.dateFin ? c.dateFin.toISOString().slice(0, 10) : "",
+                      }}
+                      profs={profs}
+                      salles={salles}
+                      ouvertParDefaut={modifier === c.id}
+                    />
                   ))}
                 </tbody>
               </table>

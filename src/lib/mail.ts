@@ -196,6 +196,40 @@ export async function envoyerMailReservationAnnulee(params: ParametresDecision) 
   });
 }
 
+interface CreneauAvecSalle {
+  salle: { nom: string; commune: { nom: string } };
+  date: Date;
+  heureDebut: Date;
+  heureFin: Date;
+}
+
+// Prévient le prof qu'une réservation DÉJÀ validée a été déplacée par la direction.
+export async function envoyerMailReservationModifiee(params: {
+  prof: { prenom: string; email: string };
+  ancienne: CreneauAvecSalle;
+  nouvelle: CreneauAvecSalle;
+}) {
+  const { prof, ancienne, nouvelle } = params;
+  const transport = creerTransporteur();
+
+  const decrire = (c: CreneauAvecSalle) =>
+    `${c.salle.commune.nom} — ${c.salle.nom}\n${formatterDateFr(c.date)} ${formatterHeure(c.heureDebut)}–${formatterHeure(c.heureFin)}`;
+  const decrireHtml = (c: CreneauAvecSalle) =>
+    `${c.salle.commune.nom} — ${c.salle.nom}<br>${formatterDateFr(c.date)} · ${formatterHeure(c.heureDebut)}–${formatterHeure(c.heureFin)}`;
+
+  await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    subject: `Réservation modifiée — ${nouvelle.salle.commune.nom} / ${nouvelle.salle.nom}`,
+    text: `Bonjour ${prof.prenom},\n\nLa direction a modifié une de vos réservations validées.\n\nAncien créneau :\n${decrire(ancienne)}\n\nNouveau créneau :\n${decrire(nouvelle)}\n\nDirection EMI4M`,
+    html: htmlDecision({
+      couleur: "#2980B9",
+      titre: "Votre réservation a été modifiée",
+      corps: `<p style="margin:0 0 16px;">Bonjour ${prof.prenom},</p><p style="margin:0 0 20px;">La direction a modifié une de vos réservations validées.</p><p style="margin:0 0 6px;color:#7f8c8d;">Ancien créneau</p><p style="margin:0 0 20px;text-decoration:line-through;color:#7f8c8d;">${decrireHtml(ancienne)}</p><p style="margin:0 0 6px;color:#7f8c8d;">Nouveau créneau</p><p style="margin:0;font-weight:bold;">${decrireHtml(nouvelle)}</p>`,
+    }),
+  });
+}
+
 interface ParametresBienvenue {
   prof: { nom: string; prenom: string; email: string };
   urlDefinirMotDePasse: string;
