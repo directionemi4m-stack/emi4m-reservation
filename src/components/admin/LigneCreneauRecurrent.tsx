@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
+import { useSoumission } from "@/lib/useSoumission";
 import {
   desactiverCreneauRecurrent,
   modifierCreneauRecurrent,
@@ -38,7 +39,7 @@ export function LigneCreneauRecurrent({
   ouvertParDefaut: boolean;
 }) {
   const [ouvert, setOuvert] = useState(ouvertParDefaut);
-  const [etat, action, enCours] = useActionState(modifierCreneauRecurrent, etatInitial);
+  const [etat, soumettre, enCours] = useSoumission(modifierCreneauRecurrent, etatInitial);
 
   return (
     <>
@@ -68,7 +69,7 @@ export function LigneCreneauRecurrent({
       {ouvert && (
         <tr className="bg-slate-50">
           <td colSpan={5} className="p-3">
-            <form action={action} className="flex flex-col gap-3">
+            <form onSubmit={soumettre} className="flex flex-col gap-3">
               <input type="hidden" name="id" value={id} />
               <ChampsCreneauRecurrent profs={profs} salles={salles} valeurs={valeurs} />
               {etat.message && !etat.succes && (

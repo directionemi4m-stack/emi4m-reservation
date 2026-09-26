@@ -124,6 +124,9 @@ export function HeaderNav({
         {grps.map((groupe) => (
           <GroupeDesktop key={groupe.label} groupe={groupe} />
         ))}
+        <Link href="/cham" className="hover:text-brand-accent">
+          CHAM
+        </Link>
         {role === "ADMIN" && (
           <Link href="/admin/parametres/profs" className="hover:text-brand-accent">
             Profs
@@ -170,6 +173,18 @@ export function HeaderNav({
               </div>
             </div>
           ))}
+          <div>
+            <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-white/40">
+              CHAM
+            </p>
+            <Link
+              href="/cham"
+              onClick={() => setOuvert(false)}
+              className="block rounded-md px-2 py-2 hover:bg-white/10"
+            >
+              Élèves CHAM
+            </Link>
+          </div>
           {role === "ADMIN" && (
             <div>
               <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-white/40">

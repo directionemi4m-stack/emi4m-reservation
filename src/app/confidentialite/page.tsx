@@ -35,7 +35,7 @@ export default function ConfidentialitePage() {
           <Image src="/logo-emi4m.png" alt="EMI4M" width={64} height={64} className="rounded-full" />
           <h1 className="text-xl font-semibold text-brand-slate">Politique de confidentialité</h1>
           <p className="text-xs text-slate-400">
-            Application « EMI4M Réservation » — dernière mise à jour : 21 septembre 2026
+            Application « EMI4M Réservation » — dernière mise à jour : 26 septembre 2026
           </p>
         </header>
 
@@ -57,6 +57,7 @@ export default function ConfidentialitePage() {
               "Frais de déplacement : dates, trajets, missions, kilomètres et montants.",
               "Fiche identité de l'enseignant (facultative, pour le remboursement des frais) : adresse, numéros de permis, de carte grise et d'assurance, véhicule utilisé.",
               "Pièces justificatives : copies du permis de conduire et de la carte d'identité, envoyées par l'enseignant (photo ou PDF).",
+              "Élèves des classes à horaires aménagés (CHAM) : nom, prénom, âge, ville, téléphone et e-mail de contact, autorisation de quitter seul l'établissement, renseignés par la direction.",
             ]}
           />
         </Section>
@@ -102,7 +103,7 @@ export default function ConfidentialitePage() {
           <Liste
             items={[
               "La direction de l'école, pour l'ensemble des données.",
-              "Chaque enseignant, pour ses propres cours, trajets et documents.",
+              "Chaque enseignant, pour ses propres cours, trajets et documents, ainsi que la liste des élèves CHAM (en lecture seule).",
               "Nos prestataires techniques : Vercel (hébergement de l'application), Neon (base de données, région Francfort) et Google (Sheets, Drive et envoi des e-mails).",
             ]}
           />

@@ -380,3 +380,31 @@ model ConfigGoogle {
   majLe        DateTime @updatedAt
 }
 
+
+// --- CHAM (classes à horaires aménagés musique) ---
+
+enum AutorisationSortie {
+  A_RENSEIGNER // pas encore renseigné : par prudence, l'enfant n'est PAS présumé autorisé à partir seul
+  SEUL         // les parents autorisent l'enfant à quitter seul l'établissement
+  ACCOMPAGNE   // l'enfant doit être récupéré par un adulte
+}
+
+// Élève CHAM : liste consultable par tous les enseignants, modifiable uniquement par la direction.
+model EleveCham {
+  id                 String             @id @default(cuid())
+  // « Identifiant » du fichier d'origine (export de contacts) — permet de réimporter sans doublons.
+  identifiantExterne String?            @unique
+  prenom             String
+  nom                String
+  age                Int?
+  telephone          String?
+  email              String?
+  ville              String?
+  autorisationSortie AutorisationSortie @default(A_RENSEIGNER)
+  // Précisions libres (ex. « peut partir avec sa sœur », « récupéré par sa grand-mère »).
+  precisionsSortie   String?
+  creeLe             DateTime           @default(now())
+  majLe              DateTime           @updatedAt
+
+  @@index([nom, prenom])
+}

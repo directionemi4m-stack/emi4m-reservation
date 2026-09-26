@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
+import { useSoumission } from "@/lib/useSoumission";
 import {
   modifierReservationValidee,
   type EtatAction,
@@ -26,7 +27,7 @@ export function ModifierReservation({
   ouvertParDefaut: boolean;
 }) {
   const [ouvert, setOuvert] = useState(ouvertParDefaut);
-  const [etat, action, enCours] = useActionState(modifierReservationValidee, etatInitial);
+  const [etat, soumettre, enCours] = useSoumission(modifierReservationValidee, etatInitial);
 
   const groupes = new Map<string, SalleChoix[]>();
   for (const s of salles) {
@@ -48,7 +49,7 @@ export function ModifierReservation({
   }
 
   return (
-    <form action={action} className="flex flex-col gap-3 rounded-md bg-slate-50 p-3">
+    <form onSubmit={soumettre} className="flex flex-col gap-3 rounded-md bg-slate-50 p-3">
       <input type="hidden" name="id" value={id} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <label className="flex flex-col gap-1 text-xs text-slate-500 sm:col-span-2">
