@@ -7,7 +7,7 @@ import { AjouterEleveForm } from "@/components/presences/AjouterEleveForm";
 import { SupprimerEleveBouton } from "@/components/presences/SupprimerEleveBouton";
 import { AjouterSeanceForm } from "@/components/presences/AjouterSeanceForm";
 import { SeanceRow } from "@/components/presences/SeanceRow";
-import { ModifierDisciplineForm } from "@/components/presences/ModifierDisciplineForm";
+import { ModifierCoursForm } from "@/components/presences/ModifierCoursForm";
 
 export default async function ClassePage({
   params,
@@ -65,8 +65,9 @@ export default async function ClassePage({
         </h1>
         {sousTitre && <p className="text-sm text-slate-500">{sousTitre}</p>}
         <div className="mt-2">
-          <ModifierDisciplineForm
+          <ModifierCoursForm
             classeId={classe.id}
+            jourActuel={classe.jour}
             disciplineActuelleId={disciplineActuelle?.id ?? null}
             niveauFMActuelId={classe.niveauFMId}
             lieuActuelId={classe.lieuId}

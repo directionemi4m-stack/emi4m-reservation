@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { modifierDisciplineClasse, type EtatAction } from "@/app/(app)/presences/actions";
+import { modifierCoursDetails, type EtatAction } from "@/app/(app)/presences/actions";
 import { useSoumission } from "@/lib/useSoumission";
 
 const etatInitial: EtatAction = { succes: true };
@@ -23,8 +23,9 @@ interface Lieu {
   nom: string;
 }
 
-export function ModifierDisciplineForm({
+export function ModifierCoursForm({
   classeId,
+  jourActuel,
   disciplineActuelleId,
   niveauFMActuelId,
   lieuActuelId,
@@ -33,6 +34,7 @@ export function ModifierDisciplineForm({
   lieux,
 }: {
   classeId: string;
+  jourActuel: string | null;
   disciplineActuelleId: string | null;
   niveauFMActuelId: string | null;
   lieuActuelId: string | null;
@@ -42,7 +44,7 @@ export function ModifierDisciplineForm({
 }) {
   const [ouvert, setOuvert] = useState(false);
   const [disciplineId, setDisciplineId] = useState(disciplineActuelleId ?? "");
-  const [etat, soumettre, enCours] = useSoumission(modifierDisciplineClasse, etatInitial);
+  const [etat, soumettre, enCours] = useSoumission(modifierCoursDetails, etatInitial);
 
   const discipline = useMemo(
     () => disciplines.find((d) => d.id === disciplineId) ?? null,
@@ -57,7 +59,7 @@ export function ModifierDisciplineForm({
         onClick={() => setOuvert(true)}
         className="text-xs font-medium text-brand-accent hover:underline"
       >
-        Modifier la discipline
+        Modifier la discipline ou le jour
       </button>
     );
   }
@@ -110,6 +112,13 @@ export function ModifierDisciplineForm({
             </select>
           </>
         )}
+
+        <input
+          name="jour"
+          defaultValue={jourActuel ?? ""}
+          placeholder="Jour / horaire (ex. Mardi 17h)"
+          className={champClass}
+        />
       </div>
 
       <p className="text-xs text-slate-400">

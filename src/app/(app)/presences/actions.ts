@@ -80,17 +80,20 @@ export async function creerClasse(
   redirect(`/presences/${classe.id}`);
 }
 
-// Change la discipline d'un cours déjà créé (élèves, séances et présences existantes
-// restent inchangés — seuls la discipline, le type et, pour la FM, le niveau/lieu
-// changent). Si le cours quittait un onglet partagé, celui-ci est resynchronisé (ou
-// supprimé s'il n'en reste plus aucun groupe), exactement comme à la suppression.
-export async function modifierDisciplineClasse(
+// Modifie la discipline et/ou le jour/horaire d'un cours déjà créé (élèves, séances et
+// présences existantes restent inchangés). Si la discipline change et que le cours
+// quittait un onglet partagé, celui-ci est resynchronisé (ou supprimé s'il n'en reste
+// plus aucun groupe), exactement comme à la suppression. Le jour est aussi resynchronisé
+// dans tous les cas : il détermine l'ordre des groupes et le libellé affiché dans le
+// classeur (cf. lib/sheets), même quand la discipline ne change pas.
+export async function modifierCoursDetails(
   _etatPrecedent: EtatAction,
   formData: FormData
 ): Promise<EtatAction> {
   const session = await exigerConnecte();
   const id = String(formData.get("id") ?? "");
   const disciplineId = String(formData.get("disciplineId") ?? "");
+  const jour = String(formData.get("jour") ?? "").trim() || null;
 
   const classeAvant = await db.classe.findUnique({ where: { id } });
   if (!classeAvant) {
@@ -126,37 +129,45 @@ export async function modifierDisciplineClasse(
     nom = /^fm/i.test(niveau.nom) ? niveau.nom : `FM ${niveau.nom}`;
   }
 
-  if (nom === classeAvant.nom && type === classeAvant.type) {
-    return { succes: true, message: "Discipline inchangée." };
+  const disciplineChangee = nom !== classeAvant.nom || type !== classeAvant.type;
+  const jourChange = jour !== classeAvant.jour;
+  if (!disciplineChangee && !jourChange) {
+    return { succes: true, message: "Aucune modification." };
   }
 
   await db.classe.update({
     where: { id },
-    data: { type, nom, lieuId: type === "FM" ? lieuId : null, niveauFMId: type === "FM" ? niveauFMId : null },
+    data: { type, nom, jour, lieuId: type === "FM" ? lieuId : null, niveauFMId: type === "FM" ? niveauFMId : null },
   });
 
   revalidatePath(`/presences/${id}`);
   revalidatePath("/presences");
 
   try {
-    // Onglet quitté : le resynchroniser à partir d'un groupe restant, ou le
-    // supprimer s'il n'en reste plus aucun.
-    const groupeRestant = await db.classe.findFirst({
-      where: { nom: classeAvant.nom, type: classeAvant.type, actif: true },
-      select: { id: true },
-    });
-    if (groupeRestant) {
-      await synchroniserFeuillePresence(groupeRestant.id);
-    } else {
-      await supprimerFeuillePresence(classeAvant);
+    if (disciplineChangee) {
+      // Onglet quitté : le resynchroniser à partir d'un groupe restant, ou le
+      // supprimer s'il n'en reste plus aucun.
+      const groupeRestant = await db.classe.findFirst({
+        where: { nom: classeAvant.nom, type: classeAvant.type, actif: true },
+        select: { id: true },
+      });
+      if (groupeRestant) {
+        await synchroniserFeuillePresence(groupeRestant.id);
+      } else {
+        await supprimerFeuillePresence(classeAvant);
+      }
     }
-    // Onglet rejoint : y intégrer ce cours.
+    // Onglet actuel (rejoint si la discipline a changé, ou simplement mis à jour si
+    // seul le jour a changé) : toujours resynchronisé en dernier.
     await synchroniserFeuillePresence(id);
   } catch (erreur) {
     console.error("Échec de mise à jour de l'onglet Google Sheets :", erreur);
   }
 
-  return { succes: true, message: `Discipline changée pour « ${nom} ».` };
+  return {
+    succes: true,
+    message: disciplineChangee ? `Discipline changée pour « ${nom} ».` : "Modifications enregistrées.",
+  };
 }
 
 export async function supprimerClasse(
