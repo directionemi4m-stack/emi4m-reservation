@@ -32,6 +32,15 @@ export async function ajouterTrajet(
   const session = await auth();
   if (!session?.user) return { succes: false, message: "Non connecté." };
 
+  // Un admin peut saisir un trajet au nom d'un collègue (ex. remplacement) ; un prof
+  // ne peut saisir que pour lui-même, quoi que contienne le champ profId du formulaire.
+  const profIdSaisi = String(formData.get("profId") ?? "");
+  const profId = session.user.role === "ADMIN" && profIdSaisi ? profIdSaisi : session.user.id;
+  if (profId !== session.user.id) {
+    const cible = await db.user.findUnique({ where: { id: profId } });
+    if (!cible) return { succes: false, message: "Prof introuvable." };
+  }
+
   const dateStr = String(formData.get("date") ?? "");
   const typeMission = String(formData.get("typeMission") ?? "") as TypeMission;
   const precisionMission = String(formData.get("precisionMission") ?? "").trim() || null;
@@ -50,7 +59,7 @@ export async function ajouterTrajet(
 
   await db.trajet.create({
     data: {
-      profId: session.user.id,
+      profId,
       date: new Date(`${dateStr}T00:00:00.000Z`),
       typeMission,
       precisionMission,
@@ -64,7 +73,7 @@ export async function ajouterTrajet(
   revalidatePath("/frais");
 
   try {
-    await synchroniserFraisProf(session.user.id);
+    await synchroniserFraisProf(profId);
   } catch (erreur) {
     console.error("Échec de synchronisation Google Sheets (frais) :", erreur);
   }

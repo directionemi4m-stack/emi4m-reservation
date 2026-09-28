@@ -87,6 +87,7 @@ const TYPES_EVENEMENT_ACCESSOIRE = [
   "Examen",
   "Répétition",
   "Intervention crèche",
+  "Remplacement",
 ];
 
 // Barème kilométrique existant (fichier comptage_kilometre_type.xlsx, onglet

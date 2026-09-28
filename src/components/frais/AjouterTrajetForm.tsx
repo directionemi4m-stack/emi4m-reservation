@@ -19,7 +19,13 @@ const champClass =
 
 const OPTIONS_MISSION = Object.entries(LABELS_MISSION) as [TypeMission, string][];
 
-export function AjouterTrajetForm({ typesTrajet }: { typesTrajet: TypeTrajet[] }) {
+export function AjouterTrajetForm({
+  typesTrajet,
+  profIdCible,
+}: {
+  typesTrajet: TypeTrajet[];
+  profIdCible?: string;
+}) {
   const [etat, action, enCours] = useActionState(ajouterTrajet, ETAT_INITIAL);
   const [typeTrajetId, setTypeTrajetId] = useState("");
   const [typeMission, setTypeMission] = useState<TypeMission | "">("");
@@ -33,6 +39,7 @@ export function AjouterTrajetForm({ typesTrajet }: { typesTrajet: TypeTrajet[] }
   return (
     <form action={action} className="flex flex-col gap-3 rounded-lg bg-white p-4 shadow-sm">
       <h2 className="text-sm font-semibold text-brand-slate">Déclarer un trajet</h2>
+      {profIdCible && <input type="hidden" name="profId" value={profIdCible} />}
       <div className="flex flex-wrap gap-3">
         <input type="date" name="date" required defaultValue={aujourdHui} className={champClass} />
         <select

@@ -14,7 +14,13 @@ const ETAT_INITIAL: EtatAction = { succes: true };
 const champClass =
   "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
 
-export function AjouterActiviteForm({ typesEvenement }: { typesEvenement: TypeEvenement[] }) {
+export function AjouterActiviteForm({
+  typesEvenement,
+  profIdCible,
+}: {
+  typesEvenement: TypeEvenement[];
+  profIdCible?: string;
+}) {
   const [etat, action, enCours] = useActionState(ajouterActivite, ETAT_INITIAL);
   const [typeEvenementId, setTypeEvenementId] = useState("");
   const [duree, setDuree] = useState("");
@@ -23,6 +29,7 @@ export function AjouterActiviteForm({ typesEvenement }: { typesEvenement: TypeEv
   return (
     <form action={action} className="flex flex-col gap-3 rounded-lg bg-white p-4 shadow-sm">
       <h2 className="text-sm font-semibold text-brand-slate">Déclarer une activité accessoire</h2>
+      {profIdCible && <input type="hidden" name="profId" value={profIdCible} />}
       <div className="flex flex-wrap gap-3">
         <input type="date" name="date" required defaultValue={aujourdHui} className={champClass} />
         <select

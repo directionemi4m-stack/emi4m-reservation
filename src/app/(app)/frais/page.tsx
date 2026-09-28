@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AjouterTrajetForm } from "@/components/frais/AjouterTrajetForm";
 import { SupprimerTrajetBouton } from "@/components/frais/SupprimerTrajetBouton";
+import { SelecteurProfCible } from "@/components/admin/SelecteurProfCible";
 import { libelleMission } from "@/lib/mission";
 
 function formatterDate(date: Date) {
@@ -13,15 +14,25 @@ function cleMois(date: Date) {
   return date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 }
 
-export default async function FraisPage() {
+export default async function FraisPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ profId?: string }>;
+}) {
   const session = await auth();
+  const estAdmin = session!.user.role === "ADMIN";
+  const { profId: profIdParam } = await searchParams;
+  const profIdCible = estAdmin && profIdParam ? profIdParam : session!.user.id;
+  const gereColleague = profIdCible !== session!.user.id;
 
-  const [typesTrajet, trajets] = await Promise.all([
+  const [typesTrajet, trajets, profs, profCible] = await Promise.all([
     db.typeTrajet.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
     db.trajet.findMany({
-      where: { profId: session!.user.id, supprimeLe: null },
+      where: { profId: profIdCible, supprimeLe: null },
       orderBy: { date: "desc" },
     }),
+    estAdmin ? db.user.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }) : Promise.resolve([]),
+    gereColleague ? db.user.findUnique({ where: { id: profIdCible } }) : Promise.resolve(null),
   ]);
 
   const groupes = new Map<string, typeof trajets>();
@@ -35,13 +46,28 @@ export default async function FraisPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <div className="flex items-baseline justify-between">
-        <h1 className="text-xl font-semibold text-brand-slate">Mes frais de déplacement</h1>
-        <Link href="/frais/identite" className="text-sm text-brand-accent hover:underline">
-          Ma fiche identité
-        </Link>
+        <h1 className="text-xl font-semibold text-brand-slate">
+          {profCible ? `Frais de ${profCible.prenom} ${profCible.nom}` : "Mes frais de déplacement"}
+        </h1>
+        <div className="flex items-center gap-4">
+          {estAdmin && (
+            <SelecteurProfCible profs={profs} profIdActuel={profIdCible} moiId={session!.user.id} />
+          )}
+          {!gereColleague && (
+            <Link href="/frais/identite" className="text-sm text-brand-accent hover:underline">
+              Ma fiche identité
+            </Link>
+          )}
+        </div>
       </div>
 
-      <AjouterTrajetForm typesTrajet={typesTrajet} />
+      {profCible && (
+        <p className="rounded-md bg-brand-accent/10 px-3 py-2 text-sm text-brand-accent">
+          Vous gérez les frais de {profCible.prenom} {profCible.nom}.
+        </p>
+      )}
+
+      <AjouterTrajetForm typesTrajet={typesTrajet} profIdCible={gereColleague ? profIdCible : undefined} />
 
       {trajets.length === 0 && (
         <p className="text-sm text-slate-500">Aucun trajet déclaré pour l&apos;instant.</p>

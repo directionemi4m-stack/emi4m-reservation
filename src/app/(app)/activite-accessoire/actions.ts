@@ -15,6 +15,15 @@ export async function ajouterActivite(
   const session = await auth();
   if (!session?.user) return { succes: false, message: "Non connecté." };
 
+  // Un admin peut saisir une activité au nom d'un collègue (ex. remplacement) ; un
+  // prof ne peut saisir que pour lui-même, quoi que contienne le champ profId.
+  const profIdSaisi = String(formData.get("profId") ?? "");
+  const profId = session.user.role === "ADMIN" && profIdSaisi ? profIdSaisi : session.user.id;
+  if (profId !== session.user.id) {
+    const cible = await db.user.findUnique({ where: { id: profId } });
+    if (!cible) return { succes: false, message: "Prof introuvable." };
+  }
+
   const dateStr = String(formData.get("date") ?? "");
   const typeEvenementId = String(formData.get("typeEvenementId") ?? "");
   const duree = String(formData.get("duree") ?? "");
@@ -29,7 +38,7 @@ export async function ajouterActivite(
 
   await db.activiteAccessoire.create({
     data: {
-      profId: session.user.id,
+      profId,
       date: new Date(`${dateStr}T00:00:00.000Z`),
       typeEvenementId: typeEvenement.id,
       typeEvenementNom: typeEvenement.nom,
@@ -40,7 +49,7 @@ export async function ajouterActivite(
   revalidatePath("/activite-accessoire");
 
   try {
-    await synchroniserActiviteAccessoireProf(session.user.id);
+    await synchroniserActiviteAccessoireProf(profId);
   } catch (erreur) {
     console.error("Échec de synchronisation Google Sheets (activité accessoire) :", erreur);
   }
