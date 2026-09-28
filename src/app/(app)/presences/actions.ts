@@ -80,6 +80,85 @@ export async function creerClasse(
   redirect(`/presences/${classe.id}`);
 }
 
+// Change la discipline d'un cours déjà créé (élèves, séances et présences existantes
+// restent inchangés — seuls la discipline, le type et, pour la FM, le niveau/lieu
+// changent). Si le cours quittait un onglet partagé, celui-ci est resynchronisé (ou
+// supprimé s'il n'en reste plus aucun groupe), exactement comme à la suppression.
+export async function modifierDisciplineClasse(
+  _etatPrecedent: EtatAction,
+  formData: FormData
+): Promise<EtatAction> {
+  const session = await exigerConnecte();
+  const id = String(formData.get("id") ?? "");
+  const disciplineId = String(formData.get("disciplineId") ?? "");
+
+  const classeAvant = await db.classe.findUnique({ where: { id } });
+  if (!classeAvant) {
+    return { succes: false, message: "Ce cours n'existe plus." };
+  }
+  if (classeAvant.profId !== session.user.id && session.user.role !== "ADMIN") {
+    return { succes: false, message: "Vous ne pouvez pas modifier ce cours." };
+  }
+
+  const discipline = await db.discipline.findUnique({ where: { id: disciplineId } });
+  if (!discipline) {
+    return { succes: false, message: "Discipline introuvable." };
+  }
+  const type = discipline.type;
+
+  let nom: string;
+  let lieuId: string | null = null;
+  let niveauFMId: string | null = null;
+
+  if (type === "INSTRUMENT") {
+    nom = discipline.nom;
+  } else {
+    niveauFMId = String(formData.get("niveauFMId") ?? "") || null;
+    lieuId = String(formData.get("lieuId") ?? "") || null;
+
+    if (!niveauFMId) {
+      return { succes: false, message: "Le niveau FM est requis." };
+    }
+    const niveau = await db.niveauFM.findUnique({ where: { id: niveauFMId } });
+    if (!niveau) {
+      return { succes: false, message: "Niveau FM introuvable." };
+    }
+    nom = /^fm/i.test(niveau.nom) ? niveau.nom : `FM ${niveau.nom}`;
+  }
+
+  if (nom === classeAvant.nom && type === classeAvant.type) {
+    return { succes: true, message: "Discipline inchangée." };
+  }
+
+  await db.classe.update({
+    where: { id },
+    data: { type, nom, lieuId: type === "FM" ? lieuId : null, niveauFMId: type === "FM" ? niveauFMId : null },
+  });
+
+  revalidatePath(`/presences/${id}`);
+  revalidatePath("/presences");
+
+  try {
+    // Onglet quitté : le resynchroniser à partir d'un groupe restant, ou le
+    // supprimer s'il n'en reste plus aucun.
+    const groupeRestant = await db.classe.findFirst({
+      where: { nom: classeAvant.nom, type: classeAvant.type, actif: true },
+      select: { id: true },
+    });
+    if (groupeRestant) {
+      await synchroniserFeuillePresence(groupeRestant.id);
+    } else {
+      await supprimerFeuillePresence(classeAvant);
+    }
+    // Onglet rejoint : y intégrer ce cours.
+    await synchroniserFeuillePresence(id);
+  } catch (erreur) {
+    console.error("Échec de mise à jour de l'onglet Google Sheets :", erreur);
+  }
+
+  return { succes: true, message: `Discipline changée pour « ${nom} ».` };
+}
+
 export async function supprimerClasse(
   _etatPrecedent: EtatAction,
   formData: FormData

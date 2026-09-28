@@ -7,6 +7,7 @@ import { AjouterEleveForm } from "@/components/presences/AjouterEleveForm";
 import { SupprimerEleveBouton } from "@/components/presences/SupprimerEleveBouton";
 import { AjouterSeanceForm } from "@/components/presences/AjouterSeanceForm";
 import { SeanceRow } from "@/components/presences/SeanceRow";
+import { ModifierDisciplineForm } from "@/components/presences/ModifierDisciplineForm";
 
 export default async function ClassePage({
   params,
@@ -29,6 +30,19 @@ export default async function ClassePage({
   if (!classe) notFound();
   if (classe.profId !== session!.user.id && session!.user.role !== "ADMIN") notFound();
 
+  const [disciplines, niveaux, lieux] = await Promise.all([
+    db.discipline.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
+    db.niveauFM.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
+    db.lieuPresence.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
+  ]);
+  // La discipline n'est pas conservée par référence sur le cours (seuls son type et son
+  // nom sont copiés à la création) : on la retrouve par correspondance de nom pour
+  // présélectionner le bon choix dans l'éditeur.
+  const disciplineActuelle =
+    classe.type === "FM"
+      ? disciplines.find((d) => d.type === "FM")
+      : disciplines.find((d) => d.type === "INSTRUMENT" && d.nom === classe.nom);
+
   const idProchaine = seanceLaPlusProche(classe.seances);
   const sousTitre =
     classe.type === "FM"
@@ -50,6 +64,17 @@ export default async function ClassePage({
           {classe.emoji} {classe.nom}
         </h1>
         {sousTitre && <p className="text-sm text-slate-500">{sousTitre}</p>}
+        <div className="mt-2">
+          <ModifierDisciplineForm
+            classeId={classe.id}
+            disciplineActuelleId={disciplineActuelle?.id ?? null}
+            niveauFMActuelId={classe.niveauFMId}
+            lieuActuelId={classe.lieuId}
+            disciplines={disciplines}
+            niveaux={niveaux}
+            lieux={lieux}
+          />
+        </div>
       </div>
 
       <div className="rounded-lg bg-white p-4 shadow-sm">
