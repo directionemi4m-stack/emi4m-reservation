@@ -84,6 +84,7 @@ model User {
   trajets      Trajet[]      @relation("TrajetProf")
   identite     IdentiteProf?
   documents    DocumentProf[]
+  activitesAccessoires ActiviteAccessoire[]
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -330,6 +331,10 @@ model Trajet {
   trajetNom         String
   km                Float
   prix              Float
+  // Suppression « douce », comme pour ActiviteAccessoire : la ligne du classeur
+  // comptabilité reste en place (vidée) plutôt que de disparaître, pour ne jamais
+  // décaler un commentaire du comptable posé dessus.
+  supprimeLe        DateTime?
   creeLe            DateTime    @default(now())
 
   @@index([profId, date])
@@ -407,4 +412,38 @@ model EleveCham {
   majLe              DateTime           @updatedAt
 
   @@index([nom, prenom])
+}
+
+// --- Activité accessoire ---
+
+// Type d'événement, géré par l'admin (Heure Musicale, Concert, Réunion...) — même
+// principe que TypeTrajet : liste fermée proposée au choix, copiée au moment de la
+// saisie pour qu'une entrée déjà enregistrée ne bouge pas si la liste change ensuite.
+model TypeEvenementAccessoire {
+  id        String               @id @default(cuid())
+  nom       String               @unique
+  actif     Boolean              @default(true)
+  activites ActiviteAccessoire[]
+}
+
+// Une entrée d'activité accessoire saisie par un prof (concert, réunion, remplacement...).
+// Synchronisée vers le classeur comptabilité en conservant la position de chaque ligne
+// (jamais réordonnée, jamais retirée) : le comptable peut y laisser des commentaires
+// dans Google Sheets sans craindre qu'ils se retrouvent sur la mauvaise ligne.
+model ActiviteAccessoire {
+  id               String                   @id @default(cuid())
+  profId           String
+  prof             User                     @relation(fields: [profId], references: [id])
+  date             DateTime                 @db.Date
+  typeEvenementId  String
+  typeEvenement    TypeEvenementAccessoire  @relation(fields: [typeEvenementId], references: [id])
+  typeEvenementNom String
+  duree            String // ex. "1h30" — liste fixe, cf. lib/activiteAccessoire.ts
+  // Suppression « douce » : la ligne reste dans le classeur (vidée, marquée « Supprimée »)
+  // plutôt que d'être retirée, pour ne jamais décaler les lignes suivantes ni les
+  // commentaires du comptable qui y sont accrochés.
+  supprimeLe       DateTime?
+  creeLe           DateTime                 @default(now())
+
+  @@index([profId, date])
 }

@@ -19,7 +19,7 @@ export default async function FraisPage() {
   const [typesTrajet, trajets] = await Promise.all([
     db.typeTrajet.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
     db.trajet.findMany({
-      where: { profId: session!.user.id },
+      where: { profId: session!.user.id, supprimeLe: null },
       orderBy: { date: "desc" },
     }),
   ]);

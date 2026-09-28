@@ -14,10 +14,9 @@ const LIBELLES_TYPE_ABSENCE: Record<TypeAbsenceProf, string> = {
   ARRET_MALADIE: "Arrêt maladie",
 };
 
-function creerClientSheets() {
+function creerClientSheets(idFeuille: string | undefined) {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const cle = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
-  const idFeuille = process.env.GOOGLE_SHEETS_ID;
   if (!email || !cle || !idFeuille) return null;
 
   const auth = new google.auth.JWT({
@@ -26,6 +25,18 @@ function creerClientSheets() {
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
   return { sheets: google.sheets({ version: "v4", auth }), idFeuille };
+}
+
+// Classeur « Feuilles de présence » : présences et absences profs — jamais montré
+// au comptable (données pédagogiques concernant des élèves).
+function creerClientPresences() {
+  return creerClientSheets(process.env.GOOGLE_SHEETS_ID);
+}
+
+// Classeur « Comptabilité » séparé : frais de déplacement et activité accessoire —
+// celui-là seul est destiné à être partagé (en commentateur) avec le comptable.
+function creerClientCompta() {
+  return creerClientSheets(process.env.GOOGLE_SHEETS_COMPTA_ID);
 }
 
 // Les titres d'onglet Google Sheets interdisent []*?/\: et sont limités à 100 caractères.
@@ -105,6 +116,59 @@ async function appliquerMiseEnFormeCouleur(
   });
 }
 
+function lettreColonne(index0Based: number) {
+  return String.fromCharCode(65 + index0Based); // A, B, C... (largement suffisant : nos tableaux ont < 10 colonnes)
+}
+
+interface LigneStable {
+  id: string;
+  valeurs: (string | number)[];
+}
+
+// Écrit chaque ligne à sa position déjà connue (mise à jour en place, retrouvée via une
+// colonne technique cachée contenant l'id), ou l'ajoute à la fin si elle est nouvelle —
+// jamais de réordonnancement ni de suppression de ligne. Sert à synchroniser un tableau
+// qu'un tiers (le comptable) peut commenter dans Google Sheets, sans jamais faire dériver
+// un commentaire déjà posé sur une autre ligne que celle visée à l'origine.
+async function synchroniserLignesStables(
+  sheets: ReturnType<typeof google.sheets>,
+  idFeuille: string,
+  titre: string,
+  nbColonnesVisibles: number,
+  ligneEntete: number,
+  lignes: LigneStable[]
+) {
+  const colTechnique = lettreColonne(nbColonnesVisibles); // juste après la dernière colonne visible
+  const finColonneVisible = lettreColonne(nbColonnesVisibles - 1);
+  const premiereLigneDonnees = ligneEntete + 1;
+
+  const lecture = await sheets.spreadsheets.values.get({
+    spreadsheetId: idFeuille,
+    range: `'${titre}'!${colTechnique}${premiereLigneDonnees}:${colTechnique}5000`,
+  });
+  const idsExistants = lecture.data.values ?? [];
+  const ligneParId = new Map<string, number>();
+  idsExistants.forEach((cellule, i) => {
+    if (cellule[0]) ligneParId.set(String(cellule[0]), premiereLigneDonnees + i);
+  });
+
+  let prochaineLigneLibre = premiereLigneDonnees + idsExistants.length;
+  const data: { range: string; values: (string | number)[][] }[] = [];
+
+  for (const ligne of lignes) {
+    const numeroLigne = ligneParId.get(ligne.id) ?? prochaineLigneLibre++;
+    data.push({ range: `'${titre}'!A${numeroLigne}:${finColonneVisible}${numeroLigne}`, values: [ligne.valeurs] });
+    data.push({ range: `'${titre}'!${colTechnique}${numeroLigne}`, values: [[ligne.id]] });
+  }
+
+  if (data.length > 0) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: idFeuille,
+      requestBody: { valueInputOption: "RAW", data },
+    });
+  }
+}
+
 async function creerOnglet(
   sheets: ReturnType<typeof google.sheets>,
   idFeuille: string,
@@ -166,7 +230,7 @@ async function classesDuMemeCours(nom: string, type: TypeCours) {
 // simple et toujours cohérent, plutôt que de tenter une mise à jour incrémentale fragile.
 // Un même onglet regroupe TOUS les groupes de la discipline (cf. classesDuMemeCours).
 export async function synchroniserFeuillePresence(classeId: string) {
-  const client = creerClientSheets();
+  const client = creerClientPresences();
   if (!client) return; // Sync Google Sheets non configurée : on ignore silencieusement.
   const { sheets, idFeuille } = client;
 
@@ -233,7 +297,7 @@ export async function synchroniserFeuillePresence(classeId: string) {
 // Supprime l'onglet du cours — appelé uniquement quand plus aucun groupe de cette
 // discipline n'est actif (sinon on resynchronise l'onglet partagé à la place).
 export async function supprimerFeuillePresence(classe: { nom: string }) {
-  const client = creerClientSheets();
+  const client = creerClientPresences();
   if (!client) return;
   const { sheets, idFeuille } = client;
   const existant = await ongletCoursExistant(sheets, idFeuille, classe.nom);
@@ -249,7 +313,7 @@ const TITRE_ONGLET_ABSENCES = "Absences profs";
 // Un seul onglet, partagé par tous les cours, pour suivre les absences des profs
 // (rattrapage à prévoir ou arrêt maladie) — réécrit en entier à chaque changement.
 export async function synchroniserAbsencesProf() {
-  const client = creerClientSheets();
+  const client = creerClientPresences();
   if (!client) return;
   const { sheets, idFeuille } = client;
 
@@ -297,16 +361,23 @@ export async function synchroniserAbsencesProf() {
   });
 }
 
-// Un onglet par prof, réécrit en entier — mêmes colonnes que le fichier Excel
-// existant (date, mission, trajet, km, €), avec un total en bas de tableau.
+// L'identité occupe toujours les lignes 1 à 14 (titre, 9 champs, blanc, 2 totaux,
+// blanc) ; le tableau des trajets démarre donc en ligne 15, à position fixe.
+const FRAIS_LIGNE_ENTETE = 15;
+
+// Un onglet par prof, dans le classeur comptabilité (partagé avec le comptable).
+// L'identité et les totaux sont réécrits en entier à chaque fois (formules =SUM,
+// jamais commentées ligne à ligne) ; le tableau des trajets est en revanche
+// synchronisé ligne par ligne à position stable (cf. synchroniserLignesStables) —
+// un trajet supprimé y laisse une ligne vidée plutôt que de décaler les suivantes.
 export async function synchroniserFraisProf(profId: string) {
-  const client = creerClientSheets();
+  const client = creerClientCompta();
   if (!client) return;
   const { sheets, idFeuille } = client;
 
   const prof = await db.user.findUnique({
     where: { id: profId },
-    include: { trajets: { orderBy: { date: "asc" } }, identite: true },
+    include: { trajets: { orderBy: { creeLe: "asc" } }, identite: true },
   });
   if (!prof) return;
 
@@ -318,6 +389,7 @@ export async function synchroniserFraisProf(profId: string) {
 
   const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+  const premiereLigneDonnees = FRAIS_LIGNE_ENTETE + 1;
   const blocIdentite = [
     ["Fiche identité", ""],
     ["Nom", prof.nom],
@@ -330,25 +402,70 @@ export async function synchroniserFraisProf(profId: string) {
     ["Marque et modèle", prof.identite?.marqueModeleVehicule ?? ""],
     ["Puissance fiscale", prof.identite?.puissanceFiscale ?? ""],
     [],
+    ["Total Km", `=SUM(D${premiereLigneDonnees}:D5000)`],
+    ["Total €", `=SUM(E${premiereLigneDonnees}:E5000)`],
+    [],
   ];
-
-  const entete = ["Date", "Mission", "Trajet", "Km", "€"];
-  const lignes = prof.trajets.map((t) => [
-    formatDate(t.date),
-    libelleMission(t.typeMission, t.precisionMission),
-    t.trajetNom,
-    t.km,
-    t.prix,
-  ]);
-  const totalKm = prof.trajets.reduce((s, t) => s + t.km, 0);
-  const totalPrix = prof.trajets.reduce((s, t) => s + t.prix, 0);
-  const ligneTotal = ["", "", "Total", totalKm, Math.round(totalPrix * 100) / 100];
-
-  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'` });
   await sheets.spreadsheets.values.update({
     spreadsheetId: idFeuille,
     range: `'${titre}'!A1`,
-    valueInputOption: "RAW",
-    requestBody: { values: [...blocIdentite, entete, ...lignes, ligneTotal] },
+    valueInputOption: "USER_ENTERED", // pour que les =SUM(...) soient interprétées comme des formules
+    requestBody: { values: blocIdentite },
   });
+
+  const entete = ["Date", "Mission", "Trajet", "Km", "€"];
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titre}'!A${FRAIS_LIGNE_ENTETE}`,
+    valueInputOption: "RAW",
+    requestBody: { values: [entete] },
+  });
+
+  const lignes: LigneStable[] = prof.trajets.map((t) => ({
+    id: t.id,
+    valeurs: t.supprimeLe
+      ? [formatDate(t.date), `${libelleMission(t.typeMission, t.precisionMission)} (supprimé)`, t.trajetNom, "", ""]
+      : [formatDate(t.date), libelleMission(t.typeMission, t.precisionMission), t.trajetNom, t.km, t.prix],
+  }));
+  await synchroniserLignesStables(sheets, idFeuille, titre, entete.length, FRAIS_LIGNE_ENTETE, lignes);
+}
+
+const ACTIVITE_LIGNE_ENTETE = 1;
+
+// Onglet dédié par prof (séparé de celui des frais), dans le classeur comptabilité —
+// tableau à position stable comme les frais, pour les mêmes raisons.
+export async function synchroniserActiviteAccessoireProf(profId: string) {
+  const client = creerClientCompta();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+
+  const prof = await db.user.findUnique({
+    where: { id: profId },
+    include: { activitesAccessoires: { orderBy: { creeLe: "asc" } } },
+  });
+  if (!prof) return;
+
+  const titre = sanitiserNomOnglet(`${prof.prenom} ${prof.nom} — Activité accessoire`, "Activité accessoire");
+  const idOnglet = await idOngletExistant(sheets, idFeuille, titre);
+  if (idOnglet === null) {
+    await creerOnglet(sheets, idFeuille, titre);
+  }
+
+  const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+  const entete = ["Date", "Type d'événement", "Durée"];
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titre}'!A${ACTIVITE_LIGNE_ENTETE}`,
+    valueInputOption: "RAW",
+    requestBody: { values: [entete] },
+  });
+
+  const lignes: LigneStable[] = prof.activitesAccessoires.map((a) => ({
+    id: a.id,
+    valeurs: a.supprimeLe
+      ? [formatDate(a.date), `${a.typeEvenementNom} (supprimé)`, ""]
+      : [formatDate(a.date), a.typeEvenementNom, a.duree],
+  }));
+  await synchroniserLignesStables(sheets, idFeuille, titre, entete.length, ACTIVITE_LIGNE_ENTETE, lignes);
 }

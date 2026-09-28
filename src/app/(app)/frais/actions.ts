@@ -81,12 +81,14 @@ export async function supprimerTrajet(
 
   const id = String(formData.get("id"));
   const trajet = await db.trajet.findUnique({ where: { id } });
-  if (!trajet) return { succes: false, message: "Ce trajet n'existe plus." };
+  if (!trajet || trajet.supprimeLe) return { succes: false, message: "Ce trajet n'existe plus." };
   if (trajet.profId !== session.user.id && session.user.role !== "ADMIN") {
     return { succes: false, message: "Action non autorisée." };
   }
 
-  await db.trajet.delete({ where: { id } });
+  // Suppression douce : la ligne reste dans le classeur comptabilité (vidée) plutôt que
+  // d'être retirée, pour ne jamais décaler un commentaire du comptable posé dessus.
+  await db.trajet.update({ where: { id }, data: { supprimeLe: new Date() } });
   revalidatePath("/frais");
 
   try {

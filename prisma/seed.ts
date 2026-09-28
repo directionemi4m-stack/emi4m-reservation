@@ -79,6 +79,16 @@ const DISCIPLINES: Array<{ nom: string; type: "INSTRUMENT" | "FM" }> = [
   { nom: "FM", type: "FM" },
 ];
 
+// Types d'événement existants (fichier Fiche_d_activité_accessoire.xlsx).
+const TYPES_EVENEMENT_ACCESSOIRE = [
+  "Heure Musicale",
+  "Concert",
+  "Réunion",
+  "Examen",
+  "Répétition",
+  "Intervention crèche",
+];
+
 // Barème kilométrique existant (fichier comptage_kilometre_type.xlsx, onglet
 // « type de trajet ») — km et prix repris tels quels, pas recalculés.
 const TYPES_TRAJET: Array<{ nom: string; km: number; prix: number }> = [
@@ -136,6 +146,11 @@ async function main() {
     await db.typeTrajet.upsert({ where: { nom }, update: { km, prix }, create: { nom, km, prix } });
   }
   console.log(`Frais : ${TYPES_TRAJET.length} type(s) de trajet`);
+
+  for (const nom of TYPES_EVENEMENT_ACCESSOIRE) {
+    await db.typeEvenementAccessoire.upsert({ where: { nom }, update: {}, create: { nom } });
+  }
+  console.log(`Activité accessoire : ${TYPES_EVENEMENT_ACCESSOIRE.length} type(s) d'événement`);
 
   // Premier compte admin, pour pouvoir se connecter et provisionner les
   // profs ensuite depuis l'interface d'administration.
