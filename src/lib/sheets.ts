@@ -123,7 +123,7 @@ async function creerOnglet(
 // distincts) — ils partagent un seul onglet plutôt que de se disputer un onglet
 // au même nom, ce qui écraserait alternativement les données de l'un et l'autre.
 async function classesDuMemeCours(nom: string, type: TypeCours) {
-  return db.classe.findMany({
+  const classes = await db.classe.findMany({
     where: { nom, type, actif: true },
     include: {
       eleves: { where: { actif: true }, orderBy: { nom: "asc" } },
@@ -135,6 +135,31 @@ async function classesDuMemeCours(nom: string, type: TypeCours) {
     },
     orderBy: { creeLe: "asc" },
   });
+
+  // Classées par jour de la semaine (via le champ libre « jour »), pour que chaque
+  // groupe forme un bloc contigu plutôt que d'entrelacer ses dates avec celles d'un
+  // autre groupe — sans quoi le vendredi d'une semaine se retrouve juste après le
+  // lundi d'un autre groupe dans le classeur.
+  const ORDRE_JOUR: Record<string, number> = {
+    lundi: 0,
+    mardi: 1,
+    mercredi: 2,
+    jeudi: 3,
+    vendredi: 4,
+    samedi: 5,
+    dimanche: 6,
+  };
+  const ordreJour = (jour: string | null) => {
+    const premierMot = jour
+      ?.trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .split(/\s+/)[0];
+    return premierMot ? (ORDRE_JOUR[premierMot] ?? 7) : 7;
+  };
+
+  return classes.sort((a, b) => ordreJour(a.jour) - ordreJour(b.jour));
 }
 
 // Réécrit entièrement l'onglet du cours à partir de l'état actuel en base :
@@ -173,19 +198,28 @@ export async function synchroniserFeuillePresence(classeId: string) {
   const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   const eleves = groupe.flatMap((c) => c.eleves);
-  const entete = ["Date", ...eleves.map((e) => e.nom)];
+  const plusieursGroupes = groupe.length > 1;
+  const entete = [
+    "Date",
+    ...(plusieursGroupes ? ["Groupe"] : []),
+    ...eleves.map((e) => e.nom),
+  ];
 
-  const lignesDatees = groupe.flatMap((c) =>
-    c.seances.map((seance) => {
-      const marquesParEleve = new Map(seance.pointage!.marques.map((m) => [m.eleveId, m.statut]));
-      return {
-        date: seance.date,
-        valeurs: eleves.map((e) => (marquesParEleve.has(e.id) ? LIBELLES_STATUT[marquesParEleve.get(e.id)!] : "")),
-      };
-    })
-  );
-  lignesDatees.sort((a, b) => a.date.getTime() - b.date.getTime());
-  const lignes = lignesDatees.map((l) => [formatDate(l.date), ...l.valeurs]);
+  // Un bloc par groupe (classe), trié chronologiquement à l'intérieur du bloc — jamais
+  // toutes les dates de tous les groupes mélangées par ordre chronologique global.
+  const lignes = groupe.flatMap((c, indexGroupe) => {
+    const libelleGroupe = c.jour ?? `Groupe ${indexGroupe + 1}`;
+    return [...c.seances]
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+      .map((seance) => {
+        const marquesParEleve = new Map(seance.pointage!.marques.map((m) => [m.eleveId, m.statut]));
+        return [
+          formatDate(seance.date),
+          ...(plusieursGroupes ? [libelleGroupe] : []),
+          ...eleves.map((e) => (marquesParEleve.has(e.id) ? LIBELLES_STATUT[marquesParEleve.get(e.id)!] : "")),
+        ];
+      });
+  });
 
   await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'` });
   await sheets.spreadsheets.values.update({
