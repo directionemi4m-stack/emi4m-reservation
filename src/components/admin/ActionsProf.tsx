@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import {
   basculerActifProf,
+  demarrerImpersonation,
   renvoyerLienProf,
   supprimerProf,
   type EtatAjoutProf,
@@ -15,10 +16,12 @@ export function ActionsProf({
   profId,
   actif,
   aMotDePasse,
+  estMoi,
 }: {
   profId: string;
   actif: boolean;
   aMotDePasse: boolean;
+  estMoi: boolean;
 }) {
   const [etat, action, enCours] = useActionState(supprimerProf, etatInitial);
   const [etatLien, actionLien, enCoursLien] = useActionState(renvoyerLienProf, etatInitial);
@@ -26,6 +29,14 @@ export function ActionsProf({
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-3">
+        {actif && !estMoi && (
+          <form action={demarrerImpersonation}>
+            <input type="hidden" name="profId" value={profId} />
+            <button type="submit" className="text-xs font-medium text-brand-accent hover:underline">
+              Se connecter en tant que
+            </button>
+          </form>
+        )}
         {actif && (
           <form action={actionLien}>
             <input type="hidden" name="profId" value={profId} />

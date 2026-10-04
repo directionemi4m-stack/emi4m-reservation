@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { auth, COOKIE_IMPERSONATION } from "@/lib/auth";
 import { envoyerMailBienvenue, envoyerMailReinitialisationMotDePasse } from "@/lib/mail";
 import { genererTokenMotDePasse, DUREE_INVITATION_MS } from "@/lib/tokensMotDePasse";
 import { urlBase } from "@/lib/url";
@@ -133,4 +135,30 @@ export async function supprimerProf(
 
   revalidatePath("/admin/parametres/profs");
   return { statut: "succes" };
+}
+
+// « Se connecter en tant que » : la direction voit l'appli et peut agir exactement comme
+// le collègue visé (ses frais, ses présences, ses demandes…), pour reproduire et corriger
+// un bug qu'il remonte sans avoir à le faire à sa place depuis son propre compte.
+export async function demarrerImpersonation(formData: FormData) {
+  await exigerAdmin();
+
+  const profId = String(formData.get("profId"));
+  const cible = await db.user.findUnique({ where: { id: profId } });
+  if (!cible || !cible.actif) {
+    throw new Error("Ce compte est introuvable ou désactivé.");
+  }
+
+  (await cookies()).set(COOKIE_IMPERSONATION, profId, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+  });
+  redirect("/planning");
+}
+
+export async function arreterImpersonation() {
+  (await cookies()).delete(COOKIE_IMPERSONATION);
+  redirect("/admin/parametres/profs");
 }

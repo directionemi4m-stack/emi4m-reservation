@@ -1,8 +1,13 @@
 import { db } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import { AjouterProfForm } from "@/components/admin/AjouterProfForm";
 import { ActionsProf } from "@/components/admin/ActionsProf";
 
 export default async function AdminProfsPage() {
+  const session = await auth();
+  // Id de la direction connectée, même en cours d'impersonation (où session.user.id
+  // devient celui du collègue visé) — pour ne pas proposer de « se connecter » à soi-même.
+  const idDirection = session!.user.impersonation?.direction.id ?? session!.user.id;
   const profs = await db.user.findMany({ orderBy: [{ actif: "desc" }, { nom: "asc" }] });
 
   return (
@@ -49,7 +54,12 @@ export default async function AdminProfsPage() {
                   )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <ActionsProf profId={prof.id} actif={prof.actif} aMotDePasse={!!prof.motDePasseHash} />
+                  <ActionsProf
+                    profId={prof.id}
+                    actif={prof.actif}
+                    aMotDePasse={!!prof.motDePasseHash}
+                    estMoi={prof.id === idDirection}
+                  />
                 </td>
               </tr>
             ))}
