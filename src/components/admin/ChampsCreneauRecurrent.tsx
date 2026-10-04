@@ -1,12 +1,4 @@
-const JOURS = [
-  { valeur: "LUNDI", label: "Lundi" },
-  { valeur: "MARDI", label: "Mardi" },
-  { valeur: "MERCREDI", label: "Mercredi" },
-  { valeur: "JEUDI", label: "Jeudi" },
-  { valeur: "VENDREDI", label: "Vendredi" },
-  { valeur: "SAMEDI", label: "Samedi" },
-  { valeur: "DIMANCHE", label: "Dimanche" },
-];
+import { JOURS_SEMAINE_OPTIONS as JOURS } from "@/lib/joursSemaine";
 
 export interface ProfChoix {
   id: string;

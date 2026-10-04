@@ -35,7 +35,10 @@ function groupes(role: "PROF" | "ADMIN"): Groupe[] {
       liens: [
         { href: "/presences", label: "Présences" },
         ...(role === "ADMIN"
-          ? [{ href: "/admin/parametres/presences", label: "Lieux & niveaux" }]
+          ? [
+              { href: "/admin/parametres/presences", label: "Lieux & niveaux" },
+              { href: "/admin/parametres/vacances", label: "Vacances scolaires" },
+            ]
           : []),
       ],
     },
@@ -133,9 +136,17 @@ export function HeaderNav({
           Annuaire
         </Link>
         {role === "ADMIN" && (
-          <Link href="/admin/parametres/profs" className="hover:text-brand-accent">
-            Profs
-          </Link>
+          <>
+            <Link href="/admin/tableau-de-bord" className="hover:text-brand-accent">
+              Tableau de bord
+            </Link>
+            <Link href="/admin/parametres/profs" className="hover:text-brand-accent">
+              Profs
+            </Link>
+            <Link href="/admin/parametres/journal-impersonation" className="hover:text-brand-accent">
+              Journal
+            </Link>
+          </>
         )}
         {boutonDeconnexion("rounded-md bg-white/10 px-3 py-1.5 transition hover:bg-white/20")}
       </nav>
@@ -208,11 +219,25 @@ export function HeaderNav({
                 Administration
               </p>
               <Link
+                href="/admin/tableau-de-bord"
+                onClick={() => setOuvert(false)}
+                className="block rounded-md px-2 py-2 hover:bg-white/10"
+              >
+                Tableau de bord
+              </Link>
+              <Link
                 href="/admin/parametres/profs"
                 onClick={() => setOuvert(false)}
                 className="block rounded-md px-2 py-2 hover:bg-white/10"
               >
                 Profs
+              </Link>
+              <Link
+                href="/admin/parametres/journal-impersonation"
+                onClick={() => setOuvert(false)}
+                className="block rounded-md px-2 py-2 hover:bg-white/10"
+              >
+                Journal
               </Link>
             </div>
           )}

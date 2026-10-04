@@ -203,30 +203,22 @@ async function classesDuMemeCours(nom: string, type: TypeCours) {
     orderBy: { creeLe: "asc" },
   });
 
-  // Classées par jour de la semaine (via le champ libre « jour »), pour que chaque
+  // Classées par jour de la semaine (champ structuré jourSemaine), pour que chaque
   // groupe forme un bloc contigu plutôt que d'entrelacer ses dates avec celles d'un
   // autre groupe — sans quoi le vendredi d'une semaine se retrouve juste après le
   // lundi d'un autre groupe dans le classeur.
-  const ORDRE_JOUR: Record<string, number> = {
-    lundi: 0,
-    mardi: 1,
-    mercredi: 2,
-    jeudi: 3,
-    vendredi: 4,
-    samedi: 5,
-    dimanche: 6,
+  const ORDRE_JOUR_SEMAINE: Record<string, number> = {
+    LUNDI: 0,
+    MARDI: 1,
+    MERCREDI: 2,
+    JEUDI: 3,
+    VENDREDI: 4,
+    SAMEDI: 5,
+    DIMANCHE: 6,
   };
-  const ordreJour = (jour: string | null) => {
-    const premierMot = jour
-      ?.trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .split(/\s+/)[0];
-    return premierMot ? (ORDRE_JOUR[premierMot] ?? 7) : 7;
-  };
+  const ordreJour = (jourSemaine: string | null) => (jourSemaine ? ORDRE_JOUR_SEMAINE[jourSemaine] ?? 7 : 7);
 
-  return classes.sort((a, b) => ordreJour(a.jour) - ordreJour(b.jour));
+  return classes.sort((a, b) => ordreJour(a.jourSemaine) - ordreJour(b.jourSemaine));
 }
 
 // Réécrit entièrement l'onglet du cours à partir de l'état actuel en base :

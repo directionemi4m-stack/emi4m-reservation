@@ -153,6 +153,24 @@ async function main() {
   }
   console.log(`Activité accessoire : ${TYPES_EVENEMENT_ACCESSOIRE.length} type(s) d'événement`);
 
+  // Vacances scolaires Zone A (académie de Grenoble) 2026-2027 — [début, fin[ (reprise
+  // exclue). Reprises désormais administrables depuis /admin/parametres/vacances ;
+  // ce seed ne fait que migrer la liste qui était codée en dur dans lib/presences.ts.
+  const VACANCES: Array<{ nom: string; debut: string; fin: string }> = [
+    { nom: "Toussaint", debut: "2026-10-17", fin: "2026-11-02" },
+    { nom: "Noël", debut: "2026-12-19", fin: "2027-01-04" },
+    { nom: "Hiver", debut: "2027-02-06", fin: "2027-02-22" },
+    { nom: "Printemps", debut: "2027-04-10", fin: "2027-04-26" },
+    { nom: "Pont Ascension", debut: "2027-05-05", fin: "2027-05-10" },
+  ];
+  for (const { nom, debut, fin } of VACANCES) {
+    const existante = await db.periodeVacances.findFirst({ where: { nom, debut: new Date(debut) } });
+    if (!existante) {
+      await db.periodeVacances.create({ data: { nom, debut: new Date(debut), fin: new Date(fin) } });
+    }
+  }
+  console.log(`Vacances scolaires : ${VACANCES.length} période(s)`);
+
   // Premier compte admin, pour pouvoir se connecter et provisionner les
   // profs ensuite depuis l'interface d'administration.
   const emailAdmin = process.env.SEED_ADMIN_EMAIL;

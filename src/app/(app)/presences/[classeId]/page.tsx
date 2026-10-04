@@ -68,6 +68,7 @@ export default async function ClassePage({
           <ModifierCoursForm
             classeId={classe.id}
             jourActuel={classe.jour}
+            jourSemaineActuel={classe.jourSemaine}
             disciplineActuelleId={disciplineActuelle?.id ?? null}
             niveauFMActuelId={classe.niveauFMId}
             lieuActuelId={classe.lieuId}

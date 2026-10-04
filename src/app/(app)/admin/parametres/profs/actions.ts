@@ -19,6 +19,7 @@ async function exigerAdmin() {
   if (session?.user.role !== "ADMIN") {
     throw new Error("Accès réservé à la direction.");
   }
+  return session;
 }
 
 export async function ajouterProf(
@@ -140,14 +141,24 @@ export async function supprimerProf(
 // « Se connecter en tant que » : la direction voit l'appli et peut agir exactement comme
 // le collègue visé (ses frais, ses présences, ses demandes…), pour reproduire et corriger
 // un bug qu'il remonte sans avoir à le faire à sa place depuis son propre compte.
+// Chaque début/fin est journalisé (JournalImpersonation) pour la traçabilité.
 export async function demarrerImpersonation(formData: FormData) {
-  await exigerAdmin();
+  const session = await exigerAdmin();
+  // Id réel de la direction, même si elle incarnait déjà un autre collègue (bascule
+  // directe d'un collègue à l'autre sans repasser par « Quitter »).
+  const idDirection = session!.user.impersonation?.direction.id ?? session!.user.id;
 
   const profId = String(formData.get("profId"));
   const cible = await db.user.findUnique({ where: { id: profId } });
   if (!cible || !cible.actif) {
     throw new Error("Ce compte est introuvable ou désactivé.");
   }
+
+  await db.journalImpersonation.updateMany({
+    where: { directionId: idDirection, termineLe: null },
+    data: { termineLe: new Date() },
+  });
+  await db.journalImpersonation.create({ data: { directionId: idDirection, cibleId: profId } });
 
   (await cookies()).set(COOKIE_IMPERSONATION, profId, {
     httpOnly: true,
@@ -159,6 +170,15 @@ export async function demarrerImpersonation(formData: FormData) {
 }
 
 export async function arreterImpersonation() {
+  const session = await auth();
+  const idDirection = session?.user.impersonation?.direction.id;
+  if (idDirection) {
+    await db.journalImpersonation.updateMany({
+      where: { directionId: idDirection, termineLe: null },
+      data: { termineLe: new Date() },
+    });
+  }
+
   (await cookies()).delete(COOKIE_IMPERSONATION);
   redirect("/admin/parametres/profs");
 }

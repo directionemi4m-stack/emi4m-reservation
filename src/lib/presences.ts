@@ -1,23 +1,25 @@
-// Vacances scolaires Zone A (académie de Grenoble) 2026-2027 — [début, fin[ (reprise exclue).
-// À mettre à jour chaque année.
-const VACANCES: Array<[string, string]> = [
-  ["2026-10-17", "2026-11-02"], // Toussaint
-  ["2026-12-19", "2027-01-04"], // Noël
-  ["2027-02-06", "2027-02-22"], // Hiver
-  ["2027-04-10", "2027-04-26"], // Printemps
-  ["2027-05-05", "2027-05-10"], // Pont Ascension
-];
+import type { JourSemaine } from "@/generated/prisma/client";
+
+// Dupliqué volontairement depuis lib/planning.ts (identique) : ce fichier ne doit
+// dépendre d'aucun module qui importe lib/db.ts, pour rester pur et testable sans base
+// de données (cf. lib/presences.test.ts).
+function ajouterJours(date: Date, n: number): Date {
+  const resultat = new Date(date);
+  resultat.setUTCDate(resultat.getUTCDate() + n);
+  return resultat;
+}
 
 export const NB_SEANCES = 30;
 export const SEUIL_ALERTE_ABSENCES = 3;
 
-function estEnVacances(date: Date): boolean {
+export interface PeriodeVacances {
+  debut: Date;
+  fin: Date;
+}
+
+function estEnVacances(date: Date, vacances: PeriodeVacances[]): boolean {
   const t = date.getTime();
-  return VACANCES.some(([debut, fin]) => {
-    const t0 = new Date(`${debut}T00:00:00.000Z`).getTime();
-    const t1 = new Date(`${fin}T00:00:00.000Z`).getTime();
-    return t >= t0 && t < t1;
-  });
+  return vacances.some(({ debut, fin }) => t >= debut.getTime() && t < fin.getTime());
 }
 
 // Trouve la séance la plus proche d'aujourd'hui (à venir en priorité, sinon la plus proche passée).
@@ -41,15 +43,39 @@ export function seanceLaPlusProche<T extends { id: string; date: Date }>(
   return premiereFuture ?? meilleur.id;
 }
 
-// Génère N dates hebdomadaires à partir de dateDebut (incluse), en sautant les vacances.
-export function genererDatesSeances(dateDebut: Date, nb: number = NB_SEANCES): Date[] {
+const INDEX_JOUR_SEMAINE: Record<JourSemaine, number> = {
+  LUNDI: 0,
+  MARDI: 1,
+  MERCREDI: 2,
+  JEUDI: 3,
+  VENDREDI: 4,
+  SAMEDI: 5,
+  DIMANCHE: 6,
+};
+
+// Première date >= apartirDe qui tombe sur le jour de la semaine demandé — pour ne
+// jamais dépendre d'une date de départ qu'on suppose (à tort) être déjà ce jour-là
+// (cause du bug des cours générés sur le mauvais jour, sept. 2026).
+export function premiereOccurrence(jourSemaine: JourSemaine, apartirDe: Date): Date {
+  const cible = INDEX_JOUR_SEMAINE[jourSemaine];
+  const actuel = (apartirDe.getUTCDay() + 6) % 7; // lundi = 0 ... dimanche = 6
+  const decalage = (cible - actuel + 7) % 7;
+  return ajouterJours(apartirDe, decalage);
+}
+
+// Génère N dates hebdomadaires à partir de dateDebut (incluse, déjà sur le bon jour de
+// la semaine), en sautant les périodes de vacances fournies.
+export function genererDatesSeances(
+  dateDebut: Date,
+  vacances: PeriodeVacances[],
+  nb: number = NB_SEANCES
+): Date[] {
   const dates: Date[] = [];
   let courante = new Date(dateDebut);
   let garde = 0;
   while (dates.length < nb && garde < 500) {
-    if (!estEnVacances(courante)) dates.push(new Date(courante));
-    courante = new Date(courante);
-    courante.setUTCDate(courante.getUTCDate() + 7);
+    if (!estEnVacances(courante, vacances)) dates.push(new Date(courante));
+    courante = ajouterJours(courante, 7);
     garde++;
   }
   return dates;

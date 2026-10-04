@@ -2,10 +2,34 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { creerClasse, type EtatAction } from "@/app/(app)/presences/actions";
+import { JOURS_SEMAINE_OPTIONS } from "@/lib/joursSemaine";
 
 const EMOJIS = ["🎺", "🎻", "🎹", "🥁", "🎸", "🎷", "🪈", "🎤", "🪕", "🎼"];
 
 const etatInitial: EtatAction = { succes: true };
+
+const INDEX_JOUR: Record<string, number> = {
+  LUNDI: 0,
+  MARDI: 1,
+  MERCREDI: 2,
+  JEUDI: 3,
+  VENDREDI: 4,
+  SAMEDI: 5,
+  DIMANCHE: 6,
+};
+
+// Duplique volontairement lib/presences.ts#premiereOccurrence (pure, mais ce fichier-là
+// importe lib/planning.ts qui importe lib/db.ts — pas question d'embarquer pg/pool côté
+// client juste pour un petit calcul de date).
+function premiereOccurrence(jourSemaine: string, apartirDeStr: string): Date | null {
+  if (!jourSemaine || !apartirDeStr) return null;
+  const date = new Date(`${apartirDeStr}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  const actuel = (date.getUTCDay() + 6) % 7;
+  const decalage = (INDEX_JOUR[jourSemaine] - actuel + 7) % 7;
+  date.setUTCDate(date.getUTCDate() + decalage);
+  return date;
+}
 
 const champClass =
   "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
@@ -37,16 +61,12 @@ export function NouvelleClasseForm({
   const [disciplineId, setDisciplineId] = useState("");
   const [emoji, setEmoji] = useState(EMOJIS[0]);
   const aujourdHui = new Date().toISOString().slice(0, 10);
-  // Le champ se pré-remplit avec la date du jour, qui ne correspond pas forcément au
-  // jour de la semaine du cours : on affiche le jour calculé pour éviter de générer
-  // 30 séances sur le mauvais jour sans que personne ne le remarque (vécu en prod).
   const [dateDebut, setDateDebut] = useState(aujourdHui);
-  const jourCalcule = new Date(`${dateDebut}T00:00:00.000Z`).toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-  });
+  const [jourSemaine, setJourSemaine] = useState("");
+  // Le jour de la semaine pilote désormais la génération des dates : la date saisie
+  // n'a plus besoin d'être elle-même ce jour-là, on affiche la 1ère séance réelle
+  // calculée pour que ce soit vérifiable avant de valider.
+  const premiereSeance = premiereOccurrence(jourSemaine, dateDebut);
 
   const discipline = useMemo(
     () => disciplines.find((d) => d.id === disciplineId) ?? null,
@@ -128,12 +148,32 @@ export function NouvelleClasseForm({
       )}
 
       <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-        Jour / horaire (facultatif)
-        <input type="text" name="jour" placeholder="Ex. Mardi 17h" className={champClass} />
+        Jour de la semaine
+        <select
+          name="jourSemaine"
+          required
+          value={jourSemaine}
+          onChange={(e) => setJourSemaine(e.target.value)}
+          className={champClass}
+        >
+          <option value="" disabled>
+            Choisir un jour…
+          </option>
+          {JOURS_SEMAINE_OPTIONS.map((j) => (
+            <option key={j.valeur} value={j.valeur}>
+              {j.label}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-        Date du 1er cours
+        Info complémentaire (facultatif)
+        <input type="text" name="jour" placeholder="Ex. 17h, salle 2, 5ème CHAM" className={champClass} />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+        Rentrée (à partir du)
         <input
           type="date"
           name="dateDebut"
@@ -142,11 +182,21 @@ export function NouvelleClasseForm({
           onChange={(e) => setDateDebut(e.target.value)}
           className={champClass}
         />
-        <span className="text-xs font-normal text-brand-accent">→ {jourCalcule}</span>
+        {premiereSeance && (
+          <span className="text-xs font-normal text-brand-accent">
+            → 1ère séance :{" "}
+            {premiereSeance.toLocaleDateString("fr-FR", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              timeZone: "UTC",
+            })}
+          </span>
+        )}
       </label>
       <p className="text-xs text-slate-400">
         30 séances générées automatiquement (un par semaine, même jour), vacances scolaires
-        (zone A) exclues — vérifiez que le jour ci-dessus correspond bien au jour du cours.
+        (zone A) exclues.
       </p>
 
       {etat.message && <p className="text-sm text-status-occupee">{etat.message}</p>}

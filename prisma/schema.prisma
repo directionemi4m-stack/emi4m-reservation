@@ -90,6 +90,9 @@ model User {
   identite     IdentiteProf?
   documents    DocumentProf[]
   activitesAccessoires ActiviteAccessoire[]
+
+  impersonationsEffectuees JournalImpersonation[] @relation("ImpersonationDirection")
+  impersonationsSubies     JournalImpersonation[] @relation("ImpersonationCible")
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -223,6 +226,9 @@ model Classe {
   type       TypeCours
   nom        String
   emoji      String
+  // Source de vérité pour générer et trier les séances ; jour est désormais une info
+  // libre purement descriptive (horaire, salle...), plus jamais parsée pour une date.
+  jourSemaine JourSemaine?
   jour       String?
   lieuId     String?
   lieu       LieuPresence? @relation(fields: [lieuId], references: [id])
@@ -451,4 +457,31 @@ model ActiviteAccessoire {
   creeLe           DateTime                 @default(now())
 
   @@index([profId, date])
+}
+
+// --- Vacances scolaires ---
+
+// Périodes [début, fin[ (reprise exclue) administrables, à la place d'une liste codée
+// en dur dans le code — remplie une fois par la direction, chaque année scolaire.
+model PeriodeVacances {
+  id    String   @id @default(cuid())
+  nom   String
+  debut DateTime @db.Date
+  fin   DateTime @db.Date
+}
+
+// --- Journal « Se connecter en tant que » ---
+
+// Trace chaque impersonation (qui, pour qui, quand), pour la traçabilité d'une
+// fonctionnalité qui donne un accès total à un autre compte.
+model JournalImpersonation {
+  id          String    @id @default(cuid())
+  directionId String
+  direction   User      @relation("ImpersonationDirection", fields: [directionId], references: [id])
+  cibleId     String
+  cible       User      @relation("ImpersonationCible", fields: [cibleId], references: [id])
+  demarreLe   DateTime  @default(now())
+  termineLe   DateTime?
+
+  @@index([directionId, termineLe])
 }

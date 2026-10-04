@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { modifierCoursDetails, type EtatAction } from "@/app/(app)/presences/actions";
 import { useSoumission } from "@/lib/useSoumission";
+import { JOURS_SEMAINE_OPTIONS } from "@/lib/joursSemaine";
 
 const etatInitial: EtatAction = { succes: true };
 
@@ -26,6 +27,7 @@ interface Lieu {
 export function ModifierCoursForm({
   classeId,
   jourActuel,
+  jourSemaineActuel,
   disciplineActuelleId,
   niveauFMActuelId,
   lieuActuelId,
@@ -35,6 +37,7 @@ export function ModifierCoursForm({
 }: {
   classeId: string;
   jourActuel: string | null;
+  jourSemaineActuel: string | null;
   disciplineActuelleId: string | null;
   niveauFMActuelId: string | null;
   lieuActuelId: string | null;
@@ -113,10 +116,20 @@ export function ModifierCoursForm({
           </>
         )}
 
+        <select name="jourSemaine" required defaultValue={jourSemaineActuel ?? ""} className={champClass}>
+          <option value="" disabled>
+            Choisir un jour…
+          </option>
+          {JOURS_SEMAINE_OPTIONS.map((j) => (
+            <option key={j.valeur} value={j.valeur}>
+              {j.label}
+            </option>
+          ))}
+        </select>
         <input
           name="jour"
           defaultValue={jourActuel ?? ""}
-          placeholder="Jour / horaire (ex. Mardi 17h)"
+          placeholder="Info complémentaire (ex. 17h, salle 2)"
           className={champClass}
         />
       </div>
