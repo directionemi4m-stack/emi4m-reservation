@@ -196,6 +196,9 @@ async function classesDuMemeCours(nom: string, type: TypeCours) {
         orderBy: { date: "asc" },
         include: { pointage: { include: { marques: true } } },
       },
+      // Plusieurs profs peuvent enseigner la même discipline (ex. Piano) et partagent
+      // donc le même onglet : le nom du prof sert à distinguer leurs blocs respectifs.
+      prof: { select: { nom: true, prenom: true } },
     },
     orderBy: { creeLe: "asc" },
   });
@@ -272,7 +275,8 @@ export async function synchroniserFeuillePresence(classeId: string) {
   // Un bloc par groupe (classe), trié chronologiquement à l'intérieur du bloc — jamais
   // toutes les dates de tous les groupes mélangées par ordre chronologique global.
   const lignes = groupe.flatMap((c, indexGroupe) => {
-    const libelleGroupe = c.jour ?? `Groupe ${indexGroupe + 1}`;
+    const nomProf = `${c.prof.prenom} ${c.prof.nom}`;
+    const libelleGroupe = c.jour ? `${c.jour} — ${nomProf}` : `${nomProf} (Groupe ${indexGroupe + 1})`;
     return [...c.seances]
       .sort((a, b) => a.date.getTime() - b.date.getTime())
       .map((seance) => {
