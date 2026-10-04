@@ -46,8 +46,24 @@ export default async function AnnuairePage() {
                   <td className="px-4 py-2 text-slate-700">
                     {p.prenom} {p.nom}
                   </td>
-                  <td className="px-4 py-2 text-slate-500">{p.telephonePartage ?? "—"}</td>
-                  <td className="px-4 py-2 text-slate-500">{p.emailPartage ?? "—"}</td>
+                  <td className="px-4 py-2 text-slate-500">
+                    {p.telephonePartage ? (
+                      <a href={`tel:${p.telephonePartage.replace(/\s+/g, "")}`} className="text-brand-accent hover:underline">
+                        {p.telephonePartage}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-slate-500">
+                    {p.emailPartage ? (
+                      <a href={`mailto:${p.emailPartage}`} className="text-brand-accent hover:underline">
+                        {p.emailPartage}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                 </tr>
               ))}
               {collegues.length === 0 && (
