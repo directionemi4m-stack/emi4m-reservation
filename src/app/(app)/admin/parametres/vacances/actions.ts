@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { synchroniserVacancesOfficielles } from "@/lib/vacances";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -47,4 +48,29 @@ export async function supprimerPeriodeVacances(
   await db.periodeVacances.delete({ where: { id } });
   revalidatePath("/admin/parametres/vacances");
   return { succes: true };
+}
+
+// Un cron hebdomadaire appelle déjà synchroniserVacancesOfficielles (cf.
+// api/cron/synchroniser-vacances) ; ce bouton permet de forcer un rafraîchissement
+// immédiat sans attendre la prochaine exécution planifiée.
+export async function synchroniserVacancesMaintenant(
+  _etatPrecedent: EtatAction,
+  _formData: FormData
+): Promise<EtatAction> {
+  await exigerAdmin();
+
+  try {
+    const { ajoutees, misesAJour } = await synchroniserVacancesOfficielles();
+    revalidatePath("/admin/parametres/vacances");
+    if (ajoutees === 0 && misesAJour === 0) {
+      return { succes: true, message: "Déjà à jour, rien de nouveau." };
+    }
+    return {
+      succes: true,
+      message: `${ajoutees} période(s) ajoutée(s), ${misesAJour} mise(s) à jour.`,
+    };
+  } catch (erreur) {
+    console.error("Synchronisation manuelle des vacances scolaires en échec :", erreur);
+    return { succes: false, message: "Synchronisation impossible, réessayez plus tard." };
+  }
 }

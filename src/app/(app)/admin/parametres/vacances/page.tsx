@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { AjouterPeriodeVacancesForm } from "@/components/admin/AjouterPeriodeVacancesForm";
 import { SupprimerPeriodeVacancesBouton } from "@/components/admin/SupprimerPeriodeVacancesBouton";
+import { SynchroniserVacancesBouton } from "@/components/admin/SynchroniserVacancesBouton";
 
 function formatDate(date: Date) {
   return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
@@ -11,12 +12,16 @@ export default async function AdminVacancesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-brand-slate">Vacances scolaires</h1>
-        <p className="text-sm text-slate-500">
-          Utilisées pour ne pas générer de séance pendant les vacances. À mettre à jour chaque
-          année scolaire.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-brand-slate">Vacances scolaires</h1>
+          <p className="text-sm text-slate-500">
+            Utilisées pour ne pas générer de séance pendant les vacances. Synchronisées chaque
+            semaine depuis le calendrier scolaire officiel (zone A, académie de Grenoble) ; ajoutez
+            une période à la main pour un pont ou une fermeture propre à l&apos;école.
+          </p>
+        </div>
+        <SynchroniserVacancesBouton />
       </div>
 
       <AjouterPeriodeVacancesForm />
