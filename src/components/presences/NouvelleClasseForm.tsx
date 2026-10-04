@@ -63,6 +63,7 @@ export function NouvelleClasseForm({
   const aujourdHui = new Date().toISOString().slice(0, 10);
   const [dateDebut, setDateDebut] = useState(aujourdHui);
   const [jourSemaine, setJourSemaine] = useState("");
+  const [commencerPlusTard, setCommencerPlusTard] = useState(false);
   // Le jour de la semaine pilote désormais la génération des dates : la date saisie
   // n'a plus besoin d'être elle-même ce jour-là, on affiche la 1ère séance réelle
   // calculée pour que ce soit vérifiable avant de valider.
@@ -172,28 +173,41 @@ export function NouvelleClasseForm({
         <input type="text" name="jour" placeholder="Ex. 17h, salle 2, 5ème CHAM" className={champClass} />
       </label>
 
-      <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-        Rentrée (à partir du)
-        <input
-          type="date"
-          name="dateDebut"
-          required
-          value={dateDebut}
-          onChange={(e) => setDateDebut(e.target.value)}
-          className={champClass}
-        />
-        {premiereSeance && (
-          <span className="text-xs font-normal text-brand-accent">
-            → 1ère séance :{" "}
-            {premiereSeance.toLocaleDateString("fr-FR", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              timeZone: "UTC",
-            })}
-          </span>
-        )}
-      </label>
+      {commencerPlusTard ? (
+        <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+          Rentrée (à partir du)
+          <input
+            type="date"
+            name="dateDebut"
+            required
+            value={dateDebut}
+            onChange={(e) => setDateDebut(e.target.value)}
+            className={champClass}
+          />
+        </label>
+      ) : (
+        <>
+          <input type="hidden" name="dateDebut" value={aujourdHui} />
+          <button
+            type="button"
+            onClick={() => setCommencerPlusTard(true)}
+            className="self-start text-xs font-medium text-brand-accent hover:underline"
+          >
+            Commencer plus tard qu&apos;aujourd&apos;hui…
+          </button>
+        </>
+      )}
+      {premiereSeance && (
+        <span className="text-xs font-normal text-brand-accent">
+          → 1ère séance :{" "}
+          {premiereSeance.toLocaleDateString("fr-FR", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            timeZone: "UTC",
+          })}
+        </span>
+      )}
       <p className="text-xs text-slate-400">
         30 séances générées automatiquement (un par semaine, même jour), vacances scolaires
         (zone A) exclues.
