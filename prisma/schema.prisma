@@ -72,6 +72,11 @@ model User {
   actif           Boolean   @default(true)
   creeLe          DateTime  @default(now())
 
+  // Annuaire des collègues : coordonnées facultatives, remplies et partagées
+  // volontairement par chacun — jamais pré-remplies avec l'email de connexion.
+  telephonePartage String?
+  emailPartage     String?
+
   tokensMotDePasse TokenMotDePasse[]
 
   creneauxRecurrents CreneauRecurrent[]

@@ -129,6 +129,9 @@ export function HeaderNav({
         <Link href="/cham" className="hover:text-brand-accent">
           CHAM
         </Link>
+        <Link href="/annuaire" className="hover:text-brand-accent">
+          Annuaire
+        </Link>
         {role === "ADMIN" && (
           <Link href="/admin/parametres/profs" className="hover:text-brand-accent">
             Profs
@@ -185,6 +188,18 @@ export function HeaderNav({
               className="block rounded-md px-2 py-2 hover:bg-white/10"
             >
               Élèves CHAM
+            </Link>
+          </div>
+          <div>
+            <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-white/40">
+              Annuaire
+            </p>
+            <Link
+              href="/annuaire"
+              onClick={() => setOuvert(false)}
+              className="block rounded-md px-2 py-2 hover:bg-white/10"
+            >
+              Annuaire des collègues
             </Link>
           </div>
           {role === "ADMIN" && (
