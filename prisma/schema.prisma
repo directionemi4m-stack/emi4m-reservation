@@ -93,6 +93,8 @@ model User {
 
   impersonationsEffectuees JournalImpersonation[] @relation("ImpersonationDirection")
   impersonationsSubies     JournalImpersonation[] @relation("ImpersonationCible")
+
+  codeAlarme CodeAlarme?
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -484,4 +486,27 @@ model JournalImpersonation {
   termineLe   DateTime?
 
   @@index([directionId, termineLe])
+}
+
+// --- Sécurité des bâtiments ---
+
+// Consignes de sécurité affichées dans un bâtiment (incendie, évacuation, accident),
+// modifiables par la direction. Le contenu suit la structure de l'affiche officielle
+// (cf. lib/securite.ts#ConsignesContenu) ; les gestes réflexes, eux, restent fixes.
+model ConsignesSecurite {
+  id      String   @id @default(cuid())
+  site    String   @unique // ex. "villard"
+  contenu Json
+  majLe   DateTime @updatedAt
+}
+
+// Code d'alarme personnel du bâtiment de Lans-en-Vercors (un par salarié, donné par le
+// responsable du bâtiment et saisi par la direction). Jamais stocké en clair : chiffré
+// en AES-256-GCM (clé CLE_CHIFFREMENT_CODES), illisible même avec un accès à la base.
+model CodeAlarme {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeChiffre String
+  majLe       DateTime @updatedAt
 }
