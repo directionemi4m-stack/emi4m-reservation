@@ -169,8 +169,8 @@ export function NouvelleClasseForm({
       </label>
 
       <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-        Info complémentaire (facultatif)
-        <input type="text" name="jour" placeholder="Ex. 17h, salle 2, 5ème CHAM" className={champClass} />
+        Horaire, salle… (facultatif)
+        <input type="text" name="jour" placeholder="Ex. 17h - 17h45, 5ème CHAM" className={champClass} />
       </label>
 
       {commencerPlusTard ? (

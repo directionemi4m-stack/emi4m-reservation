@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { genererDatesSeances, premiereOccurrence } from "@/lib/presences";
+import { infoSansJour } from "@/lib/joursSemaine";
 import { supprimerFeuillePresence, synchroniserFeuillePresence } from "@/lib/sheets";
 import type { JourSemaine } from "@/generated/prisma/client";
 
@@ -34,8 +35,10 @@ export async function creerClasse(
 ): Promise<EtatAction> {
   const session = await exigerConnecte();
 
-  const jour = String(formData.get("jour") ?? "").trim() || null;
   const jourSemaine = String(formData.get("jourSemaine") ?? "") as JourSemaine;
+  // Retire un éventuel jour répété en tête (« Vendredi 17h » → « 17h ») : le jour est
+  // déjà porté par jourSemaine et serait sinon affiché deux fois.
+  const jour = infoSansJour(jourSemaine, String(formData.get("jour") ?? ""));
   const apartirDeStr = String(formData.get("dateDebut") ?? "");
   const emoji = String(formData.get("emoji") ?? "🎼");
   const disciplineId = String(formData.get("disciplineId") ?? "");
@@ -112,11 +115,11 @@ export async function modifierCoursDetails(
   const session = await exigerConnecte();
   const id = String(formData.get("id") ?? "");
   const disciplineId = String(formData.get("disciplineId") ?? "");
-  const jour = String(formData.get("jour") ?? "").trim() || null;
   const jourSemaine = String(formData.get("jourSemaine") ?? "") as JourSemaine;
   if (!JOURS_SEMAINE.includes(jourSemaine)) {
     return { succes: false, message: "Le jour de la semaine est requis." };
   }
+  const jour = infoSansJour(jourSemaine, String(formData.get("jour") ?? ""));
 
   const classeAvant = await db.classe.findUnique({ where: { id } });
   if (!classeAvant) {

@@ -71,67 +71,82 @@ export function ModifierCoursForm({
     <form onSubmit={soumettre} className="flex flex-col gap-3 rounded-md bg-slate-50 p-3">
       <input type="hidden" name="id" value={classeId} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <select
-          name="disciplineId"
-          required
-          value={disciplineId}
-          onChange={(e) => setDisciplineId(e.target.value)}
-          className={champClass}
-        >
-          <option value="" disabled>
-            Choisir une discipline…
-          </option>
-          {disciplines.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.nom}
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+          Discipline
+          <select
+            name="disciplineId"
+            required
+            value={disciplineId}
+            onChange={(e) => setDisciplineId(e.target.value)}
+            className={champClass}
+          >
+            <option value="" disabled>
+              Choisir une discipline…
             </option>
-          ))}
-        </select>
+            {disciplines.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.nom}
+              </option>
+            ))}
+          </select>
+        </label>
 
         {estFM && (
           <>
-            <select
-              name="niveauFMId"
-              required
-              defaultValue={niveauFMActuelId ?? ""}
-              className={champClass}
-            >
-              <option value="" disabled>
-                Choisir un niveau…
-              </option>
-              {niveaux.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.nom}
+            <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+              Niveau
+              <select
+                name="niveauFMId"
+                required
+                defaultValue={niveauFMActuelId ?? ""}
+                className={champClass}
+              >
+                <option value="" disabled>
+                  Choisir un niveau…
                 </option>
-              ))}
-            </select>
-            <select name="lieuId" defaultValue={lieuActuelId ?? ""} className={champClass}>
-              <option value="">—</option>
-              {lieux.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.nom}
-                </option>
-              ))}
-            </select>
+                {niveaux.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.nom}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+              Lieu
+              <select name="lieuId" defaultValue={lieuActuelId ?? ""} className={champClass}>
+                <option value="">—</option>
+                {lieux.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.nom}
+                  </option>
+                ))}
+              </select>
+            </label>
           </>
         )}
 
-        <select name="jourSemaine" required defaultValue={jourSemaineActuel ?? ""} className={champClass}>
-          <option value="" disabled>
-            Choisir un jour…
-          </option>
-          {JOURS_SEMAINE_OPTIONS.map((j) => (
-            <option key={j.valeur} value={j.valeur}>
-              {j.label}
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+          Jour de la semaine
+          <select name="jourSemaine" required defaultValue={jourSemaineActuel ?? ""} className={champClass}>
+            <option value="" disabled>
+              Choisir un jour…
             </option>
-          ))}
-        </select>
-        <input
-          name="jour"
-          defaultValue={jourActuel ?? ""}
-          placeholder="Info complémentaire (ex. 17h, salle 2)"
-          className={champClass}
-        />
+            {JOURS_SEMAINE_OPTIONS.map((j) => (
+              <option key={j.valeur} value={j.valeur}>
+                {j.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+          Horaire, salle… (facultatif)
+          <input
+            name="jour"
+            defaultValue={jourActuel ?? ""}
+            placeholder="Ex. 17h - 17h45, 5ème CHAM"
+            className={champClass}
+          />
+        </label>
       </div>
 
       <p className="text-xs text-slate-400">

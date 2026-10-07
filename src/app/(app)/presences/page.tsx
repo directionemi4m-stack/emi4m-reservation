@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SupprimerClasseBouton } from "@/components/presences/SupprimerClasseBouton";
 import { PresencesSousNav } from "@/components/presences/PresencesSousNav";
+import { libelleJourCours } from "@/lib/joursSemaine";
 
 export default async function PresencesPage() {
   const session = await auth();
@@ -10,7 +11,8 @@ export default async function PresencesPage() {
   const classes = await db.classe.findMany({
     where: { profId: session!.user.id, actif: true },
     include: { eleves: true },
-    orderBy: { creeLe: "desc" },
+    // L'enum JourSemaine se trie dans son ordre de déclaration (lundi → dimanche).
+    orderBy: [{ jourSemaine: "asc" }, { creeLe: "desc" }],
   });
 
   return (
@@ -40,8 +42,12 @@ export default async function PresencesPage() {
               <div>
                 <p className="text-sm font-medium text-slate-700">{classe.nom}</p>
                 <p className="text-xs text-slate-500">
-                  {classe.jour ? `${classe.jour} · ` : ""}
-                  {classe.eleves.length} élève{classe.eleves.length !== 1 ? "s" : ""}
+                  {[
+                    libelleJourCours(classe),
+                    `${classe.eleves.length} élève${classe.eleves.length !== 1 ? "s" : ""}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
               </div>
             </Link>

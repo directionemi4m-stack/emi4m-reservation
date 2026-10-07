@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import { db } from "@/lib/db";
 import type { StatutPresence, TypeAbsenceProf, TypeCours } from "@/generated/prisma/client";
 import { libelleMission } from "@/lib/mission";
+import { libelleJourCours } from "@/lib/joursSemaine";
 
 const LIBELLES_STATUT: Record<StatutPresence, string> = {
   PRESENT: "Présent",
@@ -268,7 +269,8 @@ export async function synchroniserFeuillePresence(classeId: string) {
   // toutes les dates de tous les groupes mélangées par ordre chronologique global.
   const lignes = groupe.flatMap((c, indexGroupe) => {
     const nomProf = `${c.prof.prenom} ${c.prof.nom}`;
-    const libelleGroupe = c.jour ? `${c.jour} — ${nomProf}` : `${nomProf} (Groupe ${indexGroupe + 1})`;
+    const libelleJour = libelleJourCours(c);
+    const libelleGroupe = libelleJour ? `${libelleJour} — ${nomProf}` : `${nomProf} (Groupe ${indexGroupe + 1})`;
     return [...c.seances]
       .sort((a, b) => a.date.getTime() - b.date.getTime())
       .map((seance) => {

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { seanceLaPlusProche } from "@/lib/presences";
+import { infoSansJour, libelleJourCours } from "@/lib/joursSemaine";
 import { AjouterEleveForm } from "@/components/presences/AjouterEleveForm";
 import { SupprimerEleveBouton } from "@/components/presences/SupprimerEleveBouton";
 import { AjouterSeanceForm } from "@/components/presences/AjouterSeanceForm";
@@ -46,8 +47,8 @@ export default async function ClassePage({
   const idProchaine = seanceLaPlusProche(classe.seances);
   const sousTitre =
     classe.type === "FM"
-      ? [classe.niveauFM?.nom, classe.lieu?.nom, classe.jour].filter(Boolean).join(" · ")
-      : (classe.jour ?? "");
+      ? [classe.niveauFM?.nom, classe.lieu?.nom, libelleJourCours(classe)].filter(Boolean).join(" · ")
+      : libelleJourCours(classe);
 
   const derniereSeance = classe.seances[classe.seances.length - 1];
   const dateSuggeree = derniereSeance
@@ -67,7 +68,7 @@ export default async function ClassePage({
         <div className="mt-2">
           <ModifierCoursForm
             classeId={classe.id}
-            jourActuel={classe.jour}
+            jourActuel={infoSansJour(classe.jourSemaine, classe.jour)}
             jourSemaineActuel={classe.jourSemaine}
             disciplineActuelleId={disciplineActuelle?.id ?? null}
             niveauFMActuelId={classe.niveauFMId}
