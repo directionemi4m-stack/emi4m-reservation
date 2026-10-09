@@ -63,14 +63,14 @@ enum TypeDocument {
 // Compte prof/admin. Provisionné par la direction (pas d'auto-inscription).
 // Connexion par email + mot de passe (défini via un lien envoyé par email).
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  motDePasseHash  String?
-  nom             String
-  prenom          String
-  role            Role      @default(PROF)
-  actif           Boolean   @default(true)
-  creeLe          DateTime  @default(now())
+  id             String   @id @default(cuid())
+  email          String   @unique
+  motDePasseHash String?
+  nom            String
+  prenom         String
+  role           Role     @default(PROF)
+  actif          Boolean  @default(true)
+  creeLe         DateTime @default(now())
 
   // Annuaire des collègues : coordonnées facultatives, remplies et partagées
   // volontairement par chacun — jamais pré-remplies avec l'email de connexion.
@@ -83,18 +83,20 @@ model User {
   demandes           Demande[]          @relation("DemandeAuteur")
   creneauxTraites    DemandeCreneau[]   @relation("CreneauTraitePar")
 
-  classes      Classe[]      @relation("ClasseProf")
-  pointages    Pointage[]    @relation("PointageProf")
-  absencesProf AbsenceProf[] @relation("AbsenceProf")
-  trajets      Trajet[]      @relation("TrajetProf")
-  identite     IdentiteProf?
-  documents    DocumentProf[]
+  classes              Classe[]             @relation("ClasseProf")
+  pointages            Pointage[]           @relation("PointageProf")
+  absencesProf         AbsenceProf[]        @relation("AbsenceProf")
+  trajets              Trajet[]             @relation("TrajetProf")
+  identite             IdentiteProf?
+  documents            DocumentProf[]
   activitesAccessoires ActiviteAccessoire[]
 
   impersonationsEffectuees JournalImpersonation[] @relation("ImpersonationDirection")
   impersonationsSubies     JournalImpersonation[] @relation("ImpersonationCible")
 
   codeAlarme CodeAlarme?
+
+  creneauxAgenda CreneauAgenda[]
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -199,10 +201,11 @@ model DemandeCreneau {
 // --- Présences ---
 
 model LieuPresence {
-  id      String   @id @default(cuid())
-  nom     String   @unique
-  actif   Boolean  @default(true)
-  classes Classe[]
+  id             String          @id @default(cuid())
+  nom            String          @unique
+  actif          Boolean         @default(true)
+  classes        Classe[]
+  creneauxAgenda CreneauAgenda[]
 }
 
 model NiveauFM {
@@ -222,23 +225,23 @@ model Discipline {
 }
 
 model Classe {
-  id         String        @id @default(cuid())
-  profId     String
-  prof       User          @relation("ClasseProf", fields: [profId], references: [id])
-  type       TypeCours
-  nom        String
-  emoji      String
+  id          String        @id @default(cuid())
+  profId      String
+  prof        User          @relation("ClasseProf", fields: [profId], references: [id])
+  type        TypeCours
+  nom         String
+  emoji       String
   // Source de vérité pour générer et trier les séances ; jour est désormais une info
   // libre purement descriptive (horaire, salle...), plus jamais parsée pour une date.
   jourSemaine JourSemaine?
-  jour       String?
-  lieuId     String?
-  lieu       LieuPresence? @relation(fields: [lieuId], references: [id])
-  niveauFMId String?
-  niveauFM   NiveauFM?     @relation(fields: [niveauFMId], references: [id])
-  dateDebut  DateTime      @db.Date
-  actif      Boolean       @default(true)
-  creeLe     DateTime      @default(now())
+  jour        String?
+  lieuId      String?
+  lieu        LieuPresence? @relation(fields: [lieuId], references: [id])
+  niveauFMId  String?
+  niveauFM    NiveauFM?     @relation(fields: [niveauFMId], references: [id])
+  dateDebut   DateTime      @db.Date
+  actif       Boolean       @default(true)
+  creeLe      DateTime      @default(now())
 
   eleves       Eleve[]
   seances      Seance[]
@@ -333,22 +336,22 @@ model TypeTrajet {
 // moment de la saisie : un trajet déjà enregistré ne doit pas bouger si le
 // barème change plus tard.
 model Trajet {
-  id                String      @id @default(cuid())
-  profId            String
-  prof              User        @relation("TrajetProf", fields: [profId], references: [id])
-  date              DateTime    @db.Date
-  typeMission       TypeMission
-  precisionMission  String?
-  typeTrajetId      String
-  typeTrajet        TypeTrajet  @relation(fields: [typeTrajetId], references: [id])
-  trajetNom         String
-  km                Float
-  prix              Float
+  id               String      @id @default(cuid())
+  profId           String
+  prof             User        @relation("TrajetProf", fields: [profId], references: [id])
+  date             DateTime    @db.Date
+  typeMission      TypeMission
+  precisionMission String?
+  typeTrajetId     String
+  typeTrajet       TypeTrajet  @relation(fields: [typeTrajetId], references: [id])
+  trajetNom        String
+  km               Float
+  prix             Float
   // Suppression « douce », comme pour ActiviteAccessoire : la ligne du classeur
   // comptabilité reste en place (vidée) plutôt que de disparaître, pour ne jamais
   // décaler un commentaire du comptable posé dessus.
-  supprimeLe        DateTime?
-  creeLe            DateTime    @default(now())
+  supprimeLe       DateTime?
+  creeLe           DateTime    @default(now())
 
   @@index([profId, date])
 }
@@ -389,22 +392,21 @@ model DocumentProf {
 // Jeton OAuth d'un vrai compte Google (pas le compte de service — celui-ci n'a pas
 // de quota de stockage Drive et ne peut donc pas y déposer de fichiers). Ligne unique.
 model ConfigGoogle {
-  id           String   @id @default("singleton")
-  refreshToken String
-  compteEmail  String?
+  id              String    @id @default("singleton")
+  refreshToken    String
+  compteEmail     String?
   // Dernier mail d'alerte « connexion interrompue » envoyé à la direction (évite de
   // renvoyer le même mail à chaque vérification). Remis à null dès que la connexion revient.
   alerteEnvoyeeLe DateTime?
-  majLe        DateTime @updatedAt
+  majLe           DateTime  @updatedAt
 }
-
 
 // --- CHAM (classes à horaires aménagés musique) ---
 
 enum AutorisationSortie {
   A_RENSEIGNER // pas encore renseigné : par prudence, l'enfant n'est PAS présumé autorisé à partir seul
-  SEUL         // les parents autorisent l'enfant à quitter seul l'établissement
-  ACCOMPAGNE   // l'enfant doit être récupéré par un adulte
+  SEUL // les parents autorisent l'enfant à quitter seul l'établissement
+  ACCOMPAGNE // l'enfant doit être récupéré par un adulte
 }
 
 // Élève CHAM : liste consultable par tous les enseignants, modifiable uniquement par la direction.
@@ -444,19 +446,19 @@ model TypeEvenementAccessoire {
 // (jamais réordonnée, jamais retirée) : le comptable peut y laisser des commentaires
 // dans Google Sheets sans craindre qu'ils se retrouvent sur la mauvaise ligne.
 model ActiviteAccessoire {
-  id               String                   @id @default(cuid())
+  id               String                  @id @default(cuid())
   profId           String
-  prof             User                     @relation(fields: [profId], references: [id])
-  date             DateTime                 @db.Date
+  prof             User                    @relation(fields: [profId], references: [id])
+  date             DateTime                @db.Date
   typeEvenementId  String
-  typeEvenement    TypeEvenementAccessoire  @relation(fields: [typeEvenementId], references: [id])
+  typeEvenement    TypeEvenementAccessoire @relation(fields: [typeEvenementId], references: [id])
   typeEvenementNom String
   duree            String // ex. "1h30" — liste fixe, cf. lib/activiteAccessoire.ts
   // Suppression « douce » : la ligne reste dans le classeur (vidée, marquée « Supprimée »)
   // plutôt que d'être retirée, pour ne jamais décaler les lignes suivantes ni les
   // commentaires du comptable qui y sont accrochés.
   supprimeLe       DateTime?
-  creeLe           DateTime                 @default(now())
+  creeLe           DateTime                @default(now())
 
   @@index([profId, date])
 }
@@ -509,4 +511,32 @@ model CodeAlarme {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   codeChiffre String
   majLe       DateTime @updatedAt
+}
+
+// --- Emploi du temps hebdomadaire des profs ---
+
+enum TypeCreneauAgenda {
+  INDIVIDUEL
+  COLLECTIF
+}
+
+// Un cours de la semaine type d'un prof, saisi par lui-même : sert à produire son emploi
+// du temps détaillé et son volume horaire hebdomadaire (contrats) dans le classeur
+// « Emplois du temps » de la direction. Indépendant des séances de Présences.
+model CreneauAgenda {
+  id                String            @id @default(cuid())
+  profId            String
+  prof              User              @relation(fields: [profId], references: [id])
+  jourSemaine       JourSemaine
+  heureDebutMinutes Int // minutes depuis minuit (14h15 = 855), pour trier et détecter les chevauchements
+  dureeMinutes      Int
+  type              TypeCreneauAgenda
+  nom               String // élève (individuel) ou groupe (collectif), saisie libre
+  // Compté pour moitié dans le volume horaire hebdomadaire.
+  uneSemaineSurDeux Boolean           @default(false)
+  lieuId            String?
+  lieu              LieuPresence?     @relation(fields: [lieuId], references: [id])
+  creeLe            DateTime          @default(now())
+
+  @@index([profId, jourSemaine])
 }

@@ -34,6 +34,7 @@ function groupes(role: "PROF" | "ADMIN"): Groupe[] {
       label: "Présences",
       liens: [
         { href: "/presences", label: "Présences" },
+        { href: "/agenda", label: "Mon emploi du temps" },
         ...(role === "ADMIN"
           ? [
               { href: "/admin/parametres/presences", label: "Lieux & niveaux" },

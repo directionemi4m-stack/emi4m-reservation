@@ -2,7 +2,8 @@ import { google } from "googleapis";
 import { db } from "@/lib/db";
 import type { StatutPresence, TypeAbsenceProf, TypeCours } from "@/generated/prisma/client";
 import { libelleMission } from "@/lib/mission";
-import { libelleJourCours } from "@/lib/joursSemaine";
+import { libelleJourCours, libelleJourSemaine } from "@/lib/joursSemaine";
+import { formaterDuree, heuresDecimales, minutesHebdo, minutesVersHeure, volumeHebdoMinutes } from "@/lib/agenda";
 
 const LIBELLES_STATUT: Record<StatutPresence, string> = {
   PRESENT: "Présent",
@@ -38,6 +39,12 @@ function creerClientPresences() {
 // celui-là seul est destiné à être partagé (en commentateur) avec le comptable.
 function creerClientCompta() {
   return creerClientSheets(process.env.GOOGLE_SHEETS_COMPTA_ID);
+}
+
+// Classeur « Emplois du temps » : emploi du temps détaillé de chaque prof et volumes
+// horaires — réservé à la direction (noms d'élèves, donc jamais dans la Comptabilité).
+function creerClientEmploisDuTemps() {
+  return creerClientSheets(process.env.GOOGLE_SHEETS_EDT_ID);
 }
 
 // Les titres d'onglet Google Sheets interdisent []*?/\: et sont limités à 100 caractères.
@@ -466,4 +473,126 @@ export async function synchroniserActiviteAccessoireProf(profId: string) {
       : [formatDate(a.date), a.typeEvenementNom, a.duree],
   }));
   await synchroniserLignesStables(sheets, idFeuille, titre, entete.length, ACTIVITE_LIGNE_ENTETE, lignes);
+}
+
+// --- Emplois du temps ---
+
+const LIBELLES_TYPE_CRENEAU: Record<"INDIVIDUEL" | "COLLECTIF", string> = {
+  INDIVIDUEL: "Individuel",
+  COLLECTIF: "Collectif",
+};
+
+const TITRE_RECAP_EDT = "Récapitulatif";
+
+// Réécrit entièrement l'onglet du prof (classeur réservé à la direction, pas de
+// commentaires tiers à préserver) puis met à jour le récapitulatif de tous les profs.
+export async function synchroniserEmploiDuTempsProf(profId: string) {
+  const client = creerClientEmploisDuTemps();
+  if (!client) return; // Classeur pas encore configuré : on ignore silencieusement.
+  const { sheets, idFeuille } = client;
+
+  const prof = await db.user.findUnique({
+    where: { id: profId },
+    include: {
+      creneauxAgenda: {
+        // L'enum JourSemaine se trie dans son ordre de déclaration (lundi → dimanche).
+        orderBy: [{ jourSemaine: "asc" }, { heureDebutMinutes: "asc" }],
+        include: { lieu: true },
+      },
+    },
+  });
+  if (!prof) return;
+
+  const titre = nomOngletProf(prof);
+  if ((await idOngletExistant(sheets, idFeuille, titre)) === null) {
+    await creerOnglet(sheets, idFeuille, titre);
+  }
+
+  const creneaux = prof.creneauxAgenda;
+  const total = volumeHebdoMinutes(creneaux);
+  const lignes = [
+    [`Emploi du temps — ${prof.prenom} ${prof.nom}`],
+    ["Volume hebdomadaire", formaterDuree(total), `${heuresDecimales(total)} h`],
+    ["dont cours une semaine sur deux", creneaux.filter((c) => c.uneSemaineSurDeux).length],
+    [],
+    ["Jour", "Début", "Fin", "Durée", "Type", "Élève / groupe", "Lieu", "Fréquence", "Temps hebdo moyen"],
+    ...creneaux.map((c) => [
+      libelleJourSemaine(c.jourSemaine) ?? c.jourSemaine,
+      minutesVersHeure(c.heureDebutMinutes),
+      minutesVersHeure(c.heureDebutMinutes + c.dureeMinutes),
+      `${c.dureeMinutes} min`,
+      LIBELLES_TYPE_CRENEAU[c.type],
+      c.nom,
+      c.lieu?.nom ?? "",
+      c.uneSemaineSurDeux ? "1 semaine sur 2" : "Chaque semaine",
+      formaterDuree(minutesHebdo(c)),
+    ]),
+  ];
+
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titre}'!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: lignes },
+  });
+
+  await synchroniserRecapEmploisDuTemps();
+}
+
+// Un onglet en tête de classeur avec le volume horaire de chaque salarié actif — y
+// compris ceux qui n'ont encore rien saisi, pour voir d'un coup d'œil qui manque.
+export async function synchroniserRecapEmploisDuTemps() {
+  const client = creerClientEmploisDuTemps();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+
+  if ((await idOngletExistant(sheets, idFeuille, TITRE_RECAP_EDT)) === null) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: idFeuille,
+      requestBody: { requests: [{ addSheet: { properties: { title: TITRE_RECAP_EDT, index: 0 } } }] },
+    });
+  }
+
+  const salaries = await db.user.findMany({
+    where: { actif: true },
+    orderBy: [{ nom: "asc" }, { prenom: "asc" }],
+    include: { creneauxAgenda: true },
+  });
+
+  const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const lignes = [
+    [
+      "Prof",
+      "Cours individuels",
+      "Cours collectifs",
+      "Dont 1 semaine sur 2",
+      "Volume hebdomadaire",
+      "Heures (décimal)",
+      "Dernier ajout",
+    ],
+    ...salaries.map((s) => {
+      const c = s.creneauxAgenda;
+      if (c.length === 0) return [`${s.prenom} ${s.nom}`, "", "", "", "Non renseigné", "", ""];
+      const total = volumeHebdoMinutes(c);
+      const dernier = c.reduce((max, x) => (x.creeLe > max ? x.creeLe : max), c[0].creeLe);
+      return [
+        `${s.prenom} ${s.nom}`,
+        c.filter((x) => x.type === "INDIVIDUEL").length,
+        c.filter((x) => x.type === "COLLECTIF").length,
+        c.filter((x) => x.uneSemaineSurDeux).length,
+        formaterDuree(total),
+        heuresDecimales(total),
+        formatDate(dernier),
+      ];
+    }),
+  ];
+
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${TITRE_RECAP_EDT}'` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${TITRE_RECAP_EDT}'!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: lignes },
+  });
 }
