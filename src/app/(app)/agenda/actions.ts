@@ -11,6 +11,7 @@ import {
   HEURE_MAX,
   HEURE_MIN,
   heureVersMinutes,
+  memeCommune,
   minutesVersHeure,
 } from "@/lib/agenda";
 import type { JourSemaine, TypeCreneauAgenda } from "@/generated/prisma/client";
@@ -41,7 +42,8 @@ export async function ajouterCreneau(_etatPrecedent: EtatAction, formData: FormD
   const heureDebutMinutes = heureVersMinutes(String(formData.get("heureDebut") ?? ""));
   const dureeMinutes = Number(formData.get("dureeMinutes"));
   const nom = String(formData.get("nom") ?? "").trim();
-  const lieuId = String(formData.get("lieuId") ?? "") || null;
+  let lieuId = String(formData.get("lieuId") ?? "") || null;
+  const salleId = String(formData.get("salleId") ?? "") || null;
   const uneSemaineSurDeux = formData.get("uneSemaineSurDeux") === "on";
 
   if (!JOURS.includes(jourSemaine)) return { succes: false, message: "Le jour est requis." };
@@ -57,6 +59,16 @@ export async function ajouterCreneau(_etatPrecedent: EtatAction, formData: FormD
   if (nom.length > 100) return { succes: false, message: "Nom trop long." };
   if (lieuId && !(await db.lieuPresence.findUnique({ where: { id: lieuId } }))) {
     return { succes: false, message: "Lieu introuvable." };
+  }
+  if (salleId) {
+    const salle = await db.salle.findUnique({ where: { id: salleId }, include: { commune: true } });
+    if (!salle) return { succes: false, message: "Salle introuvable." };
+    // Salle choisie sans commune : on renseigne la commune correspondante, pour que la
+    // colonne Lieu du classeur reste remplie.
+    if (!lieuId) {
+      const lieux = await db.lieuPresence.findMany({ where: { actif: true } });
+      lieuId = lieux.find((l) => memeCommune(l.nom, salle.commune.nom))?.id ?? null;
+    }
   }
   if (profId !== session.user.id && !(await db.user.findUnique({ where: { id: profId } }))) {
     return { succes: false, message: "Prof introuvable." };
@@ -75,7 +87,7 @@ export async function ajouterCreneau(_etatPrecedent: EtatAction, formData: FormD
   }
 
   await db.creneauAgenda.create({
-    data: { profId, jourSemaine, heureDebutMinutes, dureeMinutes, type, nom, lieuId, uneSemaineSurDeux },
+    data: { profId, jourSemaine, heureDebutMinutes, dureeMinutes, type, nom, lieuId, salleId, uneSemaineSurDeux },
   });
 
   revalidatePath("/agenda");

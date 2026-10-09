@@ -139,6 +139,7 @@ model Salle {
   creneauxRecurrents CreneauRecurrent[]
   demandes           Demande[]
   demandeCreneaux    DemandeCreneau[]
+  creneauxAgenda     CreneauAgenda[]
 
   @@unique([communeId, nom])
 }
@@ -536,6 +537,9 @@ model CreneauAgenda {
   uneSemaineSurDeux Boolean           @default(false)
   lieuId            String?
   lieu              LieuPresence?     @relation(fields: [lieuId], references: [id])
+  // Facultative : certaines communes (Corrençon, Engins…) n'ont pas de salle répertoriée.
+  salleId           String?
+  salle             Salle?            @relation(fields: [salleId], references: [id])
   creeLe            DateTime          @default(now())
 
   @@index([profId, jourSemaine])

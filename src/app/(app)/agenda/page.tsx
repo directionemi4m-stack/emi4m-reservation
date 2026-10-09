@@ -17,14 +17,19 @@ export default async function AgendaPage({
   const profIdCible = estAdmin && profIdParam ? profIdParam : session!.user.id;
   const gereCollegue = profIdCible !== session!.user.id;
 
-  const [creneaux, lieux, eleves, profs, profCible] = await Promise.all([
+  const [creneaux, lieux, salles, eleves, profs, profCible] = await Promise.all([
     db.creneauAgenda.findMany({
       where: { profId: profIdCible },
       // L'enum JourSemaine se trie dans son ordre de déclaration (lundi → dimanche).
       orderBy: [{ jourSemaine: "asc" }, { heureDebutMinutes: "asc" }],
-      include: { lieu: true },
+      include: { lieu: true, salle: true },
     }),
     db.lieuPresence.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
+    db.salle.findMany({
+      where: { actif: true },
+      include: { commune: true },
+      orderBy: [{ commune: { nom: "asc" } }, { nom: "asc" }],
+    }),
     // Suggestions : les élèves déjà inscrits dans les cours de Présences du prof.
     db.eleve.findMany({
       where: { actif: true, classe: { profId: profIdCible, actif: true } },
@@ -59,6 +64,7 @@ export default async function AgendaPage({
 
       <AjouterCreneauForm
         lieux={lieux}
+        salles={salles.map((s) => ({ id: s.id, nom: s.nom, communeNom: s.commune.nom }))}
         suggestions={eleves.map((e) => e.nom)}
         profIdCible={gereCollegue ? profIdCible : undefined}
       />
@@ -88,6 +94,7 @@ export default async function AgendaPage({
                       c.type === "INDIVIDUEL" ? "Individuel" : "Collectif",
                       `${c.dureeMinutes} min`,
                       c.lieu?.nom,
+                      c.salle && `salle ${c.salle.nom}`,
                       c.uneSemaineSurDeux ? `1 semaine sur 2 (compte ${formaterDuree(minutesHebdo(c))})` : null,
                     ]
                       .filter(Boolean)

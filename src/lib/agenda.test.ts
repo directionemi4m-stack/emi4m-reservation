@@ -4,6 +4,7 @@ import {
   formaterDuree,
   heuresDecimales,
   heureVersMinutes,
+  memeCommune,
   minutesVersHeure,
   volumeHebdoMinutes,
 } from "./agenda";
@@ -55,6 +56,19 @@ describe("formaterDuree / heuresDecimales", () => {
   it("donne des heures décimales exactes", () => {
     expect(heuresDecimales(750)).toBe("12,5");
     expect(heuresDecimales(742.5)).toBe("12,375");
+  });
+});
+
+describe("memeCommune", () => {
+  it("rapproche un lieu de Présences de la commune de ses salles", () => {
+    expect(memeCommune("Saint-Nizier", "Saint-Nizier-du-Moucherotte")).toBe(true);
+    expect(memeCommune("Méaudre", "Méaudre")).toBe(true);
+    expect(memeCommune("Villard-de-Lans", "Villard-de-Lans")).toBe(true);
+  });
+
+  it("ne confond pas deux communes différentes", () => {
+    expect(memeCommune("Lans-en-Vercors", "Villard-de-Lans")).toBe(false);
+    expect(memeCommune("Corrençon", "Autrans")).toBe(false);
   });
 });
 

@@ -497,7 +497,7 @@ export async function synchroniserEmploiDuTempsProf(profId: string) {
       creneauxAgenda: {
         // L'enum JourSemaine se trie dans son ordre de déclaration (lundi → dimanche).
         orderBy: [{ jourSemaine: "asc" }, { heureDebutMinutes: "asc" }],
-        include: { lieu: true },
+        include: { lieu: true, salle: true },
       },
     },
   });
@@ -515,7 +515,7 @@ export async function synchroniserEmploiDuTempsProf(profId: string) {
     ["Volume hebdomadaire", formaterDuree(total), `${heuresDecimales(total)} h`],
     ["dont cours une semaine sur deux", creneaux.filter((c) => c.uneSemaineSurDeux).length],
     [],
-    ["Jour", "Début", "Fin", "Durée", "Type", "Élève / groupe", "Lieu", "Fréquence", "Temps hebdo moyen"],
+    ["Jour", "Début", "Fin", "Durée", "Type", "Élève / groupe", "Lieu", "Salle", "Fréquence", "Temps hebdo moyen"],
     ...creneaux.map((c) => [
       libelleJourSemaine(c.jourSemaine) ?? c.jourSemaine,
       minutesVersHeure(c.heureDebutMinutes),
@@ -524,6 +524,7 @@ export async function synchroniserEmploiDuTempsProf(profId: string) {
       LIBELLES_TYPE_CRENEAU[c.type],
       c.nom,
       c.lieu?.nom ?? "",
+      c.salle?.nom ?? "",
       c.uneSemaineSurDeux ? "1 semaine sur 2" : "Chaque semaine",
       formaterDuree(minutesHebdo(c)),
     ]),

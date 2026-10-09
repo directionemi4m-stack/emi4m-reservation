@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { ajouterCreneau, type EtatAction } from "@/app/(app)/agenda/actions";
-import { DUREES_COLLECTIF, DUREES_INDIVIDUEL } from "@/lib/agenda";
+import { DUREES_COLLECTIF, DUREES_INDIVIDUEL, memeCommune } from "@/lib/agenda";
 import { JOURS_SEMAINE_OPTIONS } from "@/lib/joursSemaine";
 
 const ETAT_INITIAL: EtatAction = { succes: true };
@@ -19,16 +19,23 @@ function libelleDuree(minutes: number) {
 
 export function AjouterCreneauForm({
   lieux,
+  salles,
   suggestions,
   profIdCible,
 }: {
   lieux: { id: string; nom: string }[];
+  salles: { id: string; nom: string; communeNom: string }[];
   suggestions: string[];
   profIdCible?: string;
 }) {
   const [etat, action, enCours] = useActionState(ajouterCreneau, ETAT_INITIAL);
   const [type, setType] = useState<"INDIVIDUEL" | "COLLECTIF">("INDIVIDUEL");
+  const [lieuId, setLieuId] = useState("");
   const durees: readonly number[] = type === "INDIVIDUEL" ? DUREES_INDIVIDUEL : DUREES_COLLECTIF;
+
+  const lieuChoisi = lieux.find((l) => l.id === lieuId) ?? null;
+  const sallesProposees = lieuChoisi ? salles.filter((s) => memeCommune(lieuChoisi.nom, s.communeNom)) : salles;
+  const communesDesSalles = [...new Set(salles.map((s) => s.communeNom))];
 
   return (
     <form action={action} className="flex flex-col gap-3 rounded-lg bg-white p-4 shadow-sm">
@@ -79,7 +86,7 @@ export function AjouterCreneauForm({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600 sm:col-span-2">
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600 sm:col-span-3">
           {type === "INDIVIDUEL" ? "Élève" : "Groupe"}
           <input
             name="nom"
@@ -96,14 +103,51 @@ export function AjouterCreneauForm({
           </datalist>
         </label>
         <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-          Lieu
-          <select name="lieuId" defaultValue="" className={champClass}>
+          Commune
+          <select
+            name="lieuId"
+            value={lieuId}
+            onChange={(e) => setLieuId(e.target.value)}
+            className={champClass}
+          >
             <option value="">—</option>
             {lieux.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.nom}
               </option>
             ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600 sm:col-span-2">
+          Salle
+          {/* key : la salle se réinitialise quand on change de commune. */}
+          <select
+            key={lieuId}
+            name="salleId"
+            defaultValue=""
+            disabled={!!lieuChoisi && sallesProposees.length === 0}
+            className={`${champClass} disabled:bg-slate-100 disabled:text-slate-400`}
+          >
+            <option value="">
+              {lieuChoisi && sallesProposees.length === 0 ? "Aucune salle répertoriée" : "—"}
+            </option>
+            {lieuChoisi
+              ? sallesProposees.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nom}
+                  </option>
+                ))
+              : communesDesSalles.map((commune) => (
+                  <optgroup key={commune} label={commune}>
+                    {salles
+                      .filter((s) => s.communeNom === commune)
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nom}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
           </select>
         </label>
       </div>

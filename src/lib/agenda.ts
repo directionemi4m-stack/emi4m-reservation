@@ -62,6 +62,25 @@ export function heuresDecimales(minutes: number): string {
   return nombreFr(Math.round((minutes / 60) * 1000) / 1000);
 }
 
+function normaliserNomLieu(nom: string) {
+  return nom
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+// Les lieux de Présences (« Saint-Nizier ») et les communes des salles
+// (« Saint-Nizier-du-Moucherotte ») ne portent pas exactement le même nom : on les
+// rapproche si l'un est le début de l'autre, accents et ponctuation ignorés.
+export function memeCommune(lieu: string, commune: string): boolean {
+  const a = normaliserNomLieu(lieu);
+  const b = normaliserNomLieu(commune);
+  if (!a || !b) return false;
+  return a === b || a.startsWith(`${b}-`) || b.startsWith(`${a}-`);
+}
+
 // Deux cours du même jour qui se recouvrent. Deux cours « une semaine sur deux » peuvent
 // partager un créneau (ils alternent) : ce n'est pas un conflit.
 export function chevauchement(a: CreneauCalcul, b: CreneauCalcul): boolean {
