@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { synchroniserActiviteAccessoireProf } from "@/lib/sheets";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -68,4 +69,29 @@ export async function supprimerTypeEvenement(
 
   revalidatePath("/admin/parametres/types-evenement");
   return { succes: true };
+}
+
+// « Toujours payé » : les heures de ce type sont payées sans entamer le forfait annuel
+// (ex. Remplacement). Change le calcul de tous les profs qui en ont : on les resynchronise.
+export async function basculerToujoursPaye(formData: FormData) {
+  await exigerAdmin();
+  const id = String(formData.get("id"));
+  const type = await db.typeEvenementAccessoire.findUnique({ where: { id } });
+  if (!type) return;
+
+  await db.typeEvenementAccessoire.update({ where: { id }, data: { toujoursPaye: !type.toujoursPaye } });
+  revalidatePath("/admin/parametres/types-evenement");
+
+  const profs = await db.activiteAccessoire.findMany({
+    where: { typeEvenementId: id },
+    select: { profId: true },
+    distinct: ["profId"],
+  });
+  for (const { profId } of profs) {
+    try {
+      await synchroniserActiviteAccessoireProf(profId);
+    } catch (erreur) {
+      console.error("Échec de synchronisation Google Sheets (activité accessoire) :", erreur);
+    }
+  }
 }

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { AjouterActiviteForm } from "@/components/activite-accessoire/AjouterActiviteForm";
 import { SupprimerActiviteBouton } from "@/components/activite-accessoire/SupprimerActiviteBouton";
 import { SelecteurProfCible } from "@/components/admin/SelecteurProfCible";
+import { basculerFinancementExceptionnel } from "./actions";
 
 function formatterDate(date: Date) {
   return date.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
@@ -28,6 +29,7 @@ export default async function ActiviteAccessoirePage({
     db.activiteAccessoire.findMany({
       where: { profId: profIdCible, supprimeLe: null },
       orderBy: { date: "desc" },
+      include: { typeEvenement: true },
     }),
     estAdmin ? db.user.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }) : Promise.resolve([]),
     gereColleague ? db.user.findUnique({ where: { id: profIdCible } }) : Promise.resolve(null),
@@ -77,9 +79,27 @@ export default async function ActiviteAccessoirePage({
                   <p className="text-sm font-medium text-slate-700">
                     {formatterDate(activite.date)} · {activite.typeEvenementNom}
                   </p>
-                  <p className="text-xs text-slate-500">{activite.duree}</p>
+                  <p className="text-xs text-slate-500">
+                    {activite.duree}
+                    {/* Le forfait ne concerne que la direction : rien de tout ça n'est montré aux profs. */}
+                    {estAdmin && (activite.typeEvenement.toujoursPaye || activite.financementExceptionnel) && (
+                      <span className="ml-2 rounded-full bg-status-attente/15 px-2 py-0.5 font-medium text-status-attente">
+                        hors forfait{activite.financementExceptionnel ? " · financement exceptionnel" : ""}
+                      </span>
+                    )}
+                  </p>
                 </div>
-                <SupprimerActiviteBouton id={activite.id} />
+                <div className="flex items-center gap-3">
+                  {estAdmin && !activite.typeEvenement.toujoursPaye && (
+                    <form action={basculerFinancementExceptionnel}>
+                      <input type="hidden" name="id" value={activite.id} />
+                      <button type="submit" className="text-xs font-medium text-brand-accent hover:underline">
+                        {activite.financementExceptionnel ? "Retirer le financement exceptionnel" : "Financement exceptionnel"}
+                      </button>
+                    </form>
+                  )}
+                  <SupprimerActiviteBouton id={activite.id} />
+                </div>
               </div>
             ))}
           </div>

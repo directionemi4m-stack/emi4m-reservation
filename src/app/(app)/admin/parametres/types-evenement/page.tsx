@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { AjouterTypeEvenementForm } from "@/components/admin/AjouterTypeEvenementForm";
 import { ActionsItemPresence } from "@/components/admin/ActionsItemPresence";
-import { basculerActifTypeEvenement, supprimerTypeEvenement } from "./actions";
+import { basculerActifTypeEvenement, basculerToujoursPaye, supprimerTypeEvenement } from "./actions";
 
 export default async function AdminTypesEvenementPage() {
   const types = await db.typeEvenementAccessoire.findMany({
@@ -25,6 +25,7 @@ export default async function AdminTypesEvenementPage() {
             <tr>
               <th className="px-4 py-2 font-medium">Type d&apos;événement</th>
               <th className="px-4 py-2 font-medium">Statut</th>
+              <th className="px-4 py-2 font-medium">Forfait</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
@@ -43,6 +44,17 @@ export default async function AdminTypesEvenementPage() {
                     {type.actif ? "Actif" : "Désactivé"}
                   </span>
                 </td>
+                <td className="px-4 py-2">
+                  <form action={basculerToujoursPaye} className="flex items-center gap-2">
+                    <input type="hidden" name="id" value={type.id} />
+                    <span className={type.toujoursPaye ? "text-xs font-medium text-status-attente" : "text-xs text-slate-400"}>
+                      {type.toujoursPaye ? "Toujours payé (hors forfait)" : "Compte dans le forfait"}
+                    </span>
+                    <button type="submit" className="text-xs font-medium text-brand-accent hover:underline">
+                      Changer
+                    </button>
+                  </form>
+                </td>
                 <td className="px-4 py-2 text-right">
                   <ActionsItemPresence
                     id={type.id}
@@ -55,7 +67,7 @@ export default async function AdminTypesEvenementPage() {
             ))}
             {types.length === 0 && (
               <tr>
-                <td className="px-4 py-3 text-sm text-slate-500" colSpan={3}>
+                <td className="px-4 py-3 text-sm text-slate-500" colSpan={4}>
                   Aucun type d&apos;événement.
                 </td>
               </tr>

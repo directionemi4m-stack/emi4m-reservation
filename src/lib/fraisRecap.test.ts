@@ -64,23 +64,40 @@ describe("dureeEnMinutes", () => {
 });
 
 describe("recapMensuelActivites", () => {
-  const activite = (iso: string, duree: string, supprime = false) => ({
+  const activite = (iso: string, duree: string, horsForfait = false, supprime = false) => ({
     date: d(iso),
     duree,
+    horsForfait,
     supprimeLe: supprime ? d(iso) : null,
   });
+  const activites = [
+    activite("2026-09-14", "1h30"),
+    activite("2026-09-20", "2h00"),
+    activite("2026-10-02", "3h30", true), // ex. remplacement
+    activite("2026-10-09", "1h00", false, true), // supprimée
+  ];
 
-  it("totalise le nombre d'activités et les heures, par mois et sur l'année", () => {
-    const lignes = recapMensuelActivites([
-      activite("2026-09-14", "1h30"),
-      activite("2026-09-20", "2h00"),
-      activite("2026-10-02", "3h30"),
-      activite("2026-10-09", "1h00", true),
-    ]);
-    expect(lignes[1]).toEqual(["Mois", "Activités", "Durée", "Heures (décimal)"]);
-    expect(ligne(lignes, "Septembre 2026")).toEqual(["Septembre 2026", 2, "3 h 30", 3.5]);
-    expect(ligne(lignes, "Octobre 2026")).toEqual(["Octobre 2026", 1, "3 h 30", 3.5]);
-    expect(ligne(lignes, "Novembre 2026")).toEqual(["Novembre 2026", 0, "0 h", 0]);
-    expect(ligne(lignes, "Total année 2026-2027")).toEqual(["Total année 2026-2027", 3, "7 h", 7]);
+  it("sépare par mois les heures au forfait et les heures hors forfait à payer", () => {
+    const lignes = recapMensuelActivites(activites, { "2026-2027": 5 * 60 });
+    expect(lignes[1]).toEqual(["Mois", "Activités", "Au forfait (h)", "Hors forfait à payer (h)"]);
+    expect(ligne(lignes, "Septembre 2026")).toEqual(["Septembre 2026", 2, 3.5, 0]);
+    expect(ligne(lignes, "Octobre 2026")).toEqual(["Octobre 2026", 1, 0, 3.5]);
+    expect(ligne(lignes, "Total année 2026-2027")).toEqual(["Total année 2026-2027", 3, 3.5, 3.5]);
+  });
+
+  it("ajoute le bilan du forfait sous le total de l'année", () => {
+    const lignes = recapMensuelActivites(activites, { "2026-2027": 5 * 60 });
+    expect(ligne(lignes, "Heures hebdo du contrat")).toEqual(["Heures hebdo du contrat", "5 h"]);
+    expect(ligne(lignes, "Forfait annuel (× 6) (h)")?.[1]).toBe(30);
+    expect(ligne(lignes, "Reste du forfait (h)")?.[1]).toBe(26.5);
+    expect(ligne(lignes, "Dépassement à payer en fin d'année (h)")?.[1]).toBe(0);
+    expect(ligne(lignes, "Total à payer sur l'année (h)")?.[1]).toBe(3.5);
+  });
+
+  it("signale un contrat non renseigné sans inventer de dépassement", () => {
+    const lignes = recapMensuelActivites(activites, {});
+    expect(ligne(lignes, "Heures hebdo du contrat")?.[1]).toBe("Non renseignées par la direction");
+    expect(ligne(lignes, "Hors forfait à payer (h)")?.[1]).toBe(3.5);
+    expect(ligne(lignes, "Dépassement à payer en fin d'année (h)")).toBeUndefined();
   });
 });

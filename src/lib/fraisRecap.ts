@@ -2,7 +2,8 @@
 // frais de déplacement et activité accessoire. Calculs purs, testés dans fraisRecap.test.ts.
 
 import { dureeEnMinutes } from "@/lib/activiteAccessoire";
-import { formaterDuree, heuresDecimales } from "@/lib/agenda";
+import { formaterDuree } from "@/lib/agenda";
+import { bilanForfait, SEMAINES_FORFAIT } from "@/lib/forfaitAccessoire";
 
 type Cellule = string | number;
 
@@ -18,6 +19,7 @@ export interface TrajetRecap extends Element {
 
 export interface ActiviteRecap extends Element {
   duree: string;
+  horsForfait: boolean; // type « toujours payé » ou financement exceptionnel
 }
 
 const MOIS = [
@@ -26,8 +28,12 @@ const MOIS = [
 ];
 
 // Année scolaire d'une date : septembre 2026 → 2026 (« 2026-2027 »), mars 2027 → 2026.
-function anneeScolaireDebut(date: Date): number {
+export function anneeScolaireDebut(date: Date): number {
   return date.getUTCMonth() >= 8 ? date.getUTCFullYear() : date.getUTCFullYear() - 1;
+}
+
+export function libelleAnneeScolaire(debut: number): string {
+  return `${debut}-${debut + 1}`;
 }
 
 // Évite les « 43,199999 » des additions de nombres à virgule.
@@ -43,7 +49,9 @@ function recapMensuel<T extends Element>(
   elements: T[],
   entete: string[],
   cumuler: (selection: T[]) => Cellule[],
-  aujourdHui: Date
+  aujourdHui: Date,
+  // Lignes ajoutées sous le total de chaque année (ex. bilan du forfait).
+  apresTotal?: (debut: number, deLAnnee: T[]) => Cellule[][]
 ): Cellule[][] {
   const actifs = elements.filter((e) => !e.supprimeLe);
   const annees = [...new Set(actifs.map((e) => anneeScolaireDebut(e.date)))].sort((a, b) => a - b);
@@ -62,8 +70,14 @@ function recapMensuel<T extends Element>(
     }
     const deLAnnee = actifs.filter((e) => anneeScolaireDebut(e.date) === debut);
     lignes.push([`Total année ${debut}-${debut + 1}`, ...cumuler(deLAnnee)]);
+    if (apresTotal) lignes.push(...apresTotal(debut, deLAnnee));
   }
   return lignes;
+}
+
+// Heures décimales en nombre (3,5 h) : c'est ce dont le comptable a besoin pour la paie.
+function heures(minutes: number): number {
+  return Math.round((minutes / 60) * 1000) / 1000;
 }
 
 export function recapMensuelFrais(trajets: TrajetRecap[], aujourdHui: Date = new Date()): Cellule[][] {
@@ -75,14 +89,43 @@ export function recapMensuelFrais(trajets: TrajetRecap[], aujourdHui: Date = new
   );
 }
 
-export function recapMensuelActivites(activites: ActiviteRecap[], aujourdHui: Date = new Date()): Cellule[][] {
+// Par mois : heures prises sur le forfait, et heures hors forfait (remplacements,
+// financements exceptionnels) à payer dès ce mois-là. Sous le total de l'année, le bilan
+// du forfait : le dépassement éventuel est payé en fin d'année.
+// minutesHebdoParAnnee : volume hebdo du contrat par année scolaire (« 2026-2027 »).
+export function recapMensuelActivites(
+  activites: ActiviteRecap[],
+  minutesHebdoParAnnee: Record<string, number>,
+  aujourdHui: Date = new Date()
+): Cellule[][] {
+  const minutes = (liste: ActiviteRecap[]) => liste.reduce((s, x) => s + dureeEnMinutes(x.duree), 0);
   return recapMensuel(
     activites,
-    ["Activités", "Durée", "Heures (décimal)"],
-    (a) => {
-      const minutes = a.reduce((s, x) => s + dureeEnMinutes(x.duree), 0);
-      return [a.length, minutes === 0 ? "0 h" : formaterDuree(minutes), Number(heuresDecimales(minutes).replace(",", "."))];
-    },
-    aujourdHui
+    ["Activités", "Au forfait (h)", "Hors forfait à payer (h)"],
+    (a) => [a.length, heures(minutes(a.filter((x) => !x.horsForfait))), heures(minutes(a.filter((x) => x.horsForfait)))],
+    aujourdHui,
+    (debut, deLAnnee) => {
+      const annee = libelleAnneeScolaire(debut);
+      const b = bilanForfait(deLAnnee, minutesHebdoParAnnee[annee] ?? null);
+      if (b.minutesHebdo === null || b.forfaitMinutes === null) {
+        return [
+          [],
+          [`Bilan du forfait ${annee}`],
+          ["Heures hebdo du contrat", "Non renseignées par la direction"],
+          ["Hors forfait à payer (h)", heures(b.horsForfaitMinutes)],
+        ];
+      }
+      return [
+        [],
+        [`Bilan du forfait ${annee}`],
+        ["Heures hebdo du contrat", formaterDuree(b.minutesHebdo)],
+        [`Forfait annuel (× ${SEMAINES_FORFAIT}) (h)`, heures(b.forfaitMinutes)],
+        ["Heures au forfait effectuées (h)", heures(b.auForfaitMinutes)],
+        ["Reste du forfait (h)", heures(b.resteMinutes ?? 0)],
+        ["Dépassement à payer en fin d'année (h)", heures(b.depassementMinutes ?? 0)],
+        ["Hors forfait à payer (h)", heures(b.horsForfaitMinutes)],
+        ["Total à payer sur l'année (h)", heures(b.totalAPayerMinutes ?? 0)],
+      ];
+    }
   );
 }

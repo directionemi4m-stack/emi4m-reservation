@@ -526,7 +526,10 @@ export async function synchroniserActiviteAccessoireProf(profId: string) {
 
   const prof = await db.user.findUnique({
     where: { id: profId },
-    include: { activitesAccessoires: { orderBy: { creeLe: "asc" } } },
+    include: {
+      activitesAccessoires: { orderBy: { creeLe: "asc" }, include: { typeEvenement: true } },
+      heuresHebdoContrats: true,
+    },
   });
   if (!prof) return;
 
@@ -548,11 +551,25 @@ export async function synchroniserActiviteAccessoireProf(profId: string) {
     requestBody: { values: [[...entete, "Identifiant (technique)", "Statut de paiement"]] },
   });
 
-  const lignes: LigneStable[] = prof.activitesAccessoires.map((a) => ({
+  // Hors forfait : payées sans entamer le forfait (type « toujours payé » comme les
+  // remplacements, ou financement exceptionnel coché par la direction).
+  const activites = prof.activitesAccessoires.map((a) => ({
+    ...a,
+    horsForfait: a.typeEvenement.toujoursPaye || a.financementExceptionnel,
+  }));
+  const lignes: LigneStable[] = activites.map((a) => ({
     id: a.id,
     valeurs: a.supprimeLe
       ? [formatDate(a.date), `${a.typeEvenementNom} (supprimé)`, ""]
-      : [formatDate(a.date), a.typeEvenementNom, a.duree],
+      : [
+          formatDate(a.date),
+          a.financementExceptionnel
+            ? `${a.typeEvenementNom} — hors forfait (financement exceptionnel)`
+            : a.horsForfait
+              ? `${a.typeEvenementNom} — hors forfait`
+              : a.typeEvenementNom,
+          a.duree,
+        ],
   }));
   await synchroniserLignesStables(sheets, idFeuille, titre, entete.length, ACTIVITE_LIGNE_ENTETE, lignes);
 
@@ -563,7 +580,12 @@ export async function synchroniserActiviteAccessoireProf(profId: string) {
     spreadsheetId: idFeuille,
     range: `'${titre}'!G1`,
     valueInputOption: "RAW",
-    requestBody: { values: recapMensuelActivites(prof.activitesAccessoires) },
+    requestBody: {
+      values: recapMensuelActivites(
+        activites,
+        Object.fromEntries(prof.heuresHebdoContrats.map((c) => [c.anneeScolaire, c.minutesHebdo]))
+      ),
+    },
   });
 
   // Tout est verrouillé pour le comptable, sauf la colonne Statut de paiement (E).

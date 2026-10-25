@@ -97,6 +97,8 @@ model User {
   codeAlarme CodeAlarme?
 
   creneauxAgenda CreneauAgenda[]
+
+  heuresHebdoContrats HeuresHebdoContrat[]
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -436,10 +438,13 @@ model EleveCham {
 // principe que TypeTrajet : liste fermée proposée au choix, copiée au moment de la
 // saisie pour qu'une entrée déjà enregistrée ne bouge pas si la liste change ensuite.
 model TypeEvenementAccessoire {
-  id        String               @id @default(cuid())
-  nom       String               @unique
-  actif     Boolean              @default(true)
-  activites ActiviteAccessoire[]
+  id           String               @id @default(cuid())
+  nom          String               @unique
+  actif        Boolean              @default(true)
+  // Ex. « Remplacement » : ces heures sont toujours payées au salarié, sans entamer
+  // son forfait annuel d'activité accessoire (cf. lib/forfaitAccessoire.ts).
+  toujoursPaye Boolean              @default(false)
+  activites    ActiviteAccessoire[]
 }
 
 // Une entrée d'activité accessoire saisie par un prof (concert, réunion, remplacement...).
@@ -447,19 +452,22 @@ model TypeEvenementAccessoire {
 // (jamais réordonnée, jamais retirée) : le comptable peut y laisser des commentaires
 // dans Google Sheets sans craindre qu'ils se retrouvent sur la mauvaise ligne.
 model ActiviteAccessoire {
-  id               String                  @id @default(cuid())
-  profId           String
-  prof             User                    @relation(fields: [profId], references: [id])
-  date             DateTime                @db.Date
-  typeEvenementId  String
-  typeEvenement    TypeEvenementAccessoire @relation(fields: [typeEvenementId], references: [id])
-  typeEvenementNom String
-  duree            String // ex. "1h30" — liste fixe, cf. lib/activiteAccessoire.ts
+  id                      String                  @id @default(cuid())
+  profId                  String
+  prof                    User                    @relation(fields: [profId], references: [id])
+  date                    DateTime                @db.Date
+  typeEvenementId         String
+  typeEvenement           TypeEvenementAccessoire @relation(fields: [typeEvenementId], references: [id])
+  typeEvenementNom        String
+  duree                   String // ex. "1h30" — liste fixe, cf. lib/activiteAccessoire.ts
+  // Coché par la direction seulement : heures payées hors forfait (financement
+  // exceptionnel), quel que soit le type d'événement.
+  financementExceptionnel Boolean                 @default(false)
   // Suppression « douce » : la ligne reste dans le classeur (vidée, marquée « Supprimée »)
   // plutôt que d'être retirée, pour ne jamais décaler les lignes suivantes ni les
   // commentaires du comptable qui y sont accrochés.
-  supprimeLe       DateTime?
-  creeLe           DateTime                @default(now())
+  supprimeLe              DateTime?
+  creeLe                  DateTime                @default(now())
 
   @@index([profId, date])
 }
@@ -543,4 +551,20 @@ model CreneauAgenda {
   creeLe            DateTime          @default(now())
 
   @@index([profId, jourSemaine])
+}
+
+// --- Forfait d'activité accessoire ---
+
+// Volume horaire hebdomadaire du contrat d'un salarié pour une année scolaire, saisi par
+// la direction seule (jamais montré aux profs). Il fixe le forfait annuel d'activité
+// accessoire dû à l'école : heures hebdo × 6 ; au-delà, les heures sont payées.
+model HeuresHebdoContrat {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  anneeScolaire String // ex. "2026-2027"
+  minutesHebdo  Int
+  majLe         DateTime @updatedAt
+
+  @@unique([userId, anneeScolaire])
 }

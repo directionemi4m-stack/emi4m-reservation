@@ -84,3 +84,26 @@ export async function supprimerActivite(
 
   return { succes: true };
 }
+
+// Réservé à la direction : marque une activité comme payée hors forfait (financement
+// exceptionnel), ou retire ce marquage.
+export async function basculerFinancementExceptionnel(formData: FormData) {
+  const session = await auth();
+  if (session?.user.role !== "ADMIN") throw new Error("Accès réservé à la direction.");
+
+  const id = String(formData.get("id"));
+  const activite = await db.activiteAccessoire.findUnique({ where: { id } });
+  if (!activite) return;
+
+  await db.activiteAccessoire.update({
+    where: { id },
+    data: { financementExceptionnel: !activite.financementExceptionnel },
+  });
+  revalidatePath("/activite-accessoire");
+
+  try {
+    await synchroniserActiviteAccessoireProf(activite.profId);
+  } catch (erreur) {
+    console.error("Échec de synchronisation Google Sheets (activité accessoire) :", erreur);
+  }
+}

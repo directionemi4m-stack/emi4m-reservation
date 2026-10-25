@@ -53,6 +53,7 @@ function groupes(role: "PROF" | "ADMIN"): Groupe[] {
           ? [
               { href: "/admin/parametres/trajets", label: "Types de trajet" },
               { href: "/admin/parametres/types-evenement", label: "Types d'événement" },
+              { href: "/admin/parametres/forfaits", label: "Forfaits activité accessoire" },
               { href: "/admin/parametres/google-drive", label: "Connexion Google Drive" },
             ]
           : []),
