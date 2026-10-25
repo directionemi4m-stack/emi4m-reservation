@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import { db } from "@/lib/db";
 import type { StatutPresence, TypeAbsenceProf, TypeCours } from "@/generated/prisma/client";
 import { libelleMission } from "@/lib/mission";
+import { recapMensuelFrais } from "@/lib/fraisRecap";
 import { libelleJourCours, libelleJourSemaine } from "@/lib/joursSemaine";
 import { formaterDuree, heuresDecimales, minutesHebdo, minutesVersHeure, volumeHebdoMinutes } from "@/lib/agenda";
 
@@ -485,6 +486,17 @@ export async function synchroniserFraisProf(profId: string) {
       : [formatDate(t.date), libelleMission(t.typeMission, t.precisionMission), t.trajetNom, t.km, t.prix],
   }));
   await synchroniserLignesStables(sheets, idFeuille, titre, entete.length, FRAIS_LIGNE_ENTETE, lignes);
+
+  // Récapitulatif mensuel et total de l'année scolaire pour le comptable, à droite du
+  // tableau (colonnes I à L, H restant vide) : recalculé en entier à chaque fois, il ne
+  // touche ni aux lignes de trajets ni à la colonne Statut de paiement.
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'!I1:L200` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titre}'!I1`,
+    valueInputOption: "RAW",
+    requestBody: { values: recapMensuelFrais(prof.trajets) },
+  });
 
   await verrouillerOnglet(sheets, idFeuille, titre, {
     colonneTechnique: entete.length,
