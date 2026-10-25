@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import { db } from "@/lib/db";
 import type { StatutPresence, TypeAbsenceProf, TypeCours } from "@/generated/prisma/client";
 import { libelleMission } from "@/lib/mission";
-import { recapMensuelFrais } from "@/lib/fraisRecap";
+import { recapMensuelActivites, recapMensuelFrais } from "@/lib/fraisRecap";
 import { libelleJourCours, libelleJourSemaine } from "@/lib/joursSemaine";
 import { formaterDuree, heuresDecimales, minutesHebdo, minutesVersHeure, volumeHebdoMinutes } from "@/lib/agenda";
 
@@ -385,7 +385,7 @@ async function verrouillerOnglet(
 ) {
   const { data } = await sheets.spreadsheets.get({
     spreadsheetId: idFeuille,
-    fields: "sheets(properties(sheetId,title),protectedRanges(description))",
+    fields: "sheets(properties(sheetId,title),protectedRanges(protectedRangeId,description))",
   });
   const onglet = data.sheets?.find((s) => s.properties?.title === titre);
   const sheetId = onglet?.properties?.sheetId;
@@ -402,19 +402,30 @@ async function verrouillerOnglet(
       },
     },
   ];
-  if (!onglet?.protectedRanges?.some((p) => p.description === MARQUEUR_VERROU)) {
-    const libre = options.colonneLibre;
+  const libre = options.colonneLibre;
+  const unprotectedRanges = libre
+    ? [{ sheetId, startRowIndex: libre.premiereLigne - 1, startColumnIndex: libre.index, endColumnIndex: libre.index + 1 }]
+    : [];
+  const existant = onglet?.protectedRanges?.find((p) => p.description === MARQUEUR_VERROU);
+  if (!existant) {
     requests.push({
       addProtectedRange: {
         protectedRange: {
           range: { sheetId },
           description: MARQUEUR_VERROU,
           warningOnly: false,
-          unprotectedRanges: libre
-            ? [{ sheetId, startRowIndex: libre.premiereLigne - 1, startColumnIndex: libre.index, endColumnIndex: libre.index + 1 }]
-            : [],
+          unprotectedRanges,
           editors: { users: [process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!] },
         },
+      },
+    });
+  } else {
+    // Verrou déjà posé : on réaligne la zone laissée libre (ex. colonne Statut ajoutée
+    // après coup sur un onglet verrouillé entièrement), sans jamais dupliquer le verrou.
+    requests.push({
+      updateProtectedRange: {
+        protectedRange: { protectedRangeId: existant.protectedRangeId, unprotectedRanges },
+        fields: "unprotectedRanges",
       },
     });
   }
@@ -528,11 +539,13 @@ export async function synchroniserActiviteAccessoireProf(profId: string) {
   const formatDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   const entete = ["Date", "Type d'événement", "Durée"];
+  // Colonnes A–C : écrites par l'appli ; D : identifiant technique (masqué) ; E : statut
+  // de paiement, tenu par le comptable — l'appli n'en écrit que l'en-tête, jamais les lignes.
   await sheets.spreadsheets.values.update({
     spreadsheetId: idFeuille,
     range: `'${titre}'!A${ACTIVITE_LIGNE_ENTETE}`,
     valueInputOption: "RAW",
-    requestBody: { values: [entete] },
+    requestBody: { values: [[...entete, "Identifiant (technique)", "Statut de paiement"]] },
   });
 
   const lignes: LigneStable[] = prof.activitesAccessoires.map((a) => ({
@@ -543,8 +556,21 @@ export async function synchroniserActiviteAccessoireProf(profId: string) {
   }));
   await synchroniserLignesStables(sheets, idFeuille, titre, entete.length, ACTIVITE_LIGNE_ENTETE, lignes);
 
-  // Le comptable étant Éditeur du classeur, on verrouille aussi entièrement cet onglet.
-  await verrouillerOnglet(sheets, idFeuille, titre, { colonneTechnique: entete.length });
+  // Récapitulatif mensuel et total de l'année scolaire (nombre d'activités et heures),
+  // à droite du tableau (colonnes G à J, F restant vide), comme pour les frais.
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'!G1:J200` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titre}'!G1`,
+    valueInputOption: "RAW",
+    requestBody: { values: recapMensuelActivites(prof.activitesAccessoires) },
+  });
+
+  // Tout est verrouillé pour le comptable, sauf la colonne Statut de paiement (E).
+  await verrouillerOnglet(sheets, idFeuille, titre, {
+    colonneTechnique: entete.length,
+    colonneLibre: { index: entete.length + 1, premiereLigne: ACTIVITE_LIGNE_ENTETE + 1 },
+  });
 }
 
 // --- Emplois du temps ---

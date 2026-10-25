@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { recapMensuelFrais } from "./fraisRecap";
+import { recapMensuelActivites, recapMensuelFrais } from "./fraisRecap";
+import { dureeEnMinutes } from "./activiteAccessoire";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const trajet = (iso: string, km = 18, prix = 3.6, supprime = false) => ({
@@ -50,5 +51,36 @@ describe("recapMensuelFrais", () => {
     const lignes = recapMensuelFrais([], d("2026-10-25"));
     expect(lignes[0]).toEqual(["Récapitulatif 2026-2027"]);
     expect(ligne(lignes, "Total année 2026-2027")).toEqual(["Total année 2026-2027", 0, 0, 0]);
+  });
+});
+
+describe("dureeEnMinutes", () => {
+  it("lit les durées de la liste d'activité accessoire", () => {
+    expect(dureeEnMinutes("1h00")).toBe(60);
+    expect(dureeEnMinutes("1h30")).toBe(90);
+    expect(dureeEnMinutes("8h00")).toBe(480);
+    expect(dureeEnMinutes("n'importe quoi")).toBe(0);
+  });
+});
+
+describe("recapMensuelActivites", () => {
+  const activite = (iso: string, duree: string, supprime = false) => ({
+    date: d(iso),
+    duree,
+    supprimeLe: supprime ? d(iso) : null,
+  });
+
+  it("totalise le nombre d'activités et les heures, par mois et sur l'année", () => {
+    const lignes = recapMensuelActivites([
+      activite("2026-09-14", "1h30"),
+      activite("2026-09-20", "2h00"),
+      activite("2026-10-02", "3h30"),
+      activite("2026-10-09", "1h00", true),
+    ]);
+    expect(lignes[1]).toEqual(["Mois", "Activités", "Durée", "Heures (décimal)"]);
+    expect(ligne(lignes, "Septembre 2026")).toEqual(["Septembre 2026", 2, "3 h 30", 3.5]);
+    expect(ligne(lignes, "Octobre 2026")).toEqual(["Octobre 2026", 1, "3 h 30", 3.5]);
+    expect(ligne(lignes, "Novembre 2026")).toEqual(["Novembre 2026", 0, "0 h", 0]);
+    expect(ligne(lignes, "Total année 2026-2027")).toEqual(["Total année 2026-2027", 3, "7 h", 7]);
   });
 });
