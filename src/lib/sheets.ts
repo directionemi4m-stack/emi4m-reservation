@@ -370,6 +370,56 @@ export async function synchroniserAbsencesProf() {
 // blanc) ; le tableau des trajets démarre donc en ligne 15, à position fixe.
 const FRAIS_LIGNE_ENTETE = 15;
 
+// Le comptable a un accès Éditeur au classeur pour tenir lui-même la colonne « Statut de
+// paiement » (ex. « Payé le 25/11/2026 ») : tout le reste de chaque onglet est verrouillé
+// pour lui (seuls le compte de service de l'appli et la propriétaire du classeur peuvent
+// le modifier). Réappliqué à chaque synchronisation, donc rétabli s'il est retiré.
+const MARQUEUR_VERROU = "emi4m-verrou-appli";
+
+async function verrouillerOnglet(
+  sheets: ReturnType<typeof google.sheets>,
+  idFeuille: string,
+  titre: string,
+  options: { colonneTechnique: number; colonneLibre?: { index: number; premiereLigne: number } }
+) {
+  const { data } = await sheets.spreadsheets.get({
+    spreadsheetId: idFeuille,
+    fields: "sheets(properties(sheetId,title),protectedRanges(description))",
+  });
+  const onglet = data.sheets?.find((s) => s.properties?.title === titre);
+  const sheetId = onglet?.properties?.sheetId;
+  if (sheetId == null) return;
+
+  const requests: object[] = [
+    // L'identifiant technique (qui garde chaque commentaire sur la bonne ligne) n'a pas
+    // à être vu : on masque sa colonne.
+    {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: "COLUMNS", startIndex: options.colonneTechnique, endIndex: options.colonneTechnique + 1 },
+        properties: { hiddenByUser: true },
+        fields: "hiddenByUser",
+      },
+    },
+  ];
+  if (!onglet?.protectedRanges?.some((p) => p.description === MARQUEUR_VERROU)) {
+    const libre = options.colonneLibre;
+    requests.push({
+      addProtectedRange: {
+        protectedRange: {
+          range: { sheetId },
+          description: MARQUEUR_VERROU,
+          warningOnly: false,
+          unprotectedRanges: libre
+            ? [{ sheetId, startRowIndex: libre.premiereLigne - 1, startColumnIndex: libre.index, endColumnIndex: libre.index + 1 }]
+            : [],
+          editors: { users: [process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!] },
+        },
+      },
+    });
+  }
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId: idFeuille, requestBody: { requests } });
+}
+
 // Un onglet par prof, dans le classeur comptabilité (partagé avec le comptable).
 // L'identité et les totaux sont réécrits en entier à chaque fois (formules =SUM,
 // jamais commentées ligne à ligne) ; le tableau des trajets est en revanche
@@ -419,11 +469,13 @@ export async function synchroniserFraisProf(profId: string) {
   });
 
   const entete = ["Date", "Mission", "Trajet", "Km", "€"];
+  // Colonnes A–E : écrites par l'appli ; F : identifiant technique (masqué) ; G : statut
+  // de paiement, tenu par le comptable — l'appli n'en écrit que l'en-tête, jamais les lignes.
   await sheets.spreadsheets.values.update({
     spreadsheetId: idFeuille,
     range: `'${titre}'!A${FRAIS_LIGNE_ENTETE}`,
     valueInputOption: "RAW",
-    requestBody: { values: [entete] },
+    requestBody: { values: [[...entete, "Identifiant (technique)", "Statut de paiement"]] },
   });
 
   const lignes: LigneStable[] = prof.trajets.map((t) => ({
@@ -433,6 +485,11 @@ export async function synchroniserFraisProf(profId: string) {
       : [formatDate(t.date), libelleMission(t.typeMission, t.precisionMission), t.trajetNom, t.km, t.prix],
   }));
   await synchroniserLignesStables(sheets, idFeuille, titre, entete.length, FRAIS_LIGNE_ENTETE, lignes);
+
+  await verrouillerOnglet(sheets, idFeuille, titre, {
+    colonneTechnique: entete.length,
+    colonneLibre: { index: entete.length + 1, premiereLigne: FRAIS_LIGNE_ENTETE + 1 },
+  });
 }
 
 const ACTIVITE_LIGNE_ENTETE = 1;
@@ -473,6 +530,9 @@ export async function synchroniserActiviteAccessoireProf(profId: string) {
       : [formatDate(a.date), a.typeEvenementNom, a.duree],
   }));
   await synchroniserLignesStables(sheets, idFeuille, titre, entete.length, ACTIVITE_LIGNE_ENTETE, lignes);
+
+  // Le comptable étant Éditeur du classeur, on verrouille aussi entièrement cet onglet.
+  await verrouillerOnglet(sheets, idFeuille, titre, { colonneTechnique: entete.length });
 }
 
 // --- Emplois du temps ---
