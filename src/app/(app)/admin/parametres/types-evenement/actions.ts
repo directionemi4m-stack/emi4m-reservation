@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { synchroniserActiviteAccessoireProf } from "@/lib/sheets";
+import { synchroniserActiviteAccessoireProf, synchroniserOngletsExplicatifs } from "@/lib/sheets";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -46,6 +46,11 @@ export async function basculerActifTypeEvenement(formData: FormData) {
   const actif = formData.get("actif") === "true";
   await db.typeEvenementAccessoire.update({ where: { id }, data: { actif } });
   revalidatePath("/admin/parametres/types-evenement");
+  try {
+    await synchroniserOngletsExplicatifs();
+  } catch (erreur) {
+    console.error("Échec de mise à jour des onglets d'explication (Comptabilité) :", erreur);
+  }
 }
 
 export async function supprimerTypeEvenement(
@@ -68,6 +73,11 @@ export async function supprimerTypeEvenement(
   }
 
   revalidatePath("/admin/parametres/types-evenement");
+  try {
+    await synchroniserOngletsExplicatifs();
+  } catch (erreur) {
+    console.error("Échec de mise à jour des onglets d'explication (Comptabilité) :", erreur);
+  }
   return { succes: true };
 }
 
@@ -81,6 +91,11 @@ export async function basculerToujoursPaye(formData: FormData) {
 
   await db.typeEvenementAccessoire.update({ where: { id }, data: { toujoursPaye: !type.toujoursPaye } });
   revalidatePath("/admin/parametres/types-evenement");
+  try {
+    await synchroniserOngletsExplicatifs();
+  } catch (erreur) {
+    console.error("Échec de mise à jour des onglets d'explication (Comptabilité) :", erreur);
+  }
 
   const profs = await db.activiteAccessoire.findMany({
     where: { typeEvenementId: id },

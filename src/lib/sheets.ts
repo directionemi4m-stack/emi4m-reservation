@@ -3,6 +3,12 @@ import { db } from "@/lib/db";
 import type { StatutPresence, TypeAbsenceProf, TypeCours } from "@/generated/prisma/client";
 import { libelleMission } from "@/lib/mission";
 import { recapMensuelActivites, recapMensuelFrais } from "@/lib/fraisRecap";
+import {
+  contenuOngletActivite,
+  contenuOngletBareme,
+  TITRE_ONGLET_ACTIVITE,
+  TITRE_ONGLET_BAREME,
+} from "@/lib/ongletsExplicatifs";
 import { libelleJourCours, libelleJourSemaine } from "@/lib/joursSemaine";
 import { formaterDuree, heuresDecimales, minutesHebdo, minutesVersHeure, volumeHebdoMinutes } from "@/lib/agenda";
 
@@ -381,7 +387,7 @@ async function verrouillerOnglet(
   sheets: ReturnType<typeof google.sheets>,
   idFeuille: string,
   titre: string,
-  options: { colonneTechnique: number; colonneLibre?: { index: number; premiereLigne: number } }
+  options: { colonneTechnique?: number; colonneLibre?: { index: number; premiereLigne: number } }
 ) {
   const { data } = await sheets.spreadsheets.get({
     spreadsheetId: idFeuille,
@@ -391,17 +397,18 @@ async function verrouillerOnglet(
   const sheetId = onglet?.properties?.sheetId;
   if (sheetId == null) return;
 
-  const requests: object[] = [
-    // L'identifiant technique (qui garde chaque commentaire sur la bonne ligne) n'a pas
-    // à être vu : on masque sa colonne.
-    {
+  const requests: object[] = [];
+  // L'identifiant technique (qui garde chaque commentaire sur la bonne ligne) n'a pas
+  // à être vu : on masque sa colonne.
+  if (options.colonneTechnique !== undefined) {
+    requests.push({
       updateDimensionProperties: {
         range: { sheetId, dimension: "COLUMNS", startIndex: options.colonneTechnique, endIndex: options.colonneTechnique + 1 },
         properties: { hiddenByUser: true },
         fields: "hiddenByUser",
       },
-    },
-  ];
+    });
+  }
   const libre = options.colonneLibre;
   const unprotectedRanges = libre
     ? [{ sheetId, startRowIndex: libre.premiereLigne - 1, startColumnIndex: libre.index, endColumnIndex: libre.index + 1 }]
@@ -716,4 +723,75 @@ export async function synchroniserRecapEmploisDuTemps() {
     valueInputOption: "RAW",
     requestBody: { values: lignes },
   });
+}
+
+// --- Onglets d'explication du classeur Comptabilité ---
+
+// Réécrit les deux onglets d'explication (barème de déplacement, règles de l'activité
+// accessoire) placés en tête du classeur, à partir des données actuelles. Appelée quand la
+// direction modifie le barème ou les types d'événement « toujours payés ».
+export async function synchroniserOngletsExplicatifs() {
+  const client = creerClientCompta();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+
+  const [typesTrajet, typesPayes] = await Promise.all([
+    db.typeTrajet.findMany({ where: { actif: true } }),
+    db.typeEvenementAccessoire.findMany({ where: { actif: true, toujoursPaye: true }, orderBy: { nom: "asc" } }),
+  ]);
+  const onglets = [
+    { titre: TITRE_ONGLET_BAREME, contenu: contenuOngletBareme(typesTrajet) },
+    { titre: TITRE_ONGLET_ACTIVITE, contenu: contenuOngletActivite(typesPayes.map((t) => t.nom)) },
+  ];
+
+  for (const [index, { titre, contenu }] of onglets.entries()) {
+    let sheetId = await idOngletExistant(sheets, idFeuille, titre);
+    if (sheetId === null) {
+      const { data } = await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: idFeuille,
+        requestBody: { requests: [{ addSheet: { properties: { title: titre, index } } }] },
+      });
+      sheetId = data.replies?.[0]?.addSheet?.properties?.sheetId ?? null;
+    }
+    if (sheetId === null) continue;
+
+    await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'` });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: idFeuille,
+      range: `'${titre}'!A1`,
+      valueInputOption: "RAW",
+      requestBody: { values: contenu.lignes },
+    });
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: idFeuille,
+      requestBody: {
+        requests: [
+          // Remet tout en normal, puis met en gras les titres (leurs lignes changent si le
+          // barème change de taille).
+          {
+            repeatCell: {
+              range: { sheetId },
+              cell: { userEnteredFormat: { textFormat: { bold: false } } },
+              fields: "userEnteredFormat.textFormat.bold",
+            },
+          },
+          ...contenu.titres.map((ligne) => ({
+            repeatCell: {
+              range: { sheetId, startRowIndex: ligne, endRowIndex: ligne + 1 },
+              cell: { userEnteredFormat: { textFormat: { bold: true } } },
+              fields: "userEnteredFormat.textFormat.bold",
+            },
+          })),
+          {
+            updateDimensionProperties: {
+              range: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: 1 },
+              properties: { pixelSize: 240 },
+              fields: "pixelSize",
+            },
+          },
+        ],
+      },
+    });
+    await verrouillerOnglet(sheets, idFeuille, titre, {});
+  }
 }

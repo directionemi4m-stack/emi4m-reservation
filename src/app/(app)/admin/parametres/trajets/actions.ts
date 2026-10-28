@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { synchroniserOngletsExplicatifs } from "@/lib/sheets";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -40,6 +41,11 @@ export async function ajouterTypeTrajet(
 
   await db.typeTrajet.create({ data: { nom, km, prix } });
   revalidatePath("/admin/parametres/trajets");
+  try {
+    await synchroniserOngletsExplicatifs();
+  } catch (erreur) {
+    console.error("Échec de mise à jour des onglets d'explication (Comptabilité) :", erreur);
+  }
   return { succes: true, message: `Trajet « ${nom} » ajouté.` };
 }
 
@@ -49,6 +55,11 @@ export async function basculerActifTypeTrajet(formData: FormData) {
   const actif = formData.get("actif") === "true";
   await db.typeTrajet.update({ where: { id }, data: { actif } });
   revalidatePath("/admin/parametres/trajets");
+  try {
+    await synchroniserOngletsExplicatifs();
+  } catch (erreur) {
+    console.error("Échec de mise à jour des onglets d'explication (Comptabilité) :", erreur);
+  }
 }
 
 export async function supprimerTypeTrajet(
@@ -71,5 +82,10 @@ export async function supprimerTypeTrajet(
   }
 
   revalidatePath("/admin/parametres/trajets");
+  try {
+    await synchroniserOngletsExplicatifs();
+  } catch (erreur) {
+    console.error("Échec de mise à jour des onglets d'explication (Comptabilité) :", erreur);
+  }
   return { succes: true };
 }
