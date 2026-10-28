@@ -13,6 +13,7 @@ interface Element {
 }
 
 export interface TrajetRecap extends Element {
+  trajetNom: string;
   km: number;
   prix: number;
 }
@@ -51,7 +52,10 @@ function recapMensuel<T extends Element>(
   cumuler: (selection: T[]) => Cellule[],
   aujourdHui: Date,
   // Lignes ajoutées sous le total de chaque année (ex. bilan du forfait).
-  apresTotal?: (debut: number, deLAnnee: T[]) => Cellule[][]
+  apresTotal?: (debut: number, deLAnnee: T[]) => Cellule[][],
+  // Lignes de détail ajoutées sous chaque mois et sous le total de l'année (ex. ventilation
+  // des frais par destination).
+  detailler?: (selection: T[]) => Cellule[][]
 ): Cellule[][] {
   const actifs = elements.filter((e) => !e.supprimeLe);
   const annees = [...new Set(actifs.map((e) => anneeScolaireDebut(e.date)))].sort((a, b) => a - b);
@@ -67,9 +71,11 @@ function recapMensuel<T extends Element>(
       const annee = mois >= 8 ? debut : debut + 1;
       const duMois = actifs.filter((e) => e.date.getUTCFullYear() === annee && e.date.getUTCMonth() === mois);
       lignes.push([`${MOIS[mois]} ${annee}`, ...cumuler(duMois)]);
+      if (detailler) lignes.push(...detailler(duMois));
     }
     const deLAnnee = actifs.filter((e) => anneeScolaireDebut(e.date) === debut);
     lignes.push([`Total année ${debut}-${debut + 1}`, ...cumuler(deLAnnee)]);
+    if (detailler) lignes.push(...detailler(deLAnnee));
     if (apresTotal) lignes.push(...apresTotal(debut, deLAnnee));
   }
   return lignes;
@@ -80,12 +86,39 @@ function heures(minutes: number): number {
   return Math.round((minutes / 60) * 1000) / 1000;
 }
 
+// Le barème EMI4M fixe un montant forfaitaire par trajet (ex. Villard/Autrans 6,40 €), pas
+// un taux au km. Le taux affiché pour le comptable est donc montant ÷ km, à 6 décimales :
+// arrondi à 2 décimales (0,18 au lieu de 0,177778), km × taux ne retomberait plus sur le
+// barème (36 × 0,18 = 6,48 €). À 6 décimales, km × taux redonne le montant au centime,
+// y compris sur un cumul de plusieurs centaines de trajets (à 4, l'écart s'accumulait).
+export function tauxExact(prix: number, km: number): number | "" {
+  return km > 0 ? Math.round((prix / km) * 1e6) / 1e6 : "";
+}
+
 export function recapMensuelFrais(trajets: TrajetRecap[], aujourdHui: Date = new Date()): Cellule[][] {
   return recapMensuel(
     trajets,
-    ["Trajets", "Km", "€"],
-    (t) => [t.length, arrondi(t.reduce((s, x) => s + x.km, 0)), arrondi(t.reduce((s, x) => s + x.prix, 0))],
-    aujourdHui
+    ["Trajets", "Km", "Taux (€/km)", "€"],
+    (t) => [t.length, arrondi(t.reduce((s, x) => s + x.km, 0)), "", arrondi(t.reduce((s, x) => s + x.prix, 0))],
+    aujourdHui,
+    undefined,
+    // Une ligne par destination (et par barème, si un tarif a changé en cours d'année).
+    (t) => {
+      const groupes = new Map<string, TrajetRecap[]>();
+      for (const x of t) {
+        const cle = `${x.trajetNom}|${x.km}|${x.prix}`;
+        groupes.set(cle, [...(groupes.get(cle) ?? []), x]);
+      }
+      return [...groupes.values()]
+        .sort((a, b) => a[0].trajetNom.localeCompare(b[0].trajetNom, "fr"))
+        .map((g) => [
+          `    ${g[0].trajetNom}`,
+          g.length,
+          arrondi(g.length * g[0].km),
+          tauxExact(g[0].prix, g[0].km),
+          arrondi(g.length * g[0].prix),
+        ]);
+    }
   );
 }
 

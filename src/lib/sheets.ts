@@ -499,9 +499,9 @@ export async function synchroniserFraisProf(profId: string) {
   await synchroniserLignesStables(sheets, idFeuille, titre, entete.length, FRAIS_LIGNE_ENTETE, lignes);
 
   // Récapitulatif mensuel et total de l'année scolaire pour le comptable, à droite du
-  // tableau (colonnes I à L, H restant vide) : recalculé en entier à chaque fois, il ne
+  // tableau (colonnes I à M, H restant vide) : recalculé en entier à chaque fois, il ne
   // touche ni aux lignes de trajets ni à la colonne Statut de paiement.
-  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'!I1:L200` });
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'!I1:M200` });
   await sheets.spreadsheets.values.update({
     spreadsheetId: idFeuille,
     range: `'${titre}'!I1`,
