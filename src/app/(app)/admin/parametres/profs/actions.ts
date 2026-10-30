@@ -166,7 +166,7 @@ export async function demarrerImpersonation(formData: FormData) {
     path: "/",
     secure: process.env.NODE_ENV === "production",
   });
-  redirect("/planning");
+  redirect("/accueil");
 }
 
 export async function arreterImpersonation() {

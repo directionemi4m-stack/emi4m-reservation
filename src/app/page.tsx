@@ -22,7 +22,7 @@ const FONCTIONS = [
 // sont envoyés directement sur le planning.
 export default async function Home() {
   const session = await auth();
-  if (session?.user) redirect("/planning");
+  if (session?.user) redirect("/accueil");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
