@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formaterMinutage, grouperParMois, libelleLieu, lireMinutage } from "./saison";
+import { formaterMinutage, grouperParMois, libelleLieu, lireMinutage, minutageEditable } from "./saison";
 
 describe("lireMinutage", () => {
   it("accepte les écritures courantes d'un minutage", () => {
@@ -18,6 +18,12 @@ describe("lireMinutage", () => {
     expect(lireMinutage("trois minutes")).toBeNull();
     expect(lireMinutage("3'75")).toBeNull();
     expect(lireMinutage("0")).toBeNull();
+  });
+});
+
+describe("minutageEditable", () => {
+  it("se relit à l'identique, y compris au-delà d'une heure", () => {
+    for (const s of [30, 210, 725, 3750]) expect(lireMinutage(minutageEditable(s))).toBe(s);
   });
 });
 

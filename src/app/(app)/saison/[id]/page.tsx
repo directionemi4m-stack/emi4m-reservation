@@ -6,14 +6,21 @@ import { InscriptionForm } from "@/components/saison/InscriptionForm";
 import { SupprimerInscriptionBouton } from "@/components/saison/SupprimerInscriptionBouton";
 import { formaterDuree, minutesVersHeure } from "@/lib/agenda";
 import { anneeScolaireDebut } from "@/lib/fraisRecap";
-import { formaterMinutage, libelleLieu } from "@/lib/saison";
+import { formaterMinutage, libelleLieu, minutageEditable } from "@/lib/saison";
 import { deplacerInscription } from "../actions";
 
 const formatDateLongue = (d: Date) =>
   d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
-export default async function HeureMusicalePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function HeureMusicalePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ modifier?: string }>;
+}) {
   const { id } = await params;
+  const { modifier } = await searchParams;
   const session = await auth();
   const estAdmin = session!.user.role === "ADMIN";
 
@@ -38,6 +45,9 @@ export default async function HeureMusicalePage({ params }: { params: Promise<{ 
   ]);
 
   const inscriptions = evenement.inscriptions;
+  const peutModifier = (i: (typeof inscriptions)[number]) => estAdmin || i.profId === session!.user.id;
+  // Inscription en cours de modification : seulement la sienne (ou n'importe laquelle pour la direction).
+  const enModification = inscriptions.find((i) => i.id === modifier && peutModifier(i));
   const total = inscriptions.reduce((s, i) => s + i.minutageSecondes, 0);
   const max = evenement.dureeMaxMinutes !== null ? evenement.dureeMaxMinutes * 60 : null;
   const materiel = inscriptions.filter((i) => i.materiel);
@@ -72,7 +82,23 @@ export default async function HeureMusicalePage({ params }: { params: Promise<{ 
         </p>
       </div>
 
-      <InscriptionForm evenementId={evenement.id} eleves={eleves.map((e) => e.nom)} instruments={instruments.map((i) => i.nom)} />
+      <InscriptionForm
+        key={enModification?.id ?? "nouvelle"}
+        evenementId={evenement.id}
+        eleves={eleves.map((e) => e.nom)}
+        instruments={instruments.map((i) => i.nom)}
+        inscription={
+          enModification && {
+            id: enModification.id,
+            eleveNom: enModification.eleveNom,
+            instrument: enModification.instrument,
+            programme: enModification.programme,
+            minutage: minutageEditable(enModification.minutageSecondes),
+            materiel: enModification.materiel ?? "",
+            commentaire: enModification.commentaire ?? "",
+          }
+        }
+      />
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold text-brand-slate">Programme (ordre de passage)</h2>
@@ -117,7 +143,17 @@ export default async function HeureMusicalePage({ params }: { params: Promise<{ 
                   </form>
                 </>
               )}
-              {(estAdmin || i.profId === session!.user.id) && <SupprimerInscriptionBouton id={i.id} />}
+              {peutModifier(i) && (
+                <>
+                  <Link
+                    href={`/saison/${evenement.id}?modifier=${i.id}`}
+                    className="text-xs font-medium text-brand-accent hover:underline"
+                  >
+                    Modifier
+                  </Link>
+                  <SupprimerInscriptionBouton id={i.id} />
+                </>
+              )}
             </div>
           </div>
         ))}

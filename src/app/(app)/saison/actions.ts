@@ -114,27 +114,42 @@ export async function ajouterInscription(_etatPrecedent: EtatAction, formData: F
   if (!programme) return { succes: false, message: "Le programme est requis." };
   if (minutageSecondes === null) return { succes: false, message: "Minutage invalide (ex. 3'30)." };
 
-  const dernier = await db.inscriptionHeureMusicale.findFirst({
-    where: { evenementId },
-    orderBy: { ordre: "desc" },
-  });
-  await db.inscriptionHeureMusicale.create({
-    data: {
-      evenementId,
-      profId: session.user.id,
-      eleveNom,
-      instrument,
-      programme,
-      minutageSecondes,
-      materiel: champ(formData, "materiel"),
-      commentaire: champ(formData, "commentaire"),
-      ordre: (dernier?.ordre ?? 0) + 1,
-    },
-  });
+  const contenu = {
+    eleveNom,
+    instrument,
+    programme,
+    minutageSecondes,
+    materiel: champ(formData, "materiel"),
+    commentaire: champ(formData, "commentaire"),
+  };
+
+  // Modification : seul le prof qui a inscrit l'élève (ou la direction) peut la faire ;
+  // l'ordre de passage et l'auteur de l'inscription ne changent pas.
+  const id = champ(formData, "id");
+  if (id) {
+    const existante = await db.inscriptionHeureMusicale.findUnique({ where: { id } });
+    if (!existante || existante.evenementId !== evenementId) {
+      return { succes: false, message: "Cette inscription n'existe plus." };
+    }
+    if (existante.profId !== session.user.id && session.user.role !== "ADMIN") {
+      return { succes: false, message: "Vous ne pouvez modifier que vos propres inscriptions." };
+    }
+    await db.inscriptionHeureMusicale.update({ where: { id }, data: contenu });
+  } else {
+    const dernier = await db.inscriptionHeureMusicale.findFirst({
+      where: { evenementId },
+      orderBy: { ordre: "desc" },
+    });
+    await db.inscriptionHeureMusicale.create({
+      data: { ...contenu, evenementId, profId: session.user.id, ordre: (dernier?.ordre ?? 0) + 1 },
+    });
+  }
 
   revalidatePath(`/saison/${evenementId}`);
   revalidatePath("/saison");
   await synchroniser(evenementId, [anneeScolaireDebut(evenement.date)]);
+  // Sortie du mode modification une fois enregistré.
+  if (id) redirect(`/saison/${evenementId}`);
   return { succes: true };
 }
 

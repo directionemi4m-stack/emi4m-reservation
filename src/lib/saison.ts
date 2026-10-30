@@ -36,6 +36,12 @@ export function formaterMinutage(secondes: number): string {
   return h ? `${h} h ${ms}` : ms;
 }
 
+// Minutage à pré-remplir dans un champ : toujours en minutes'secondes (« 62'30 »), pour
+// rester relisible par lireMinutage même au-delà d'une heure.
+export function minutageEditable(secondes: number): string {
+  return `${Math.floor(secondes / 60)}'${String(secondes % 60).padStart(2, "0")}`;
+}
+
 const MOIS = [
   "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
