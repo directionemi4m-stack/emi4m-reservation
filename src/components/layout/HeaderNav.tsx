@@ -137,6 +137,9 @@ export function HeaderNav({
         <Link href="/annuaire" className="hover:text-brand-accent">
           Annuaire
         </Link>
+        <Link href="/saison" className="hover:text-brand-accent">
+          Saison
+        </Link>
         <Link href="/securite" className="hover:text-brand-accent">
           Sécurité
         </Link>
@@ -216,6 +219,13 @@ export function HeaderNav({
               className="block rounded-md px-2 py-2 hover:bg-white/10"
             >
               Annuaire des collègues
+            </Link>
+            <Link
+              href="/saison"
+              onClick={() => setOuvert(false)}
+              className="block rounded-md px-2 py-2 hover:bg-white/10"
+            >
+              Agenda de la saison
             </Link>
             <Link
               href="/securite"

@@ -99,6 +99,8 @@ model User {
   creneauxAgenda CreneauAgenda[]
 
   heuresHebdoContrats HeuresHebdoContrat[]
+
+  inscriptionsHeureMusicale InscriptionHeureMusicale[]
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -204,11 +206,12 @@ model DemandeCreneau {
 // --- Présences ---
 
 model LieuPresence {
-  id             String          @id @default(cuid())
-  nom            String          @unique
-  actif          Boolean         @default(true)
+  id             String            @id @default(cuid())
+  nom            String            @unique
+  actif          Boolean           @default(true)
   classes        Classe[]
   creneauxAgenda CreneauAgenda[]
+  evenements     EvenementSaison[]
 }
 
 model NiveauFM {
@@ -567,4 +570,58 @@ model HeuresHebdoContrat {
   majLe         DateTime @updatedAt
 
   @@unique([userId, anneeScolaire])
+}
+
+// --- Agenda de la saison et heures musicales ---
+
+enum TypeEvenementSaison {
+  HEURE_MUSICALE
+  CONCERT
+  AUDITION
+  EXAMEN
+  REUNION
+  AUTRE
+}
+
+// Événement de l'agenda de la saison, saisi par la direction et visible de tous. Une
+// heure musicale reçoit les inscriptions des élèves ; son lieu, sa date et son heure
+// sont repris d'ici partout (page d'inscription, programme, classeur).
+model EvenementSaison {
+  id                String              @id @default(cuid())
+  type              TypeEvenementSaison
+  titre             String
+  date              DateTime            @db.Date
+  heureDebutMinutes Int? // minutes depuis minuit, facultative
+  lieuId            String? // commune
+  lieu              LieuPresence?       @relation(fields: [lieuId], references: [id])
+  lieuPrecis        String? // ex. « Salle Berlioz », « Église de Méaudre »
+  description       String?
+  dureeMaxMinutes   Int? // heures musicales : durée prévue, pour alerter si les inscriptions la dépassent
+  // Onglet du programme dans le classeur « Saison » (heures musicales) : retrouvé par son
+  // identifiant, pour pouvoir le renommer si la date ou le titre changent.
+  ongletSheetId     Int?
+  creeLe            DateTime            @default(now())
+
+  inscriptions InscriptionHeureMusicale[]
+
+  @@index([date])
+}
+
+// Un élève inscrit par son prof à une heure musicale.
+model InscriptionHeureMusicale {
+  id               String          @id @default(cuid())
+  evenementId      String
+  evenement        EvenementSaison @relation(fields: [evenementId], references: [id], onDelete: Cascade)
+  profId           String
+  prof             User            @relation(fields: [profId], references: [id])
+  eleveNom         String
+  instrument       String
+  programme        String // œuvre(s) et compositeur(s)
+  minutageSecondes Int
+  materiel         String?
+  commentaire      String?
+  ordre            Int // ordre de passage, réglable par la direction
+  creeLe           DateTime        @default(now())
+
+  @@index([evenementId, ordre])
 }

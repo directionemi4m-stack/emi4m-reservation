@@ -11,6 +11,7 @@ import {
 } from "@/lib/ongletsExplicatifs";
 import { libelleJourCours, libelleJourSemaine } from "@/lib/joursSemaine";
 import { formaterDuree, heuresDecimales, minutesHebdo, minutesVersHeure, volumeHebdoMinutes } from "@/lib/agenda";
+import { formaterMinutage, grouperParMois, libelleLieu, libelleTypeEvenement } from "@/lib/saison";
 
 const LIBELLES_STATUT: Record<StatutPresence, string> = {
   PRESENT: "Présent",
@@ -794,4 +795,213 @@ export async function synchroniserOngletsExplicatifs() {
     });
     await verrouillerOnglet(sheets, idFeuille, titre, {});
   }
+}
+
+// --- Agenda de la saison et heures musicales ---
+
+// Classeur « Saison » : agenda des événements et programmes des heures musicales —
+// réservé à la direction (noms d'élèves), donc distinct du classeur Comptabilité.
+function creerClientSaison() {
+  return creerClientSheets(process.env.GOOGLE_SHEETS_SAISON_ID);
+}
+
+const formatDateLongue = (d: Date) =>
+  d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+async function mettreEnGras(
+  sheets: ReturnType<typeof google.sheets>,
+  idFeuille: string,
+  sheetId: number,
+  lignes: number[]
+) {
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: idFeuille,
+    requestBody: {
+      requests: [
+        {
+          repeatCell: {
+            range: { sheetId },
+            cell: { userEnteredFormat: { textFormat: { bold: false } } },
+            fields: "userEnteredFormat.textFormat.bold",
+          },
+        },
+        ...lignes.map((l) => ({
+          repeatCell: {
+            range: { sheetId, startRowIndex: l, endRowIndex: l + 1 },
+            cell: { userEnteredFormat: { textFormat: { bold: true } } },
+            fields: "userEnteredFormat.textFormat.bold",
+          },
+        })),
+      ],
+    },
+  });
+}
+
+// Onglet « Agenda 2026-2027 » : les 12 mois de la saison, chaque mois suivi de ses
+// événements. Réécrit en entier à chaque modification de l'agenda.
+export async function synchroniserAgendaSaison(debutSaison: number) {
+  const client = creerClientSaison();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+
+  const evenements = await db.evenementSaison.findMany({
+    where: { date: { gte: new Date(Date.UTC(debutSaison, 8, 1)), lt: new Date(Date.UTC(debutSaison + 1, 8, 1)) } },
+    include: { lieu: true, _count: { select: { inscriptions: true } } },
+  });
+
+  const titre = `Agenda ${debutSaison}-${debutSaison + 1}`;
+  let sheetId = await idOngletExistant(sheets, idFeuille, titre);
+  if (sheetId === null) {
+    const { data } = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: idFeuille,
+      requestBody: { requests: [{ addSheet: { properties: { title: titre, index: 0 } } }] },
+    });
+    sheetId = data.replies?.[0]?.addSheet?.properties?.sheetId ?? null;
+  }
+  if (sheetId === null) return;
+
+  const lignes: (string | number)[][] = [[`Agenda de la saison ${debutSaison}-${debutSaison + 1}`], []];
+  const gras = [0, lignes.length];
+  lignes.push(["Date", "Heure", "Type", "Événement", "Lieu", "Détails"]);
+  for (const mois of grouperParMois(evenements, debutSaison)) {
+    lignes.push([]);
+    gras.push(lignes.length);
+    lignes.push([mois.libelle]);
+    if (mois.evenements.length === 0) lignes.push(["", "", "", "Aucun événement"]);
+    for (const e of mois.evenements) {
+      const details = [
+        e.description,
+        e.type === "HEURE_MUSICALE" && e.dureeMaxMinutes ? `Durée prévue : ${formaterDuree(e.dureeMaxMinutes)}` : null,
+        e.type === "HEURE_MUSICALE" ? `${e._count.inscriptions} élève(s) inscrit(s)` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      lignes.push([
+        formatDateLongue(e.date),
+        e.heureDebutMinutes !== null ? minutesVersHeure(e.heureDebutMinutes) : "",
+        libelleTypeEvenement(e.type),
+        e.titre,
+        libelleLieu(e.lieu?.nom, e.lieuPrecis),
+        details,
+      ]);
+    }
+  }
+
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titre}'!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: lignes },
+  });
+  await mettreEnGras(sheets, idFeuille, sheetId, gras);
+}
+
+// Onglet du programme d'une heure musicale (ordre de passage, programme, minutage,
+// matériel), retrouvé par son identifiant et renommé si la date ou le lieu changent.
+// Supprimé si l'événement n'est plus une heure musicale.
+export async function synchroniserProgrammeHeureMusicale(evenementId: string) {
+  const client = creerClientSaison();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+
+  const evenement = await db.evenementSaison.findUnique({
+    where: { id: evenementId },
+    include: {
+      lieu: true,
+      inscriptions: { orderBy: [{ ordre: "asc" }, { creeLe: "asc" }], include: { prof: true } },
+    },
+  });
+  if (!evenement) return;
+
+  const { data } = await sheets.spreadsheets.get({ spreadsheetId: idFeuille, fields: "sheets(properties(sheetId,title))" });
+  const existants = data.sheets?.map((s) => s.properties!) ?? [];
+  const actuel = existants.find((p) => p.sheetId === evenement.ongletSheetId);
+
+  if (evenement.type !== "HEURE_MUSICALE") {
+    if (actuel) await supprimerOngletSaison(actuel.sheetId!);
+    if (evenement.ongletSheetId !== null) {
+      await db.evenementSaison.update({ where: { id: evenementId }, data: { ongletSheetId: null } });
+    }
+    return;
+  }
+
+  const jour = evenement.date.toISOString().slice(0, 10).split("-").reverse().join("-");
+  const base = `HM ${jour}${evenement.lieu ? ` ${evenement.lieu.nom}` : ""}`;
+  let titre = sanitiserNomOnglet(base, "Heure musicale");
+  for (let n = 2; existants.some((p) => p.title === titre && p.sheetId !== actuel?.sheetId); n++) {
+    titre = sanitiserNomOnglet(`${base} (${n})`, "Heure musicale");
+  }
+
+  let sheetId = actuel?.sheetId ?? null;
+  if (sheetId === null) {
+    const { data: cree } = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: idFeuille,
+      requestBody: { requests: [{ addSheet: { properties: { title: titre } } }] },
+    });
+    sheetId = cree.replies?.[0]?.addSheet?.properties?.sheetId ?? null;
+    if (sheetId === null) return;
+    await db.evenementSaison.update({ where: { id: evenementId }, data: { ongletSheetId: sheetId } });
+  } else if (actuel?.title !== titre) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: idFeuille,
+      requestBody: { requests: [{ updateSheetProperties: { properties: { sheetId, title: titre }, fields: "title" } }] },
+    });
+  }
+
+  const inscriptions = evenement.inscriptions;
+  const total = inscriptions.reduce((s, i) => s + i.minutageSecondes, 0);
+  const depassement =
+    evenement.dureeMaxMinutes && total > evenement.dureeMaxMinutes * 60
+      ? ` (dépasse la durée prévue de ${formaterMinutage(total - evenement.dureeMaxMinutes * 60)})`
+      : "";
+  const lignes: (string | number)[][] = [
+    [`Heure musicale — ${evenement.titre}`],
+    ["Date", formatDateLongue(evenement.date)],
+    ["Heure", evenement.heureDebutMinutes !== null ? minutesVersHeure(evenement.heureDebutMinutes) : ""],
+    ["Lieu", libelleLieu(evenement.lieu?.nom, evenement.lieuPrecis) || "À préciser"],
+    ["Durée prévue", evenement.dureeMaxMinutes ? formaterDuree(evenement.dureeMaxMinutes) : "—"],
+    ["Minutage total", `${formaterMinutage(total)}${depassement}`],
+    ["Élèves inscrits", inscriptions.length],
+    [],
+    ["N°", "Élève", "Instrument", "Programme", "Minutage", "Matériel", "Commentaire", "Professeur"],
+    ...inscriptions.map((i, n) => [
+      n + 1,
+      i.eleveNom,
+      i.instrument,
+      i.programme,
+      formaterMinutage(i.minutageSecondes),
+      i.materiel ?? "",
+      i.commentaire ?? "",
+      `${i.prof.prenom} ${i.prof.nom}`,
+    ]),
+  ];
+  const gras = [0, 8];
+  const materiel = inscriptions.filter((i) => i.materiel);
+  if (materiel.length > 0) {
+    lignes.push([]);
+    gras.push(lignes.length);
+    lignes.push(["Matériel à prévoir"]);
+    for (const i of materiel) lignes.push([`${i.eleveNom} (${i.instrument})`, i.materiel ?? ""]);
+  }
+
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titre}'!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: lignes },
+  });
+  await mettreEnGras(sheets, idFeuille, sheetId, gras);
+}
+
+// Retire l'onglet du programme d'une heure musicale supprimée (ou qui n'en est plus
+// une) : il n'est que le reflet de l'appli, qui garde seule les données.
+export async function supprimerOngletSaison(sheetId: number) {
+  const client = creerClientSaison();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+  const { data } = await sheets.spreadsheets.get({ spreadsheetId: idFeuille, fields: "sheets(properties(sheetId))" });
+  if (!data.sheets?.some((s) => s.properties?.sheetId === sheetId)) return;
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId: idFeuille, requestBody: { requests: [{ deleteSheet: { sheetId } }] } });
 }
