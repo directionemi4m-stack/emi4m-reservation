@@ -43,6 +43,7 @@ export default async function LocationsPage({ searchParams }: { searchParams: Pr
     nbMois: l.nbMois,
     paye: l.paye,
     modePaiement: l.modePaiement,
+    caution: l.caution,
     commentaire: l.commentaire,
     dossierDriveUrl: l.dossierDriveUrl,
     documents: l.documents,
@@ -51,6 +52,7 @@ export default async function LocationsPage({ searchParams }: { searchParams: Pr
   const instruments = [...new Set(toutes.map((t) => t.instrument))].sort((a, b) => a.localeCompare(b, "fr"));
   const precedentes = toutes.filter((t) => t.anneeDebut === anneeDebut - 1).length;
   const payees = locations.filter((l) => l.paye).length;
+  const cautionsAVoir = locations.filter((l) => l.caution === "MANQUANTE" || l.caution === null).length;
   const idClasseur = process.env.GOOGLE_SHEETS_LOCATIONS_ID;
 
   return (
@@ -59,7 +61,7 @@ export default async function LocationsPage({ searchParams }: { searchParams: Pr
         <h1 className="text-xl font-semibold text-brand-slate">Locations d&apos;instruments</h1>
         <p className="text-sm text-slate-500">
           {locations.length} location{locations.length > 1 ? "s" : ""} · {payees} payée{payees > 1 ? "s" : ""} ·{" "}
-          {locations.length - payees} à encaisser
+          {locations.length - payees} à encaisser · {cautionsAVoir} caution{cautionsAVoir > 1 ? "s" : ""} à voir
           {idClasseur && (
             <>
               {" · "}

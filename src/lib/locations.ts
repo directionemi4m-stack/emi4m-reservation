@@ -9,6 +9,16 @@ export function libelleModePaiement(mode: string | null | undefined): string {
   return MODES_PAIEMENT.find((m) => m.valeur === mode)?.label ?? "";
 }
 
+export const CAUTIONS = [
+  { valeur: "RECUE", label: "Reçue" },
+  { valeur: "MANQUANTE", label: "Manquante" },
+  { valeur: "RENDUE", label: "Rendue" },
+] as const;
+
+export function libelleCaution(caution: string | null | undefined): string {
+  return CAUTIONS.find((c) => c.valeur === caution)?.label ?? "À renseigner";
+}
+
 // 1 → « 1re année », 2 → « 2e année »…
 export function libelleAnneeLocation(n: number): string {
   return n === 1 ? "1re année" : `${n}e année`;
@@ -35,11 +45,13 @@ export interface LocationReconductible {
   nom: string;
   anneeLocation: number;
   nbMois: number | null;
+  caution: "RECUE" | "MANQUANTE" | "RENDUE" | null;
 }
 
 // Prépare la saison suivante à partir des locations d'une saison : chaque location passe
-// à l'année suivante, non payée, sans commentaire. Les élèves déjà présents dans la
-// nouvelle saison ne sont pas dupliqués.
+// à l'année suivante, non payée, sans commentaire. Une caution reçue reste acquise (elle
+// couvre l'instrument tant qu'il est loué) ; une caution rendue est à redemander. Les
+// élèves déjà présents dans la nouvelle saison ne sont pas dupliqués.
 export function reconduire<T extends LocationReconductible>(
   precedentes: T[],
   dejaPresentes: { prenom: string; nom: string; instrument: string }[]
@@ -53,6 +65,7 @@ export function reconduire<T extends LocationReconductible>(
       nom: l.nom,
       anneeLocation: l.anneeLocation + 1,
       nbMois: l.nbMois,
+      caution: l.caution === "RENDUE" ? null : l.caution,
     }));
 }
 

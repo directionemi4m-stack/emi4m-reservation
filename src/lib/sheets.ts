@@ -12,7 +12,7 @@ import {
 import { libelleJourCours, libelleJourSemaine } from "@/lib/joursSemaine";
 import { formaterDuree, heuresDecimales, minutesHebdo, minutesVersHeure, volumeHebdoMinutes } from "@/lib/agenda";
 import { formaterMinutage, grouperParMois, libelleLieu, libelleTypeEvenement } from "@/lib/saison";
-import { celluleTexte, libelleAnneeLocation, libelleModePaiement, libelleSaison } from "@/lib/locations";
+import { celluleTexte, libelleAnneeLocation, libelleCaution, libelleModePaiement, libelleSaison } from "@/lib/locations";
 
 const LIBELLES_STATUT: Record<StatutPresence, string> = {
   PRESENT: "Présent",
@@ -1049,7 +1049,7 @@ export async function synchroniserLocations(anneeDebut: number) {
   const titreLoc = `Locations ${saison}`;
   const idLoc = await ongletLocations(sheets, idFeuille, titreLoc, 0);
   if (idLoc === null) return;
-  const entete = ["Instrument", "Prénom", "Nom", "Année loc.", "Nb de mois", "Payé", "Paiement", "Commentaire", "Documents"];
+  const entete = ["Instrument", "Prénom", "Nom", "Année loc.", "Nb de mois", "Payé", "Paiement", "Caution", "Commentaire", "Documents"];
   const lignes: (string | number)[][] = [
     [`Suivi des locations d'instruments · ${saison}`],
     ["École Musicale Itinérante des 4 Montagnes"],
@@ -1062,6 +1062,7 @@ export async function synchroniserLocations(anneeDebut: number) {
       l.nbMois ?? "",
       l.paye ? "Oui" : "Non",
       libelleModePaiement(l.modePaiement),
+      libelleCaution(l.caution),
       celluleTexte(l.commentaire),
       l.dossierDriveUrl && l._count.documents > 0
         ? `=HYPERLINK("${l.dossierDriveUrl.replace(/"/g, "")}";"${l._count.documents} document${l._count.documents > 1 ? "s" : ""}")`
@@ -1069,7 +1070,13 @@ export async function synchroniserLocations(anneeDebut: number) {
     ]),
   ];
   const payees = locations.filter((l) => l.paye).length;
-  lignes.push([], [`Total : ${locations.length} location${locations.length > 1 ? "s" : ""} · payées : ${payees} · non payées : ${locations.length - payees}`]);
+  const cautionsAVoir = locations.filter((l) => l.caution === "MANQUANTE" || l.caution === null).length;
+  lignes.push(
+    [],
+    [
+      `Total : ${locations.length} location${locations.length > 1 ? "s" : ""} · payées : ${payees} · non payées : ${locations.length - payees} · cautions manquantes ou à renseigner : ${cautionsAVoir}`,
+    ]
+  );
 
   await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titreLoc}'` });
   await sheets.spreadsheets.values.update({
@@ -1109,6 +1116,26 @@ export async function synchroniserLocations(anneeDebut: number) {
           repeatCell: {
             range: { sheetId: idLoc, startRowIndex: 3 + i, endRowIndex: 4 + i, startColumnIndex: 5, endColumnIndex: 6 },
             cell: { userEnteredFormat: { backgroundColor: l.paye ? VERT_CLAIR : ROUGE_CLAIR, horizontalAlignment: "CENTER" } },
+            fields: "userEnteredFormat(backgroundColor,horizontalAlignment)",
+          },
+        })),
+        // Caution : vert si reçue, rouge si manquante, orange si à renseigner, gris si rendue.
+        ...locations.map((l, i) => ({
+          repeatCell: {
+            range: { sheetId: idLoc, startRowIndex: 3 + i, endRowIndex: 4 + i, startColumnIndex: 7, endColumnIndex: 8 },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor:
+                  l.caution === "RECUE"
+                    ? VERT_CLAIR
+                    : l.caution === "MANQUANTE"
+                      ? ROUGE_CLAIR
+                      : l.caution === "RENDUE"
+                        ? { red: 0.93, green: 0.93, blue: 0.93 }
+                        : { red: 1, green: 0.93, blue: 0.8 },
+                horizontalAlignment: "CENTER",
+              },
+            },
             fields: "userEnteredFormat(backgroundColor,horizontalAlignment)",
           },
         })),

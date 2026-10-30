@@ -7,7 +7,7 @@ import { reconduire } from "@/lib/locations";
 import { photosEnPdf } from "@/lib/photoEnPdf";
 import { deposerDocumentLocation, estJetonRevoqueOuExpire, mettreALaCorbeilleDrive } from "@/lib/drive";
 import { synchroniserLocations } from "@/lib/sheets";
-import type { ModePaiementLocation } from "@/generated/prisma/client";
+import type { CautionLocation, ModePaiementLocation } from "@/generated/prisma/client";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -46,6 +46,7 @@ export async function enregistrerLocation(_etat: EtatAction, formData: FormData)
   const anneeLocation = Number(formData.get("anneeLocation"));
   const nbMoisBrut = champ(formData, "nbMois");
   const mode = champ(formData, "modePaiement");
+  const caution = champ(formData, "caution");
 
   if (!anneeDebut) return { succes: false, message: "Saison invalide." };
   if (!instrument || !prenom || !nom) return { succes: false, message: "Instrument, prénom et nom sont obligatoires." };
@@ -55,6 +56,7 @@ export async function enregistrerLocation(_etat: EtatAction, formData: FormData)
   const nbMois = nbMoisBrut ? Number(nbMoisBrut) : null;
   if (nbMois !== null && ![9, 12].includes(nbMois)) return { succes: false, message: "Durée : 9 ou 12 mois." };
   if (mode && !["CHEQUE", "VIREMENT"].includes(mode)) return { succes: false, message: "Mode de paiement invalide." };
+  if (caution && !["RECUE", "MANQUANTE", "RENDUE"].includes(caution)) return { succes: false, message: "Caution invalide." };
 
   const donnees = {
     anneeDebut,
@@ -65,6 +67,7 @@ export async function enregistrerLocation(_etat: EtatAction, formData: FormData)
     nbMois,
     paye: formData.get("paye") === "on",
     modePaiement: (mode || null) as ModePaiementLocation | null,
+    caution: (caution || null) as CautionLocation | null,
     commentaire: champ(formData, "commentaire").slice(0, 500) || null,
   };
 

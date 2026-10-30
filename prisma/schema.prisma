@@ -763,6 +763,13 @@ enum ModePaiementLocation {
   VIREMENT
 }
 
+// Caution déposée par la famille pour l'instrument.
+enum CautionLocation {
+  RECUE
+  MANQUANTE
+  RENDUE
+}
+
 // Une location d'instrument pour une saison (2026 = 2026-2027). Une ligne par élève et par
 // saison : d'une année sur l'autre, la location est reconduite en nouvelle ligne, ce qui
 // garde l'historique complet. Réservé à la direction (données des familles).
@@ -776,6 +783,7 @@ model LocationInstrument {
   nbMois          Int? // 9 ou 12
   paye            Boolean               @default(false)
   modePaiement    ModePaiementLocation?
+  caution         CautionLocation? // vide = pas encore renseignée
   commentaire     String?
   // Sous-dossier Drive de cette location (« Locations instruments / 2026-2027 / NOM Prénom — Instrument »).
   dossierDriveId  String?

@@ -14,7 +14,7 @@ import {
   supprimerLocation,
   type EtatAction,
 } from "@/app/(app)/admin/locations/actions";
-import { cleEleve, libelleAnneeLocation, libelleModePaiement, MODES_PAIEMENT } from "@/lib/locations";
+import { CAUTIONS, cleEleve, libelleAnneeLocation, libelleCaution, libelleModePaiement, MODES_PAIEMENT } from "@/lib/locations";
 import { AjoutDocument } from "@/components/locations/AjoutDocument";
 
 const etatInitial: EtatAction = { succes: true };
@@ -33,6 +33,7 @@ export interface LocationVue {
   nbMois: number | null;
   paye: boolean;
   modePaiement: string | null;
+  caution: string | null;
   commentaire: string | null;
   dossierDriveUrl: string | null;
   documents: { id: string; nomFichier: string; url: string }[];
@@ -88,7 +89,7 @@ export function FormLocation({
         <input name="prenom" required defaultValue={location?.prenom} placeholder="Prénom" className={champClass} />
         <input name="nom" required defaultValue={location?.nom} placeholder="Nom" className={champClass} />
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         <label className="flex flex-col gap-1 text-xs text-slate-500">
           Année de location
           <select name="anneeLocation" defaultValue={location?.anneeLocation ?? 1} className={champClass}>
@@ -118,6 +119,17 @@ export function FormLocation({
             ))}
           </select>
         </label>
+        <label className="flex flex-col gap-1 text-xs text-slate-500">
+          Caution
+          <select name="caution" defaultValue={location?.caution ?? ""} className={champClass}>
+            <option value="">À renseigner</option>
+            {CAUTIONS.map((c) => (
+              <option key={c.valeur} value={c.valeur}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
           <input type="checkbox" name="paye" defaultChecked={location?.paye} className="h-4 w-4 accent-brand-accent" />
           Payé
@@ -128,7 +140,7 @@ export function FormLocation({
         rows={2}
         maxLength={500}
         defaultValue={location?.commentaire ?? ""}
-        placeholder="Commentaire (caution, chèque à rendre…)"
+        placeholder="Commentaire (montant de la caution, chèque à rendre…)"
         className={champClass}
       />
       <Message etat={etat} />
@@ -208,6 +220,22 @@ function CarteLocation({ location, anneeDebut }: { location: LocationVue; anneeD
         </form>
       </div>
 
+      <p className="text-xs">
+        <span className="text-slate-500">Caution : </span>
+        <span
+          className={`rounded-full px-2 py-0.5 font-medium ${
+            location.caution === "RECUE"
+              ? "bg-emerald-50 text-emerald-700"
+              : location.caution === "MANQUANTE"
+                ? "bg-red-50 text-status-occupee"
+                : location.caution === "RENDUE"
+                  ? "bg-slate-100 text-slate-600"
+                  : "bg-amber-50 text-amber-700"
+          }`}
+        >
+          {libelleCaution(location.caution)}
+        </span>
+      </p>
       {location.commentaire && <p className="whitespace-pre-line text-sm text-slate-600">{location.commentaire}</p>}
       {location.historique.length > 0 && (
         <p className="text-xs text-slate-400">Déjà loué : {location.historique.join(" ; ")}</p>
@@ -262,7 +290,9 @@ function CarteLocation({ location, anneeDebut }: { location: LocationVue; anneeD
   );
 }
 
-type Filtre = "tous" | "non_payes" | "sans_document";
+type Filtre = "tous" | "non_payes" | "caution" | "sans_document";
+
+const cautionAVerifier = (l: LocationVue) => l.caution === "MANQUANTE" || l.caution === null;
 
 export function ListeLocations({
   anneeDebut,
@@ -281,7 +311,10 @@ export function ListeLocations({
     const q = cleEleve(recherche, "");
     return locations.filter(
       (l) =>
-        (filtre === "tous" || (filtre === "non_payes" ? !l.paye : l.documents.length === 0)) &&
+        (filtre === "tous" ||
+          (filtre === "non_payes" && !l.paye) ||
+          (filtre === "caution" && cautionAVerifier(l)) ||
+          (filtre === "sans_document" && l.documents.length === 0)) &&
         (!q || cleEleve(`${l.prenom} ${l.nom}`, l.instrument).includes(q))
     );
   }, [locations, recherche, filtre]);
@@ -289,6 +322,7 @@ export function ListeLocations({
   const filtres: { cle: Filtre; label: string; n: number }[] = [
     { cle: "tous", label: "Toutes", n: locations.length },
     { cle: "non_payes", label: "Non payées", n: locations.filter((l) => !l.paye).length },
+    { cle: "caution", label: "Caution à voir", n: locations.filter(cautionAVerifier).length },
     { cle: "sans_document", label: "Sans document", n: locations.filter((l) => l.documents.length === 0).length },
   ];
 

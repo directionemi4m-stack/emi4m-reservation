@@ -17,14 +17,14 @@ describe("cleEleve", () => {
 
 describe("reconduire", () => {
   const avant = [
-    { instrument: "Flûte", prenom: "Avril", nom: "Blanchard", anneeLocation: 2, nbMois: 9 },
-    { instrument: "Saxo", prenom: "Gabin", nom: "Balme", anneeLocation: 1, nbMois: 12 },
+    { instrument: "Flûte", prenom: "Avril", nom: "Blanchard", anneeLocation: 2, nbMois: 9, caution: "RECUE" as const },
+    { instrument: "Saxo", prenom: "Gabin", nom: "Balme", anneeLocation: 1, nbMois: 12, caution: "RENDUE" as const },
   ];
 
-  it("passe chaque location à l'année suivante", () => {
+  it("passe chaque location à l'année suivante, en gardant une caution reçue", () => {
     expect(reconduire(avant, [])).toEqual([
-      { instrument: "Flûte", prenom: "Avril", nom: "Blanchard", anneeLocation: 3, nbMois: 9 },
-      { instrument: "Saxo", prenom: "Gabin", nom: "Balme", anneeLocation: 2, nbMois: 12 },
+      { instrument: "Flûte", prenom: "Avril", nom: "Blanchard", anneeLocation: 3, nbMois: 9, caution: "RECUE" },
+      { instrument: "Saxo", prenom: "Gabin", nom: "Balme", anneeLocation: 2, nbMois: 12, caution: null },
     ]);
   });
 
