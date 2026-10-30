@@ -52,22 +52,25 @@ async function recompiler(eleveId: string, anneeDebut: number, trimestre: number
 export async function ajouterSuivi(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const s = await session();
   const eleveId = champ(formData, "eleveId");
-  const matiere = champ(formData, "matiere");
+  // Un prof peut suivre le même élève dans plusieurs rubriques : on les coche toutes d'un coup.
+  const matieres = [...new Set(formData.getAll("matiere").map(String))].filter((m) => MATIERES.includes(m));
   const precision = champ(formData, "precision").slice(0, 60) || null;
 
   if (!eleveId) return { succes: false, message: "Choisissez un élève." };
-  if (!MATIERES.includes(matiere)) return { succes: false, message: "Choisissez une rubrique." };
+  if (matieres.length === 0) return { succes: false, message: "Cochez au moins une rubrique." };
   if (!(await db.eleveCham.findUnique({ where: { id: eleveId }, select: { id: true } }))) {
     return { succes: false, message: "Élève introuvable." };
   }
 
-  await db.suiviCham.upsert({
-    where: { eleveId_profId_matiere: { eleveId, profId: s.user.id, matiere: matiere as MatiereCham } },
-    create: { eleveId, profId: s.user.id, matiere: matiere as MatiereCham, precision },
-    update: { precision },
-  });
+  for (const matiere of matieres as MatiereCham[]) {
+    await db.suiviCham.upsert({
+      where: { eleveId_profId_matiere: { eleveId, profId: s.user.id, matiere } },
+      create: { eleveId, profId: s.user.id, matiere, precision },
+      update: { precision },
+    });
+  }
   revalidatePath("/bulletins-cham");
-  return { succes: true, message: "Élève ajouté." };
+  return { succes: true, message: matieres.length > 1 ? `Élève ajouté dans ${matieres.length} rubriques.` : "Élève ajouté." };
 }
 
 export async function retirerSuivi(formData: FormData) {
@@ -88,13 +91,24 @@ export async function signerAppreciation(_etat: EtatAction, formData: FormData):
   const texte = champ(formData, "texte");
   const signature = lireSignature(champ(formData, "signature"));
 
-  const suivi = await db.suiviCham.findUnique({
-    where: { eleveId_profId_matiere: { eleveId, profId: s.user.id, matiere } },
-  });
-  if (!suivi) return { succes: false, message: "Vous ne suivez pas cet élève dans cette rubrique." };
+  if (!MATIERES.includes(matiere)) return { succes: false, message: "Rubrique invalide." };
+  if (!(await db.eleveCham.findUnique({ where: { id: eleveId }, select: { id: true } }))) {
+    return { succes: false, message: "Élève introuvable." };
+  }
   if (!texte) return { succes: false, message: "L'appréciation est vide." };
   if (texte.length > TEXTE_MAX) return { succes: false, message: `Appréciation trop longue (${TEXTE_MAX} caractères au plus).` };
   if (!signature) return { succes: false, message: "Signez dans le cadre avant d'enregistrer." };
+
+  // Écrire dans une rubrique depuis la fiche de l'élève suffit à s'y déclarer : le prof
+  // retrouve ensuite cet élève dans sa liste, et les relances en tiennent compte.
+  const suiviCle = { eleveId_profId_matiere: { eleveId, profId: s.user.id, matiere } };
+  const suivi = formData.has("precision")
+    ? await db.suiviCham.upsert({
+        where: suiviCle,
+        create: { eleveId, profId: s.user.id, matiere, precision: champ(formData, "precision").slice(0, 60) || null },
+        update: { precision: champ(formData, "precision").slice(0, 60) || null },
+      })
+    : await db.suiviCham.upsert({ where: suiviCle, create: { eleveId, profId: s.user.id, matiere }, update: {} });
 
   const cle = { eleveId, profId: s.user.id, matiere, ...periode };
   const donnees = { texte, signature: new Uint8Array(signature), signeLe: new Date(), precision: suivi.precision };

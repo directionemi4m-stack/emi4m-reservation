@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSoumission } from "@/lib/useSoumission";
 import {
   ajouterSuivi,
@@ -34,7 +34,7 @@ export function AjouterSuiviForm({ eleves }: { eleves: { id: string; libelle: st
   return (
     <form ref={formRef} onSubmit={soumettre} className="flex flex-col gap-3 rounded-lg bg-white p-4 shadow-sm">
       <h2 className="text-sm font-semibold text-brand-slate">Ajouter un de mes élèves</h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <select name="eleveId" required defaultValue="" className={champClass}>
           <option value="" disabled>
             Élève…
@@ -45,18 +45,19 @@ export function AjouterSuiviForm({ eleves }: { eleves: { id: string; libelle: st
             </option>
           ))}
         </select>
-        <select name="matiere" required defaultValue="" className={champClass}>
-          <option value="" disabled>
-            Rubrique du bulletin…
-          </option>
-          {MATIERES_CHAM.map((m) => (
-            <option key={m.valeur} value={m.valeur}>
-              {m.label}
-            </option>
-          ))}
-        </select>
         <input name="precision" maxLength={60} placeholder="Précision (ex. Piano, Chorale)" className={champClass} />
       </div>
+      <fieldset className="flex flex-col gap-1">
+        <legend className="mb-1 text-xs text-slate-500">Rubriques où vous le suivez (plusieurs possibles)</legend>
+        <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+          {MATIERES_CHAM.map((m) => (
+            <label key={m.valeur} className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" name="matiere" value={m.valeur} className="h-4 w-4 accent-brand-accent" />
+              {m.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <Message etat={etat} />
       <button type="submit" disabled={enCours} className={boutonClass}>
         {enCours ? "Ajout…" : "Ajouter"}
@@ -78,6 +79,7 @@ export function FormAppreciation({
   signature,
   dejaSigne,
   bloque,
+  avecPrecision = false,
 }: {
   eleveId: string;
   matiere: string;
@@ -86,12 +88,16 @@ export function FormAppreciation({
   signature: string | null;
   dejaSigne: boolean;
   bloque: boolean;
+  avecPrecision?: boolean; // nouvelle rubrique ajoutée depuis la fiche de l'élève
 }) {
   const [etat, soumettre, enCours] = useSoumission(signerAppreciation, etatInitial);
   return (
     <form onSubmit={soumettre} className="flex flex-col gap-2">
       <input type="hidden" name="eleveId" value={eleveId} />
       <input type="hidden" name="matiere" value={matiere} />
+      {avecPrecision && (
+        <input name="precision" maxLength={60} placeholder="Précision (ex. Piano, Chorale) — facultatif" className={champClass} />
+      )}
       <input type="hidden" name="anneeDebut" value={periode.anneeDebut} />
       <input type="hidden" name="trimestre" value={periode.trimestre} />
       <textarea
@@ -113,6 +119,23 @@ export function FormAppreciation({
       )}
     </form>
   );
+}
+
+// Sur la fiche d'un élève : écrire aussi dans une rubrique qu'on n'avait pas déclarée.
+export function AjouterMaPartie(props: { eleveId: string; matiere: string; periode: Periode; signature: string | null }) {
+  const [ouvert, setOuvert] = useState(false);
+  if (!ouvert) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOuvert(true)}
+        className="w-fit self-center rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-brand-accent hover:text-brand-accent"
+      >
+        + J&apos;enseigne aussi cette matière : ajouter ma partie
+      </button>
+    );
+  }
+  return <FormAppreciation {...props} texte="" dejaSigne={false} bloque={false} avecPrecision />;
 }
 
 export function FormBilan({

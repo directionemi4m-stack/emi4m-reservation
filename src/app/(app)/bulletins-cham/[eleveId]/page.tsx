@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { libellePeriode, MATIERES_CHAM, periodeCourante, signatureEnDataUrl } from "@/lib/bulletinsCham";
-import { BoutonRecompiler, FormAppreciation, FormBilan } from "@/components/bulletins/FormsBulletin";
+import { AjouterMaPartie, BoutonRecompiler, FormAppreciation, FormBilan } from "@/components/bulletins/FormsBulletin";
 
 const dateCourte = (d: Date) => d.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" });
 
@@ -103,6 +103,10 @@ export default async function BulletinElevePage({
 
             {autres.length === 0 && mesParties.length === 0 && (
               <p className="text-center text-sm italic text-slate-400">Non renseigné</p>
+            )}
+
+            {mesParties.length === 0 && !impersonation && (
+              <AjouterMaPartie eleveId={eleve.id} matiere={m.valeur} periode={periode} signature={signatureParDefaut} />
             )}
           </section>
         );
