@@ -1,5 +1,21 @@
-import type { AutorisationSortie } from "@/generated/prisma/client";
+import type { AutorisationIntercours, AutorisationSortie } from "@/generated/prisma/client";
 
+// Sortie entre deux cours.
+export const AUTORISATIONS_INTERCOURS: AutorisationIntercours[] = ["A_RENSEIGNER", "AUTORISE", "NON_AUTORISE"];
+
+export const LIBELLE_INTERCOURS: Record<AutorisationIntercours, string> = {
+  A_RENSEIGNER: "À renseigner",
+  AUTORISE: "Autorisé(e)",
+  NON_AUTORISE: "Non autorisé(e)",
+};
+
+export const STYLE_INTERCOURS: Record<AutorisationIntercours, string> = {
+  AUTORISE: "bg-status-dispo/15 text-status-dispo",
+  NON_AUTORISE: "bg-status-occupee/15 text-status-occupee",
+  A_RENSEIGNER: "bg-slate-200 text-slate-500",
+};
+
+// Sortie de fin de journée, à 16h30.
 export const AUTORISATIONS: AutorisationSortie[] = ["A_RENSEIGNER", "SEUL", "ACCOMPAGNE"];
 
 export const LIBELLE_AUTORISATION: Record<AutorisationSortie, string> = {

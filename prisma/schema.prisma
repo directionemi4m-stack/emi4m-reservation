@@ -409,6 +409,12 @@ model ConfigGoogle {
 
 // --- CHAM (classes à horaires aménagés musique) ---
 
+enum AutorisationIntercours {
+  A_RENSEIGNER // pas encore renseigné : par prudence, l'enfant n'est PAS présumé autorisé à sortir
+  AUTORISE
+  NON_AUTORISE
+}
+
 enum AutorisationSortie {
   A_RENSEIGNER // pas encore renseigné : par prudence, l'enfant n'est PAS présumé autorisé à partir seul
   SEUL // les parents autorisent l'enfant à quitter seul l'établissement
@@ -417,20 +423,29 @@ enum AutorisationSortie {
 
 // Élève CHAM : liste consultable par tous les enseignants, modifiable uniquement par la direction.
 model EleveCham {
-  id                 String             @id @default(cuid())
+  id                      String                 @id @default(cuid())
   // « Identifiant » du fichier d'origine (export de contacts) — permet de réimporter sans doublons.
-  identifiantExterne String?            @unique
-  prenom             String
-  nom                String
-  age                Int?
-  telephone          String?
-  email              String?
-  ville              String?
-  autorisationSortie AutorisationSortie @default(A_RENSEIGNER)
+  identifiantExterne      String?                @unique
+  prenom                  String
+  nom                     String
+  age                     Int?
+  telephone               String?
+  email                   String?
+  ville                   String?
+  // Sortie entre deux cours, et sortie de fin de journée à 16h30 : deux autorisations
+  // distinctes, signées par les parents sur une même fiche (cf. document* ci-dessous).
+  autorisationIntercours  AutorisationIntercours @default(A_RENSEIGNER)
+  autorisationSortie16h30 AutorisationSortie     @default(A_RENSEIGNER)
   // Précisions libres (ex. « peut partir avec sa sœur », « récupéré par sa grand-mère »).
-  precisionsSortie   String?
-  creeLe             DateTime           @default(now())
-  majLe              DateTime           @updatedAt
+  precisionsSortie        String?
+  // Fiche d'autorisation signée, scannée par la direction et stockée dans le dossier
+  // Drive « Suivi CHAM » (jamais montrée aux profs, qui ne voient que les autorisations).
+  documentDriveId         String?
+  documentUrl             String?
+  documentNom             String?
+  documentMajLe           DateTime?
+  creeLe                  DateTime               @default(now())
+  majLe                   DateTime               @updatedAt
 
   @@index([nom, prenom])
 }

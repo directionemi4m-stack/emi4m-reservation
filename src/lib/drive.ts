@@ -195,3 +195,78 @@ export async function supprimerDocumentProf(profId: string, type: TypeDocument) 
 
   await db.documentProf.delete({ where: { profId_type: { profId, type } } });
 }
+
+// --- Suivi CHAM : fiches d'autorisation scannées ---
+
+const NOM_DOSSIER_CHAM = "Suivi CHAM";
+
+// Le dossier est créé par l'appli : c'est ce qui le lui rend visible (son accès au Drive
+// se limite aux fichiers qu'elle crée). Retrouvé par son nom où que la direction l'ait
+// rangé ensuite ; recréé à la racine du Drive s'il a été supprimé.
+async function dossierSuiviChamId(drive: ReturnType<typeof google.drive>) {
+  const { data } = await drive.files.list({
+    q: `name = '${NOM_DOSSIER_CHAM}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id)",
+  });
+  if (data.files && data.files.length > 0) return data.files[0].id!;
+  const { data: dossier } = await drive.files.create({
+    requestBody: { name: NOM_DOSSIER_CHAM, mimeType: "application/vnd.google-apps.folder" },
+    fields: "id",
+  });
+  return dossier.id!;
+}
+
+// Une seule fiche par élève (elle couvre les deux autorisations) : une nouvelle fiche
+// remplace la précédente.
+export async function televerserDocumentCham(eleveId: string, buffer: Buffer, mimeType: string, extension: string) {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive } = client;
+
+  const eleve = await db.eleveCham.findUnique({ where: { id: eleveId } });
+  if (!eleve) return null;
+
+  const dossierId = await dossierSuiviChamId(drive);
+  if (eleve.documentDriveId) {
+    try {
+      await drive.files.delete({ fileId: eleve.documentDriveId });
+    } catch (erreur) {
+      console.error("Suppression de l'ancienne fiche CHAM impossible :", erreur);
+    }
+  }
+
+  const nomFichier = `${eleve.nom.toUpperCase()} ${eleve.prenom} — autorisations CHAM${extension}`;
+  const { data: fichier } = await drive.files.create({
+    requestBody: { name: nomFichier, parents: [dossierId] },
+    media: { mimeType, body: Readable.from(buffer) },
+    fields: "id, webViewLink",
+  });
+
+  return db.eleveCham.update({
+    where: { id: eleveId },
+    data: {
+      documentDriveId: fichier.id!,
+      documentUrl: fichier.webViewLink ?? "",
+      documentNom: nomFichier,
+      documentMajLe: new Date(),
+    },
+  });
+}
+
+export async function supprimerDocumentCham(eleveId: string) {
+  const eleve = await db.eleveCham.findUnique({ where: { id: eleveId } });
+  if (!eleve?.documentDriveId) return;
+
+  const client = await creerClientDrive();
+  if (client) {
+    try {
+      await client.drive.files.delete({ fileId: eleve.documentDriveId });
+    } catch (erreur) {
+      console.error("Suppression de la fiche CHAM impossible :", erreur);
+    }
+  }
+  await db.eleveCham.update({
+    where: { id: eleveId },
+    data: { documentDriveId: null, documentUrl: null, documentNom: null, documentMajLe: null },
+  });
+}

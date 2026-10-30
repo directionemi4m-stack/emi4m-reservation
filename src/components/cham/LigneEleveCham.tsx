@@ -9,14 +9,18 @@ import {
   type EtatAction,
 } from "@/app/(app)/cham/actions";
 import { BoutonConfirmation } from "@/components/admin/BoutonConfirmation";
+import { FicheCham } from "@/components/cham/FicheCham";
 import {
   AUTORISATIONS,
+  AUTORISATIONS_INTERCOURS,
   LIBELLE_AUTORISATION,
+  LIBELLE_INTERCOURS,
   STYLE_AUTORISATION,
+  STYLE_INTERCOURS,
   formaterTelephone,
   lienTelephone,
 } from "@/lib/cham";
-import type { AutorisationSortie } from "@/generated/prisma/client";
+import type { AutorisationIntercours, AutorisationSortie } from "@/generated/prisma/client";
 
 export interface EleveChamVue {
   id: string;
@@ -26,8 +30,11 @@ export interface EleveChamVue {
   telephone: string | null;
   email: string | null;
   ville: string | null;
-  autorisationSortie: AutorisationSortie;
+  autorisationIntercours: AutorisationIntercours;
+  autorisationSortie16h30: AutorisationSortie;
   precisionsSortie: string | null;
+  // Uniquement transmis à la direction.
+  document: { url: string; majLe: string | null } | null;
 }
 
 const etatInitial: EtatAction = { succes: true };
@@ -71,20 +78,38 @@ export function LigneEleveCham({ eleve, estAdmin }: { eleve: EleveChamVue; estAd
         {estAdmin ? (
           <form onSubmit={soumettreSortie} className="flex flex-col gap-1.5 sm:w-72">
             <input type="hidden" name="id" value={eleve.id} />
-            <select
-              name="autorisationSortie"
-              defaultValue={eleve.autorisationSortie}
-              onChange={(e) => e.currentTarget.form?.requestSubmit()}
-              disabled={enCoursSortie}
-              className={`${champClass} ${STYLE_AUTORISATION[eleve.autorisationSortie]}`}
-              aria-label="Autorisation de sortie"
-            >
-              {AUTORISATIONS.map((a) => (
-                <option key={a} value={a}>
-                  {LIBELLE_AUTORISATION[a]}
-                </option>
-              ))}
-            </select>
+            <label className="flex flex-col gap-0.5 text-xs font-medium text-slate-500">
+              Sortie intercours
+              <select
+                name="autorisationIntercours"
+                defaultValue={eleve.autorisationIntercours}
+                onChange={(e) => e.currentTarget.form?.requestSubmit()}
+                disabled={enCoursSortie}
+                className={`${champClass} ${STYLE_INTERCOURS[eleve.autorisationIntercours]}`}
+              >
+                {AUTORISATIONS_INTERCOURS.map((a) => (
+                  <option key={a} value={a}>
+                    {LIBELLE_INTERCOURS[a]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-0.5 text-xs font-medium text-slate-500">
+              Sortie à 16h30
+              <select
+                name="autorisationSortie16h30"
+                defaultValue={eleve.autorisationSortie16h30}
+                onChange={(e) => e.currentTarget.form?.requestSubmit()}
+                disabled={enCoursSortie}
+                className={`${champClass} ${STYLE_AUTORISATION[eleve.autorisationSortie16h30]}`}
+              >
+                {AUTORISATIONS.map((a) => (
+                  <option key={a} value={a}>
+                    {LIBELLE_AUTORISATION[a]}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="flex gap-2">
               <input
                 name="precisionsSortie"
@@ -111,9 +136,14 @@ export function LigneEleveCham({ eleve, estAdmin }: { eleve: EleveChamVue; estAd
         ) : (
           <div className="flex flex-col gap-1 sm:items-end sm:text-right">
             <span
-              className={`w-fit rounded-full px-2.5 py-0.5 text-xs font-medium ${STYLE_AUTORISATION[eleve.autorisationSortie]}`}
+              className={`w-fit rounded-full px-2.5 py-0.5 text-xs font-medium ${STYLE_INTERCOURS[eleve.autorisationIntercours]}`}
             >
-              {LIBELLE_AUTORISATION[eleve.autorisationSortie]}
+              Intercours : {LIBELLE_INTERCOURS[eleve.autorisationIntercours]}
+            </span>
+            <span
+              className={`w-fit rounded-full px-2.5 py-0.5 text-xs font-medium ${STYLE_AUTORISATION[eleve.autorisationSortie16h30]}`}
+            >
+              16h30 : {LIBELLE_AUTORISATION[eleve.autorisationSortie16h30]}
             </span>
             {eleve.precisionsSortie && (
               <p className="max-w-64 text-xs text-slate-500">{eleve.precisionsSortie}</p>
@@ -121,6 +151,12 @@ export function LigneEleveCham({ eleve, estAdmin }: { eleve: EleveChamVue; estAd
           </div>
         )}
       </div>
+
+      {estAdmin && (
+        <div className="border-t border-slate-100 pt-2">
+          <FicheCham eleveId={eleve.id} document={eleve.document} />
+        </div>
+      )}
 
       {estAdmin && (
         <div className="flex items-center gap-4 border-t border-slate-100 pt-2">

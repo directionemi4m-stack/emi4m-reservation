@@ -43,7 +43,7 @@ export function AjouterEleveChamForm() {
         <input name="ville" placeholder="Ville" className={champClass} />
       </div>
       <p className="text-xs text-slate-400">
-        L&apos;autorisation de sortie démarre en « À renseigner » : elle se règle ensuite sur la fiche.
+        Les autorisations (intercours, 16h30) démarrent en « À renseigner » : elles se règlent ensuite sur la fiche.
       </p>
       {etat.message && (
         <p className={`text-sm ${etat.succes ? "text-status-dispo" : "text-status-occupee"}`}>{etat.message}</p>

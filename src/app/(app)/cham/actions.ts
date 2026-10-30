@@ -3,8 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { AUTORISATIONS } from "@/lib/cham";
-import type { AutorisationSortie } from "@/generated/prisma/client";
+import { AUTORISATIONS, AUTORISATIONS_INTERCOURS } from "@/lib/cham";
+import {
+  alerterConnexionDriveInterrompue,
+  estJetonRevoqueOuExpire,
+  supprimerDocumentCham,
+  televerserDocumentCham,
+} from "@/lib/drive";
+import { urlBase } from "@/lib/url";
+import type { AutorisationIntercours, AutorisationSortie } from "@/generated/prisma/client";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -96,10 +103,11 @@ export async function enregistrerSortieCham(
   await exigerAdmin();
 
   const id = String(formData.get("id") ?? "");
-  const autorisationSortie = String(formData.get("autorisationSortie") ?? "") as AutorisationSortie;
+  const autorisationIntercours = String(formData.get("autorisationIntercours") ?? "") as AutorisationIntercours;
+  const autorisationSortie16h30 = String(formData.get("autorisationSortie16h30") ?? "") as AutorisationSortie;
   const precisionsSortie = texteOuNull(formData, "precisionsSortie");
 
-  if (!AUTORISATIONS.includes(autorisationSortie)) {
+  if (!AUTORISATIONS_INTERCOURS.includes(autorisationIntercours) || !AUTORISATIONS.includes(autorisationSortie16h30)) {
     return { succes: false, message: "Valeur invalide." };
   }
   if (precisionsSortie && precisionsSortie.length > 300) {
@@ -109,9 +117,60 @@ export async function enregistrerSortieCham(
   const existant = await db.eleveCham.findUnique({ where: { id }, select: { id: true } });
   if (!existant) return { succes: false, message: "Cet élève n'existe plus." };
 
-  await db.eleveCham.update({ where: { id }, data: { autorisationSortie, precisionsSortie } });
+  await db.eleveCham.update({
+    where: { id },
+    data: { autorisationIntercours, autorisationSortie16h30, precisionsSortie },
+  });
   revalidatePath("/cham");
   return { succes: true, message: "Enregistré" };
+}
+
+// Photo (prise au téléphone) ou PDF de la fiche signée par les parents.
+const TYPES_FICHE: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/heic": ".heic",
+  "image/heif": ".heif",
+  "application/pdf": ".pdf",
+};
+const TAILLE_MAX_FICHE = 10 * 1024 * 1024;
+
+export async function televerserFicheCham(_etatPrecedent: EtatAction, formData: FormData): Promise<EtatAction> {
+  await exigerAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const fichier = formData.get("fiche");
+  if (!(fichier instanceof File) || fichier.size === 0) return { succes: false, message: "Aucun fichier reçu." };
+  const extension = TYPES_FICHE[fichier.type];
+  if (!extension) return { succes: false, message: "Format non accepté (photo ou PDF uniquement)." };
+  if (fichier.size > TAILLE_MAX_FICHE) return { succes: false, message: "Fichier trop volumineux (10 Mo max)." };
+
+  try {
+    const eleve = await televerserDocumentCham(id, Buffer.from(await fichier.arrayBuffer()), fichier.type, extension);
+    if (!eleve) return { succes: false, message: "Envoi vers Google Drive indisponible." };
+  } catch (erreur) {
+    console.error("Envoi de la fiche CHAM vers Google Drive impossible :", erreur);
+    if (estJetonRevoqueOuExpire(erreur)) {
+      try {
+        await alerterConnexionDriveInterrompue("expiree", `${await urlBase()}/admin/parametres/google-drive`);
+      } catch (erreurAlerte) {
+        console.error("Alerte connexion Drive non envoyée :", erreurAlerte);
+      }
+      return { succes: false, message: "La connexion à Google Drive a expiré : reconnectez-la dans Paramètres." };
+    }
+    return { succes: false, message: "L'envoi a échoué. Réessayez dans quelques instants." };
+  }
+
+  revalidatePath("/cham");
+  return { succes: true, message: "Fiche enregistrée" };
+}
+
+export async function retirerFicheCham(_etatPrecedent: EtatAction, formData: FormData): Promise<EtatAction> {
+  await exigerAdmin();
+  await supprimerDocumentCham(String(formData.get("id") ?? ""));
+  revalidatePath("/cham");
+  return { succes: true };
 }
 
 export async function supprimerEleveCham(
@@ -121,6 +180,8 @@ export async function supprimerEleveCham(
   await exigerAdmin();
 
   const id = String(formData.get("id") ?? "");
+  // La fiche scannée part avec l'élève (elle n'a plus de raison d'être conservée).
+  await supprimerDocumentCham(id);
   await db.eleveCham.deleteMany({ where: { id } });
   revalidatePath("/cham");
   return { succes: true };
