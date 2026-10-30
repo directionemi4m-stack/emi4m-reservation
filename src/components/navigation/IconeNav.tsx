@@ -4,6 +4,7 @@ import {
   IconBrandGoogleDrive,
   IconBuilding,
   IconCalendar,
+  IconClipboardList,
   IconConfetti,
   IconCar,
   IconChecklist,
@@ -59,6 +60,7 @@ const ICONES: Record<CleIcone, typeof IconHome> = {
   journal: IconHistory,
   bulletin: IconFileCertificate,
   location: IconGuitarPick,
+  inventaire: IconClipboardList,
 };
 
 // Pastille ronde colorée derrière l'icône, comme sur Home Assistant.

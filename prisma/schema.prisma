@@ -212,12 +212,13 @@ model DemandeCreneau {
 // --- Présences ---
 
 model LieuPresence {
-  id             String            @id @default(cuid())
-  nom            String            @unique
-  actif          Boolean           @default(true)
-  classes        Classe[]
-  creneauxAgenda CreneauAgenda[]
-  evenements     EvenementSaison[]
+  id                 String              @id @default(cuid())
+  nom                String              @unique
+  actif              Boolean             @default(true)
+  classes            Classe[]
+  creneauxAgenda     CreneauAgenda[]
+  evenements         EvenementSaison[]
+  articlesInventaire ArticleInventaire[]
 }
 
 model NiveauFM {
@@ -822,4 +823,61 @@ model DemandeLocation {
   creeLe      DateTime @default(now())
 
   @@index([anneeDebut])
+}
+
+// --- Inventaire du matériel ---
+
+enum CategorieInventaire {
+  MUSIQUE
+  BUREAU
+  LOGICIEL
+  AUTRE
+}
+
+enum EtatMateriel {
+  BON
+  A_REVISER
+  HORS_SERVICE
+  SORTI // vendu, donné ou mis au rebut : gardé pour l'historique
+}
+
+// Un bien de l'école (instrument, sono, ordinateur…), immobilisé ou non. Les photos
+// lèvent le doute quand il n'y a qu'une référence ou pas de numéro de série.
+model ArticleInventaire {
+  id              String              @id @default(cuid())
+  numeroImmo      Int?                @unique // n° de l'inventaire des immobilisations du comptable
+  designation     String
+  categorie       CategorieInventaire @default(MUSIQUE)
+  marqueModele    String?
+  numeroSerie     String?
+  dateAcquisition DateTime?           @db.Date
+  valeurCentimes  Int?
+  lieuId          String?
+  lieu            LieuPresence?       @relation(fields: [lieuId], references: [id])
+  localisation    String? // salle, placard, prof qui l'a chez lui…
+  etat            EtatMateriel        @default(BON)
+  remarques       String?
+  verifieLe       DateTime? // dernière fois qu'on l'a vu lors d'un inventaire
+  dossierDriveId  String?
+  dossierDriveUrl String?
+  creeLe          DateTime            @default(now())
+  majLe           DateTime            @updatedAt
+
+  photos PhotoInventaire[]
+
+  @@index([categorie])
+}
+
+// Photo d'un bien : l'original est rangé dans le Drive, une miniature est gardée ici pour
+// l'afficher dans l'appli sans passer par Google.
+model PhotoInventaire {
+  id          String            @id @default(cuid())
+  articleId   String
+  article     ArticleInventaire @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  driveFileId String
+  url         String
+  miniature   Bytes
+  ajouteLe    DateTime          @default(now())
+
+  @@index([articleId])
 }

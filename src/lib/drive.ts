@@ -385,3 +385,60 @@ export async function mettreALaCorbeilleDrive(fileId: string) {
   if (!client) return;
   await client.drive.files.update({ fileId, requestBody: { trashed: true } });
 }
+
+// --- Inventaire du matériel : photos des biens ---
+
+const NOM_DOSSIER_INVENTAIRE = "Inventaire matériel";
+
+// « Inventaire matériel / N°12 — PIANO B.BERTHET / photo.jpg » ; le dossier racine est
+// retrouvé par son nom où que la direction l'ait rangé, le sous-dossier est mémorisé.
+async function dossierDArticle(drive: ReturnType<typeof google.drive>, articleId: string, nomDossier: string) {
+  const article = await db.articleInventaire.findUnique({ where: { id: articleId } });
+  if (!article) return null;
+  if (article.dossierDriveId) {
+    try {
+      const { data } = await drive.files.get({ fileId: article.dossierDriveId, fields: "id, trashed" });
+      if (!data.trashed) return article.dossierDriveId;
+    } catch {
+      // dossier supprimé : on le recrée ci-dessous
+    }
+  }
+  const { data: racines } = await drive.files.list({
+    q: `name = '${NOM_DOSSIER_INVENTAIRE}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id)",
+  });
+  const racine =
+    racines.files?.[0]?.id ??
+    (
+      await drive.files.create({
+        requestBody: { name: NOM_DOSSIER_INVENTAIRE, mimeType: "application/vnd.google-apps.folder" },
+        fields: "id",
+      })
+    ).data.id!;
+  const dossierId = await dossierProfId(drive, racine, nomDossier);
+  const { data } = await drive.files.get({ fileId: dossierId, fields: "webViewLink" });
+  await db.articleInventaire.update({
+    where: { id: articleId },
+    data: { dossierDriveId: dossierId, dossierDriveUrl: data.webViewLink ?? null },
+  });
+  return dossierId;
+}
+
+export async function deposerPhotoInventaire(params: {
+  articleId: string;
+  nomDossier: string;
+  nomFichier: string;
+  jpeg: Buffer;
+}): Promise<{ id: string; url: string } | null> {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive } = client;
+  const dossierId = await dossierDArticle(drive, params.articleId, params.nomDossier);
+  if (!dossierId) return null;
+  const { data } = await drive.files.create({
+    requestBody: { name: params.nomFichier, parents: [dossierId] },
+    media: { mimeType: "image/jpeg", body: Readable.from(params.jpeg) },
+    fields: "id, webViewLink",
+  });
+  return { id: data.id!, url: data.webViewLink ?? "" };
+}

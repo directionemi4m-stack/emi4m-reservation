@@ -57,6 +57,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     suivisCham,
     bulletinsSignes,
     locationsNonPayees,
+    biensInventaire,
   ] = await Promise.all([
     db.demandeCreneau.count({
       where: { statut: "VALIDEE", date: { gte: aujourdHui, lt: finSemaine }, demande: { profId: userId } },
@@ -88,6 +89,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     estAdmin
       ? db.locationInstrument.count({ where: { anneeDebut: periodeBulletins.anneeDebut, paye: false } })
       : Promise.resolve(0),
+    estAdmin ? db.articleInventaire.count({ where: { etat: { not: "SORTI" } } }) : Promise.resolve(0),
   ]);
 
   const ficheManquante = CHAMPS_FICHE.filter((c) => !identite?.[c]).length;
@@ -139,6 +141,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     "/admin/demandes": { statut: aTraiter ? pluriel(aTraiter, "demande") : "Rien à traiter", pastille: aTraiter || undefined },
     "/admin/parametres/profs": { statut: invitations ? pluriel(invitations, "invitation") : "Comptes à jour" },
     "/admin/locations": { statut: locationsNonPayees ? `${locationsNonPayees} non payée${locationsNonPayees > 1 ? "s" : ""}` : "Tout est payé" },
+    "/admin/inventaire": { statut: `${biensInventaire} bien${biensInventaire > 1 ? "s" : ""}` },
     "/admin/parametres": { statut: "Salles, trajets…" },
   };
 }

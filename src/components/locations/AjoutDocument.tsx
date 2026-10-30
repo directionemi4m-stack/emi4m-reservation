@@ -3,22 +3,12 @@
 import { useRef, useState, useTransition } from "react";
 import { IconCamera, IconFileTypePdf, IconPhoto } from "@tabler/icons-react";
 import { deposerDocument } from "@/app/(app)/admin/locations/actions";
+import { reduirePhoto } from "@/lib/imageNavigateur";
 
 const LIBELLES = ["Contrat de location", "Attestation d'assurance", "Caution", "Règlement", "Autre"];
 
-// Réduit une photo de téléphone (souvent 4 à 8 Mo) à 2000 px de côté en JPEG, remise à
-// l'endroit : l'envoi est rapide même en 4G et reste lisible une fois archivé en PDF.
-async function compresser(fichier: File): Promise<Blob> {
-  const image = await createImageBitmap(fichier);
-  const echelle = Math.min(1, 2000 / Math.max(image.width, image.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(image.width * echelle);
-  canvas.height = Math.round(image.height * echelle);
-  canvas.getContext("2d")!.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return new Promise((resoudre, rejeter) =>
-    canvas.toBlob((b) => (b ? resoudre(b) : rejeter(new Error("conversion"))), "image/jpeg", 0.82)
-  );
-}
+// 2000 px de côté : lisible une fois archivé en PDF.
+const compresser = (fichier: File) => reduirePhoto(fichier, 2000);
 
 // Archive un document rendu par la famille : un PDF, ou une ou plusieurs photos du papier
 // (une page par photo) regroupées en un seul PDF dans le dossier Drive de la location.
