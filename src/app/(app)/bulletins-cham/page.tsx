@@ -14,6 +14,11 @@ import {
 import { retirerSuivi } from "@/app/(app)/bulletins-cham/actions";
 import { AjouterSuiviForm } from "@/components/bulletins/FormsBulletin";
 import { ActiverNotifications } from "@/components/notifications/ActiverNotifications";
+import { EnvoiFamilles } from "@/components/bulletins/EnvoiFamilles";
+import { etatsEnvoi } from "@/lib/bulletinsChamServeur";
+
+// L'envoi groupé des bulletins (un mail avec PDF par élève) peut prendre une minute.
+export const maxDuration = 300;
 
 const ordreMatiere = (m: string) => MATIERES_CHAM.findIndex((x) => x.valeur === m);
 const dateCourte = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" });
@@ -29,7 +34,7 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
   const periode = { anneeDebut: courante.anneeDebut, trimestre: [1, 2, 3].includes(t) ? t : courante.trimestre };
   const ouverte = campagneOuverte(new Date(), periode.anneeDebut, periode.trimestre);
 
-  const [eleves, mesSuivis, mesAppreciations, tousSuivis, toutesAppreciations, bulletins] = await Promise.all([
+  const [eleves, mesSuivis, mesAppreciations, tousSuivis, toutesAppreciations, bulletins, envois] = await Promise.all([
     db.eleveCham.findMany({ orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true } }),
     db.suiviCham.findMany({ where: { profId: userId }, include: { eleve: { select: { prenom: true, nom: true } } } }),
     db.appreciationCham.findMany({ where: { profId: userId, ...periode }, select: { eleveId: true, matiere: true, signeLe: true } }),
@@ -40,6 +45,7 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
     estAdmin
       ? db.bulletinCham.findMany({ where: periode, select: { eleveId: true, signeDirectionLe: true, documentUrl: true } })
       : Promise.resolve([]),
+    estAdmin ? etatsEnvoi(periode.anneeDebut, periode.trimestre) : Promise.resolve(null),
   ]);
 
   const signeLe = new Map(mesAppreciations.map((a) => [`${a.eleveId}|${a.matiere}`, a.signeLe]));
@@ -125,6 +131,14 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
       </section>
 
       <ActiverNotifications bloque={impersonation} />
+
+      {estAdmin && envois && (
+        <EnvoiFamilles
+          lignes={envois.map((e) => ({ ...e, envoyeLe: e.envoyeLe?.toISOString() ?? null }))}
+          periode={periode}
+          libellePeriode={libellePeriode(periode.anneeDebut, periode.trimestre)}
+        />
+      )}
 
       {estAdmin && (
         <SuiviDirection

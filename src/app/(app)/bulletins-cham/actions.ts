@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { lireSignature, MATIERES_CHAM, periodeCourante, type MatiereCham } from "@/lib/bulletinsCham";
-import { compilerBulletin } from "@/lib/bulletinsChamServeur";
+import { compilerBulletin, envoyerBulletinFamille, etatsEnvoi } from "@/lib/bulletinsChamServeur";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -168,6 +168,64 @@ export async function signerBilan(_etat: EtatAction, formData: FormData): Promis
   revalidatePath("/bulletins-cham");
   revalidatePath(`/bulletins-cham/${eleveId}`);
   return { succes: true, message: avertissement ?? "Bilan signé et bulletin mis à jour." };
+}
+
+// --- Envoi aux familles (direction) ---
+
+async function exigerDirection(): Promise<EtatAction | null> {
+  const s = await session();
+  if (s.user.role !== "ADMIN") return { succes: false, message: "Réservé à la direction." };
+  if (s.user.impersonation) return { succes: false, message: "Impossible en mode « connecté en tant que »." };
+  return null;
+}
+
+// Envoie, un mail par élève, tous les bulletins complets pas encore envoyés. Les bulletins
+// incomplets ou sans adresse sont laissés de côté.
+export async function envoyerBulletinsPrets(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const refus = await exigerDirection();
+  if (refus) return refus;
+  const periode = lirePeriode(formData);
+  if (!periode) return { succes: false, message: "Trimestre invalide." };
+
+  const prets = (await etatsEnvoi(periode.anneeDebut, periode.trimestre)).filter((e) => e.etat === "pret");
+  if (prets.length === 0) return { succes: false, message: "Aucun bulletin complet à envoyer." };
+
+  const echecs: string[] = [];
+  for (const e of prets) {
+    try {
+      await envoyerBulletinFamille(e.eleveId, periode.anneeDebut, periode.trimestre);
+    } catch (erreur) {
+      console.error(`Bulletin CHAM non envoyé (${e.libelle}) :`, erreur);
+      echecs.push(e.libelle);
+    }
+  }
+  revalidatePath("/bulletins-cham");
+  const envoyes = prets.length - echecs.length;
+  return echecs.length
+    ? { succes: false, message: `${envoyes} bulletin(s) envoyé(s). Échec pour : ${echecs.join(", ")}.` }
+    : { succes: true, message: `${envoyes} bulletin${envoyes > 1 ? "s" : ""} envoyé${envoyes > 1 ? "s" : ""} aux familles.` };
+}
+
+// Envoi (ou renvoi) du bulletin d'un seul élève, s'il est complet.
+export async function envoyerUnBulletin(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const refus = await exigerDirection();
+  if (refus) return refus;
+  const periode = lirePeriode(formData);
+  if (!periode) return { succes: false, message: "Trimestre invalide." };
+  const eleveId = champ(formData, "eleveId");
+
+  const etat = (await etatsEnvoi(periode.anneeDebut, periode.trimestre)).find((e) => e.eleveId === eleveId);
+  if (!etat) return { succes: false, message: "Élève introuvable." };
+  if (etat.manque.length > 0) return { succes: false, message: `Bulletin incomplet : ${etat.manque.join(", ")}.` };
+
+  try {
+    await envoyerBulletinFamille(eleveId, periode.anneeDebut, periode.trimestre);
+  } catch (erreur) {
+    console.error(`Bulletin CHAM non envoyé (${etat.libelle}) :`, erreur);
+    return { succes: false, message: erreur instanceof Error ? erreur.message : "Envoi impossible." };
+  }
+  revalidatePath("/bulletins-cham");
+  return { succes: true, message: "Envoyé." };
 }
 
 export async function recompilerBulletin(_etat: EtatAction, formData: FormData): Promise<EtatAction> {

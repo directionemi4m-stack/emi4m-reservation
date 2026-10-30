@@ -532,6 +532,9 @@ model BulletinCham {
   documentDriveId    String?
   documentUrl        String?
   documentMajLe      DateTime?
+  // Dernier envoi du bulletin à la famille (mail avec le PDF en pièce jointe).
+  envoyeLe           DateTime?
+  envoyeA            String?
 
   @@unique([eleveId, anneeDebut, trimestre])
 }
