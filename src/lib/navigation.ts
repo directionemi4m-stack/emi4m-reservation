@@ -32,7 +32,8 @@ export type CleIcone =
   | "evenement"
   | "forfait"
   | "drive"
-  | "journal";
+  | "journal"
+  | "bulletin";
 
 export interface LienNav {
   href: string;
@@ -70,6 +71,7 @@ export const SECTIONS: SectionNav[] = [
     liens: [
       { href: "/saison", label: "Saison", icone: "saison", couleur: "neutre" },
       { href: "/cham", label: "CHAM", icone: "ecole", couleur: "neutre" },
+      { href: "/bulletins-cham", label: "Bulletins CHAM", icone: "bulletin", couleur: "vert" },
       { href: "/annuaire", label: "Annuaire", icone: "annuaire", couleur: "neutre" },
       { href: "/securite", label: "Sécurité", icone: "securite", couleur: "neutre" },
     ],

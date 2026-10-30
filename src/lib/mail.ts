@@ -316,11 +316,13 @@ function htmlLienMotDePasse({
   intro,
   url,
   libelleBouton,
+  mention = "Ce lien est valable 24h et à usage unique.",
 }: {
   titre: string;
   intro: string;
   url: string;
   libelleBouton: string;
+  mention?: string;
 }) {
   return `
 <body style="background:#f4f6f8;padding:32px 0;font-family:Arial,Helvetica,sans-serif;">
@@ -343,7 +345,7 @@ function htmlLienMotDePasse({
                   </td>
                 </tr>
               </table>
-              <p style="margin:24px 0 0;font-size:13px;color:#7f8c8d;">Ce lien est valable 24h et à usage unique.</p>
+              ${mention ? `<p style="margin:24px 0 0;font-size:13px;color:#7f8c8d;">${mention}</p>` : ""}
             </td>
           </tr>
         </table>
@@ -406,4 +408,43 @@ function htmlDecision({ couleur, titre, corps }: { couleur: string; titre: strin
     </tr>
   </table>
 </body>`;
+}
+
+// Rappel des bulletins CHAM : annonce le 15 (à tous les profs), relance 4 jours après
+// (seulement à ceux dont des bulletins ne sont pas encore signés).
+export async function envoyerMailRappelBulletins(params: {
+  prof: { prenom: string; email: string };
+  periode: string; // « 1er trimestre 2026/2027 »
+  type: "OUVERTURE" | "RELANCE";
+  aRemplir: string[]; // « MARTIN Léa — Piano »
+  url: string;
+}) {
+  const { prof, periode, type, aRemplir, url } = params;
+  const transport = creerTransporteur();
+  const echapper = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const intro =
+    type === "OUVERTURE"
+      ? `C'est le moment de remplir les bulletins CHAM du ${periode}.`
+      : `Petit rappel : certains de vos bulletins CHAM du ${periode} ne sont pas encore signés.`;
+  const consigne =
+    aRemplir.length > 0
+      ? "Il vous reste à remplir et signer :"
+      : "Si vous suivez des élèves CHAM, ajoutez-les dans l'appli (page « Bulletins CHAM ») puis remplissez et signez leur bulletin.";
+
+  await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    subject: type === "OUVERTURE" ? `Bulletins CHAM — ${periode}` : `Rappel : bulletins CHAM à signer — ${periode}`,
+    text: `Bonjour ${prof.prenom},\n\n${intro}\n\n${consigne}\n${aRemplir.map((l) => `- ${l}`).join("\n")}\n\n${url}\n\nDirection EMI4M`,
+    html: htmlLienMotDePasse({
+      titre: type === "OUVERTURE" ? "Bulletins CHAM à remplir" : "Rappel : bulletins CHAM",
+      intro: `Bonjour ${echapper(prof.prenom)},<br><br>${echapper(intro)}<br><br>${echapper(consigne)}${
+        aRemplir.length ? `<ul style="margin:8px 0 0;padding-left:20px;">${aRemplir.map((l) => `<li>${echapper(l)}</li>`).join("")}</ul>` : ""
+      }`,
+      url,
+      libelleBouton: "Ouvrir les bulletins",
+      mention: "",
+    }),
+  });
 }

@@ -101,6 +101,12 @@ model User {
   heuresHebdoContrats HeuresHebdoContrat[]
 
   inscriptionsHeureMusicale InscriptionHeureMusicale[]
+
+  suivisCham        SuiviCham[]
+  appreciationsCham AppreciationCham[]
+  signatureBulletin SignatureBulletin?
+  bilansChamSignes  BulletinCham[]     @relation("BilanDirection")
+  abonnementsPush   AbonnementPush[]
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -447,7 +453,113 @@ model EleveCham {
   creeLe                  DateTime               @default(now())
   majLe                   DateTime               @updatedAt
 
+  suivis        SuiviCham[]
+  appreciations AppreciationCham[]
+  bulletins     BulletinCham[]
+
   @@index([nom, prenom])
+}
+
+// --- Bulletins CHAM ---
+
+// Les rubriques du bulletin, dans l'ordre du modèle papier.
+enum MatiereCham {
+  FORMATION_MUSICALE
+  INSTRUMENT
+  HISTOIRE_MUSIQUE
+  PRATIQUES_COLLECTIVES
+}
+
+// Un prof déclare lui-même les élèves CHAM qu'il suit, et dans quelle rubrique. La liste
+// est gardée d'un trimestre à l'autre ; c'est elle qui dit quels bulletins il lui reste à
+// remplir (et donc à qui envoyer les relances).
+model SuiviCham {
+  id        String      @id @default(cuid())
+  eleveId   String
+  eleve     EleveCham   @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  profId    String
+  prof      User        @relation(fields: [profId], references: [id], onDelete: Cascade)
+  matiere   MatiereCham
+  precision String? // ex. « Piano », « Orchestre », « Chorale »
+  creeLe    DateTime    @default(now())
+
+  @@unique([eleveId, profId, matiere])
+  @@index([profId])
+}
+
+// La partie d'un prof dans le bulletin d'un élève, pour un trimestre : appréciation et
+// signature manuscrite (PNG dessiné à l'écran). Modifier le texte oblige à re-signer.
+model AppreciationCham {
+  id         String      @id @default(cuid())
+  eleveId    String
+  eleve      EleveCham   @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  profId     String
+  prof       User        @relation(fields: [profId], references: [id], onDelete: Cascade)
+  matiere    MatiereCham
+  precision  String?
+  anneeDebut Int // 2026 pour 2026-2027
+  trimestre  Int // 1, 2 ou 3
+  texte      String
+  signature  Bytes
+  signeLe    DateTime
+
+  @@unique([eleveId, profId, matiere, anneeDebut, trimestre])
+  @@index([anneeDebut, trimestre])
+}
+
+// Dernière signature dessinée par un prof : proposée d'office pour les bulletins suivants.
+// Table à part pour ne pas charger l'image à chaque lecture d'un utilisateur.
+model SignatureBulletin {
+  userId String   @id
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  image  Bytes
+  majLe  DateTime @updatedAt
+}
+
+// Le bulletin d'un élève pour un trimestre : bilan et signature de la direction, et le
+// PDF compilé (toutes les parties et toutes les signatures) déposé dans le Drive.
+model BulletinCham {
+  id                 String    @id @default(cuid())
+  eleveId            String
+  eleve              EleveCham @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  anneeDebut         Int
+  trimestre          Int
+  bilan              String?
+  signatureDirection Bytes?
+  directionId        String?
+  direction          User?     @relation("BilanDirection", fields: [directionId], references: [id])
+  signeDirectionLe   DateTime?
+  documentDriveId    String?
+  documentUrl        String?
+  documentMajLe      DateTime?
+
+  @@unique([eleveId, anneeDebut, trimestre])
+}
+
+// Abonnement d'un appareil aux notifications (Web Push) : un prof peut en avoir plusieurs
+// (téléphone, ordinateur). Supprimé dès que le navigateur le déclare expiré.
+model AbonnementPush {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint String   @unique
+  p256dh   String
+  auth     String
+  creeLe   DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Trace des envois de rappels de bulletins, pour ne jamais envoyer deux fois le même
+// (le cron peut être relancé, ou rattraper un jour manqué).
+model RappelBulletinCham {
+  id         String   @id @default(cuid())
+  anneeDebut Int
+  trimestre  Int
+  type       String // « OUVERTURE » (le 15) ou « RELANCE » (4 jours après)
+  envoyeLe   DateTime @default(now())
+
+  @@unique([anneeDebut, trimestre, type])
 }
 
 // --- Activité accessoire ---

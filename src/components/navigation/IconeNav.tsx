@@ -10,6 +10,7 @@ import {
   IconClock,
   IconDoor,
   IconDots,
+  IconFileCertificate,
   IconHistory,
   IconHome,
   IconHourglass,
@@ -55,6 +56,7 @@ const ICONES: Record<CleIcone, typeof IconHome> = {
   forfait: IconHourglass,
   drive: IconBrandGoogleDrive,
   journal: IconHistory,
+  bulletin: IconFileCertificate,
 };
 
 // Pastille ronde colorée derrière l'icône, comme sur Home Assistant.

@@ -7,9 +7,9 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "EMI4M Salles",
     description:
       "Réservation et occupation des salles de l'École de Musique Itinérante des 4 Montagnes",
-    // "/" est désormais la page d'accueil publique : l'appli installée s'ouvre directement
-    // sur le planning (ou la connexion si la session a expiré).
-    start_url: "/planning",
+    // "/" est la page d'accueil publique : l'appli installée s'ouvre directement sur
+    // l'accueil en tuiles (ou la connexion si la session a expiré).
+    start_url: "/accueil",
     display: "standalone",
     background_color: "#2C3E50",
     theme_color: "#2C3E50",

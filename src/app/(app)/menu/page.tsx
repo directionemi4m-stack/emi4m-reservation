@@ -2,6 +2,7 @@ import { IconLogout } from "@tabler/icons-react";
 import { auth, signOut } from "@/lib/auth";
 import { PARAMETRES, sectionsPour } from "@/lib/navigation";
 import { GrilleTuiles, Tuile } from "@/components/navigation/Tuile";
+import { ActiverNotifications } from "@/components/notifications/ActiverNotifications";
 
 // Écran « Plus » du téléphone : toute l'appli en tuiles, sans les lignes d'état (la page
 // d'accueil les montre déjà).
@@ -32,6 +33,7 @@ export default async function MenuPage() {
           </GrilleTuiles>
         </section>
       ))}
+      <ActiverNotifications bloque={Boolean(session!.user.impersonation)} />
       <form action={deconnexion}>
         <button
           type="submit"

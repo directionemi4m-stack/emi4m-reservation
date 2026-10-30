@@ -3,6 +3,7 @@ import { formaterDuree, volumeHebdoMinutes } from "@/lib/agenda";
 import { dureeEnMinutes } from "@/lib/activiteAccessoire";
 import { ajouterJours, lundiDe } from "@/lib/planning";
 import { libelleTypeEvenement } from "@/lib/saison";
+import { campagneOuverte, periodeCourante } from "@/lib/bulletinsCham";
 
 export interface EtatTuile {
   statut?: string;
@@ -37,6 +38,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
   const finSemaine = ajouterJours(lundiDe(aujourdHui), 7);
   const debutMois = new Date(Date.UTC(aujourdHui.getUTCFullYear(), aujourdHui.getUTCMonth(), 1));
   const finMois = new Date(Date.UTC(aujourdHui.getUTCFullYear(), aujourdHui.getUTCMonth() + 1, 1));
+  const periodeBulletins = periodeCourante(aujourdHui);
 
   const [
     reservations,
@@ -52,6 +54,8 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     codeAlarme,
     aTraiter,
     invitations,
+    suivisCham,
+    bulletinsSignes,
   ] = await Promise.all([
     db.demandeCreneau.count({
       where: { statut: "VALIDEE", date: { gte: aujourdHui, lt: finSemaine }, demande: { profId: userId } },
@@ -78,11 +82,15 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     db.codeAlarme.findUnique({ where: { userId }, select: { id: true } }),
     estAdmin ? db.demandeCreneau.count({ where: { statut: "EN_ATTENTE" } }) : Promise.resolve(0),
     estAdmin ? db.user.count({ where: { actif: true, motDePasseHash: null } }) : Promise.resolve(0),
+    db.suiviCham.count({ where: { profId: userId } }),
+    db.appreciationCham.count({ where: { profId: userId, ...periodeBulletins } }),
   ]);
 
   const ficheManquante = CHAMPS_FICHE.filter((c) => !identite?.[c]).length;
   const minutesActivite = activites.reduce((s, a) => s + dureeEnMinutes(a.duree), 0);
   const volume = volumeHebdoMinutes(creneaux);
+  const bulletinsRestants = Math.max(0, suivisCham - bulletinsSignes);
+  const campagne = campagneOuverte(aujourdHui, periodeBulletins.anneeDebut, periodeBulletins.trimestre);
 
   return {
     "/planning": { statut: reservations ? `${pluriel(reservations, "réservation")} cette sem.` : "Voir les salles" },
@@ -113,6 +121,15 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
         : "Aucun événement à venir",
     },
     "/cham": { statut: pluriel(nbCham, "élève") },
+    "/bulletins-cham": {
+      statut:
+        suivisCham === 0
+          ? "Ajouter mes élèves"
+          : bulletinsRestants === 0
+            ? `T${periodeBulletins.trimestre} : tout est signé`
+            : `T${periodeBulletins.trimestre} : ${bulletinsRestants} à signer`,
+      pastille: campagne && bulletinsRestants ? bulletinsRestants : undefined,
+    },
     "/annuaire": { statut: pluriel(nbCollegues, "collègue") },
     "/securite": { statut: codeAlarme ? "Code alarme Lans" : "Consignes Villard" },
     "/admin/demandes": { statut: aTraiter ? pluriel(aTraiter, "demande") : "Rien à traiter", pastille: aTraiter || undefined },

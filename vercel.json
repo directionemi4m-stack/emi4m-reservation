@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/verifier-drive", "schedule": "0 7 * * *" },
-    { "path": "/api/cron/synchroniser-vacances", "schedule": "0 6 * * 1" }
+    { "path": "/api/cron/synchroniser-vacances", "schedule": "0 6 * * 1" },
+    { "path": "/api/cron/rappels-bulletins", "schedule": "0 7 * * *" }
   ]
 }
