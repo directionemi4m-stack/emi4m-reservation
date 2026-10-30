@@ -70,7 +70,7 @@ export async function genererBulletinPdf(donnees: DonneesBulletin): Promise<Uint
   };
 
   // --- En-tête ---
-  const logos = await Promise.all([LOGO_EMI4M, LOGO_VERCORS, LOGO_ISERE].map((b64) => pdf.embedJpg(Buffer.from(b64, "base64"))));
+  const logos = await Promise.all([LOGO_EMI4M, LOGO_VERCORS, LOGO_ISERE].map((b64) => pdf.embedJpg(copieIndependante(Buffer.from(b64, "base64")))));
   const hauteurLogo = 52;
   const [emi4m, vercors, isere] = logos.map((l) => ({ image: l, largeur: (l.width * hauteurLogo) / l.height }));
   page.drawImage(emi4m.image, { x: MARGE, y: y - hauteurLogo, width: emi4m.largeur, height: hauteurLogo });
@@ -113,7 +113,7 @@ export async function genererBulletinPdf(donnees: DonneesBulletin): Promise<Uint
   else paragraphe("Non renseigné", 9, italique, GRIS);
 
   // --- Signatures ---
-  const embarquer = (png: Uint8Array) => pdf.embedPng(png);
+  const embarquer = (png: Uint8Array) => pdf.embedPng(copieIndependante(png));
   const cadre = async (x: number, haut: number, image: PDFImage | null, nom: string, sousTitre: string) => {
     const l = 150;
     const h = 52;
@@ -162,6 +162,14 @@ export async function genererBulletinPdf(donnees: DonneesBulletin): Promise<Uint
   for (const p of pdf.getPages()) dessinerPied(p, nettoyer(genere, normale), normale);
 
   return pdf.save();
+}
+
+// pdf-lib lit les images depuis le début de leur zone mémoire (image.buffer), sans tenir
+// compte de leur position dans cette zone. Or un Buffer Node ou un champ Bytes de Prisma
+// peut n'être qu'une portion d'une zone plus grande : on lui passe donc toujours une copie
+// qui commence au début de sa propre zone. (Sans cela : « SOI not found in JPEG ».)
+export function copieIndependante(octets: Uint8Array): Uint8Array {
+  return Uint8Array.from(octets);
 }
 
 function dessinerPied(page: PDFPage, texte: string, police: PDFFont) {
