@@ -12,6 +12,7 @@ import {
 import { libelleJourCours, libelleJourSemaine } from "@/lib/joursSemaine";
 import { formaterDuree, heuresDecimales, minutesHebdo, minutesVersHeure, volumeHebdoMinutes } from "@/lib/agenda";
 import { formaterMinutage, grouperParMois, libelleLieu, libelleTypeEvenement } from "@/lib/saison";
+import { celluleTexte, libelleAnneeLocation, libelleModePaiement, libelleSaison } from "@/lib/locations";
 
 const LIBELLES_STATUT: Record<StatutPresence, string> = {
   PRESENT: "Présent",
@@ -1004,4 +1005,172 @@ export async function supprimerOngletSaison(sheetId: number) {
   const { data } = await sheets.spreadsheets.get({ spreadsheetId: idFeuille, fields: "sheets(properties(sheetId))" });
   if (!data.sheets?.some((s) => s.properties?.sheetId === sheetId)) return;
   await sheets.spreadsheets.batchUpdate({ spreadsheetId: idFeuille, requestBody: { requests: [{ deleteSheet: { sheetId } }] } });
+}
+
+// --- Locations d'instruments ---
+
+// Classeur « Locations instruments » : un onglet « Locations » et un onglet « En attente »
+// par saison, la saison la plus récente en premier. Réservé à la direction (familles).
+function creerClientLocations() {
+  return creerClientSheets(process.env.GOOGLE_SHEETS_LOCATIONS_ID);
+}
+
+const VERT_CLAIR = { red: 0.85, green: 0.94, blue: 0.86 };
+const ROUGE_CLAIR = { red: 0.98, green: 0.87, blue: 0.86 };
+const GRIS_ENTETE = { red: 0.17, green: 0.24, blue: 0.31 };
+
+async function ongletLocations(sheets: ReturnType<typeof google.sheets>, idFeuille: string, titre: string, index: number) {
+  const existant = await idOngletExistant(sheets, idFeuille, titre);
+  if (existant !== null) return existant;
+  const { data } = await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: idFeuille,
+    requestBody: { requests: [{ addSheet: { properties: { title: titre, index, gridProperties: { frozenRowCount: 3 } } } }] },
+  });
+  return data.replies?.[0]?.addSheet?.properties?.sheetId ?? null;
+}
+
+// Réécrit les deux onglets d'une saison à partir de l'appli (seule source de vérité).
+export async function synchroniserLocations(anneeDebut: number) {
+  const client = creerClientLocations();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+  const saison = libelleSaison(anneeDebut);
+
+  const [locations, demandes] = await Promise.all([
+    db.locationInstrument.findMany({
+      where: { anneeDebut },
+      include: { _count: { select: { documents: true } } },
+      orderBy: [{ instrument: "asc" }, { nom: "asc" }, { prenom: "asc" }],
+    }),
+    db.demandeLocation.findMany({ where: { anneeDebut }, orderBy: [{ instrument: "asc" }, { nom: "asc" }] }),
+  ]);
+
+  // --- Onglet Locations ---
+  const titreLoc = `Locations ${saison}`;
+  const idLoc = await ongletLocations(sheets, idFeuille, titreLoc, 0);
+  if (idLoc === null) return;
+  const entete = ["Instrument", "Prénom", "Nom", "Année loc.", "Nb de mois", "Payé", "Paiement", "Commentaire", "Documents"];
+  const lignes: (string | number)[][] = [
+    [`Suivi des locations d'instruments · ${saison}`],
+    ["École Musicale Itinérante des 4 Montagnes"],
+    entete,
+    ...locations.map((l) => [
+      celluleTexte(l.instrument),
+      celluleTexte(l.prenom),
+      celluleTexte(l.nom),
+      libelleAnneeLocation(l.anneeLocation),
+      l.nbMois ?? "",
+      l.paye ? "Oui" : "Non",
+      libelleModePaiement(l.modePaiement),
+      celluleTexte(l.commentaire),
+      l.dossierDriveUrl && l._count.documents > 0
+        ? `=HYPERLINK("${l.dossierDriveUrl.replace(/"/g, "")}";"${l._count.documents} document${l._count.documents > 1 ? "s" : ""}")`
+        : "",
+    ]),
+  ];
+  const payees = locations.filter((l) => l.paye).length;
+  lignes.push([], [`Total : ${locations.length} location${locations.length > 1 ? "s" : ""} · payées : ${payees} · non payées : ${locations.length - payees}`]);
+
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titreLoc}'` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titreLoc}'!A1`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: lignes },
+  });
+
+  const blanc = { red: 1, green: 1, blue: 1 };
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: idFeuille,
+    requestBody: {
+      requests: [
+        // Remise à zéro de la mise en forme, puis titre, en-tête et colonne « Payé » colorée.
+        { repeatCell: { range: { sheetId: idLoc }, cell: { userEnteredFormat: {} }, fields: "userEnteredFormat" } },
+        {
+          repeatCell: {
+            range: { sheetId: idLoc, startRowIndex: 0, endRowIndex: 1 },
+            cell: { userEnteredFormat: { textFormat: { bold: true, fontSize: 14 } } },
+            fields: "userEnteredFormat.textFormat",
+          },
+        },
+        {
+          repeatCell: {
+            range: { sheetId: idLoc, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: entete.length },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: GRIS_ENTETE,
+                textFormat: { bold: true, foregroundColor: blanc },
+              },
+            },
+            fields: "userEnteredFormat(backgroundColor,textFormat)",
+          },
+        },
+        ...locations.map((l, i) => ({
+          repeatCell: {
+            range: { sheetId: idLoc, startRowIndex: 3 + i, endRowIndex: 4 + i, startColumnIndex: 5, endColumnIndex: 6 },
+            cell: { userEnteredFormat: { backgroundColor: l.paye ? VERT_CLAIR : ROUGE_CLAIR, horizontalAlignment: "CENTER" } },
+            fields: "userEnteredFormat(backgroundColor,horizontalAlignment)",
+          },
+        })),
+        {
+          repeatCell: {
+            range: { sheetId: idLoc, startRowIndex: lignes.length - 1, endRowIndex: lignes.length },
+            cell: { userEnteredFormat: { textFormat: { bold: true } } },
+            fields: "userEnteredFormat.textFormat",
+          },
+        },
+        { updateSheetProperties: { properties: { sheetId: idLoc, gridProperties: { frozenRowCount: 3 } }, fields: "gridProperties.frozenRowCount" } },
+        { autoResizeDimensions: { dimensions: { sheetId: idLoc, dimension: "COLUMNS", startIndex: 0, endIndex: entete.length } } },
+      ],
+    },
+  });
+  await verrouillerOnglet(sheets, idFeuille, titreLoc, {});
+
+  // --- Onglet En attente ---
+  const titreAtt = `En attente ${saison}`;
+  const idAtt = await ongletLocations(sheets, idFeuille, titreAtt, 1);
+  if (idAtt === null) return;
+  const enteteAtt = ["Instrument souhaité", "Prénom", "Nom", "Commentaire", "Demandé le"];
+  const lignesAtt: (string | number)[][] = [
+    [`Demandes en attente · ${saison}`],
+    ["École Musicale Itinérante des 4 Montagnes"],
+    enteteAtt,
+    ...demandes.map((d) => [
+      celluleTexte(d.instrument),
+      celluleTexte(d.prenom),
+      celluleTexte(d.nom),
+      celluleTexte(d.commentaire),
+      d.creeLe.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }),
+    ]),
+  ];
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titreAtt}'` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titreAtt}'!A1`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: lignesAtt },
+  });
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: idFeuille,
+    requestBody: {
+      requests: [
+        {
+          repeatCell: {
+            range: { sheetId: idAtt, startRowIndex: 0, endRowIndex: 1 },
+            cell: { userEnteredFormat: { textFormat: { bold: true, fontSize: 14 } } },
+            fields: "userEnteredFormat.textFormat",
+          },
+        },
+        {
+          repeatCell: {
+            range: { sheetId: idAtt, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: enteteAtt.length },
+            cell: { userEnteredFormat: { backgroundColor: GRIS_ENTETE, textFormat: { bold: true, foregroundColor: blanc } } },
+            fields: "userEnteredFormat(backgroundColor,textFormat)",
+          },
+        },
+        { autoResizeDimensions: { dimensions: { sheetId: idAtt, dimension: "COLUMNS", startIndex: 0, endIndex: enteteAtt.length } } },
+      ],
+    },
+  });
+  await verrouillerOnglet(sheets, idFeuille, titreAtt, {});
 }

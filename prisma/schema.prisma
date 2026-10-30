@@ -755,3 +755,63 @@ model InscriptionHeureMusicale {
 
   @@index([evenementId, ordre])
 }
+
+// --- Locations d'instruments ---
+
+enum ModePaiementLocation {
+  CHEQUE
+  VIREMENT
+}
+
+// Une location d'instrument pour une saison (2026 = 2026-2027). Une ligne par élève et par
+// saison : d'une année sur l'autre, la location est reconduite en nouvelle ligne, ce qui
+// garde l'historique complet. Réservé à la direction (données des familles).
+model LocationInstrument {
+  id              String                @id @default(cuid())
+  anneeDebut      Int
+  instrument      String
+  prenom          String
+  nom             String
+  anneeLocation   Int // 1 = 1re année, 2 = 2e année, 3 = 3e année…
+  nbMois          Int? // 9 ou 12
+  paye            Boolean               @default(false)
+  modePaiement    ModePaiementLocation?
+  commentaire     String?
+  // Sous-dossier Drive de cette location (« Locations instruments / 2026-2027 / NOM Prénom — Instrument »).
+  dossierDriveId  String?
+  dossierDriveUrl String?
+  creeLe          DateTime              @default(now())
+  majLe           DateTime              @updatedAt
+
+  documents DocumentLocation[]
+
+  @@index([anneeDebut])
+  @@index([nom, prenom])
+}
+
+// Document rendu par la famille (contrat, attestation…), envoyé en PDF ou pris en photo,
+// archivé dans le dossier Drive de la location.
+model DocumentLocation {
+  id          String             @id @default(cuid())
+  locationId  String
+  location    LocationInstrument @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  nomFichier  String
+  driveFileId String
+  url         String
+  ajouteLe    DateTime           @default(now())
+
+  @@index([locationId])
+}
+
+// Demande de location en attente d'un instrument disponible.
+model DemandeLocation {
+  id          String   @id @default(cuid())
+  anneeDebut  Int
+  instrument  String
+  prenom      String
+  nom         String
+  commentaire String?
+  creeLe      DateTime @default(now())
+
+  @@index([anneeDebut])
+}

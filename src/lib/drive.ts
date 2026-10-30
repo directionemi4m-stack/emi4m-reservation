@@ -311,3 +311,77 @@ export async function deposerBulletinCham(params: {
   });
   return { id: fichier.id!, url: fichier.webViewLink ?? "" };
 }
+
+// --- Locations d'instruments : archive des documents rendus par les familles ---
+
+const NOM_DOSSIER_LOCATIONS = "Locations instruments";
+
+// Dossier racine « Locations instruments », créé par l'appli et retrouvé par son nom où que
+// la direction l'ait rangé ensuite (même principe que « Suivi CHAM »).
+async function dossierLocationsId(drive: ReturnType<typeof google.drive>) {
+  const { data } = await drive.files.list({
+    q: `name = '${NOM_DOSSIER_LOCATIONS}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id)",
+  });
+  if (data.files && data.files.length > 0) return data.files[0].id!;
+  const { data: dossier } = await drive.files.create({
+    requestBody: { name: NOM_DOSSIER_LOCATIONS, mimeType: "application/vnd.google-apps.folder" },
+    fields: "id",
+  });
+  return dossier.id!;
+}
+
+// Un sous-dossier par location : « Locations instruments / 2026-2027 / BLANCHARD Avril — Flûte ».
+// Créé au premier document et mémorisé sur la location ; recréé s'il a disparu.
+async function dossierDeLocation(drive: ReturnType<typeof google.drive>, locationId: string) {
+  const location = await db.locationInstrument.findUnique({ where: { id: locationId } });
+  if (!location) return null;
+
+  if (location.dossierDriveId) {
+    try {
+      const { data } = await drive.files.get({ fileId: location.dossierDriveId, fields: "id, trashed" });
+      if (!data.trashed) return location.dossierDriveId;
+    } catch {
+      // dossier supprimé : on le recrée ci-dessous
+    }
+  }
+
+  const racine = await dossierLocationsId(drive);
+  const saison = await dossierProfId(drive, racine, `${location.anneeDebut}-${location.anneeDebut + 1}`);
+  const nom = `${location.nom.toUpperCase()} ${location.prenom} — ${location.instrument}`.replace(/[\\/]/g, "-");
+  const dossierId = await dossierProfId(drive, saison, nom);
+  const { data } = await drive.files.get({ fileId: dossierId, fields: "webViewLink" });
+  await db.locationInstrument.update({
+    where: { id: locationId },
+    data: { dossierDriveId: dossierId, dossierDriveUrl: data.webViewLink ?? null },
+  });
+  return dossierId;
+}
+
+export async function deposerDocumentLocation(params: {
+  locationId: string;
+  nomFichier: string;
+  mimeType: string;
+  contenu: Buffer;
+}): Promise<{ id: string; url: string } | null> {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive } = client;
+
+  const dossierId = await dossierDeLocation(drive, params.locationId);
+  if (!dossierId) return null;
+  const { data } = await drive.files.create({
+    requestBody: { name: params.nomFichier, parents: [dossierId] },
+    media: { mimeType: params.mimeType, body: Readable.from(params.contenu) },
+    fields: "id, webViewLink",
+  });
+  return { id: data.id!, url: data.webViewLink ?? "" };
+}
+
+// Retrait d'un document : il part dans la corbeille du Drive (récupérable 30 jours), jamais
+// supprimé définitivement.
+export async function mettreALaCorbeilleDrive(fileId: string) {
+  const client = await creerClientDrive();
+  if (!client) return;
+  await client.drive.files.update({ fileId, requestBody: { trashed: true } });
+}
