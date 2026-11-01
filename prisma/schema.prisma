@@ -863,7 +863,8 @@ model ArticleInventaire {
   creeLe          DateTime            @default(now())
   majLe           DateTime            @updatedAt
 
-  photos PhotoInventaire[]
+  photos   PhotoInventaire[]
+  factures Facture[]
 
   @@index([categorie])
 }
@@ -880,4 +881,24 @@ model PhotoInventaire {
   ajouteLe    DateTime          @default(now())
 
   @@index([articleId])
+}
+
+// --- Achats : factures archivées ---
+
+// Facture d'achat, archivée en PDF dans le Drive (« Factures / 2026 / 2026-10-28_Thomann.pdf »).
+// Elle peut être rattachée à un ou plusieurs biens de l'inventaire, pour la traçabilité.
+model Facture {
+  id              String              @id @default(cuid())
+  date            DateTime            @db.Date
+  fournisseur     String
+  montantCentimes Int?
+  objet           String?
+  nomFichier      String
+  driveFileId     String
+  url             String
+  ajouteLe        DateTime            @default(now())
+  articles        ArticleInventaire[]
+
+  @@index([date])
+  @@index([fournisseur])
 }

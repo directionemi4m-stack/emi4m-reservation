@@ -5,15 +5,17 @@ import { ListeInventaire, type ArticleVue } from "@/components/inventaire/Invent
 // Inventaire du matériel de l'école, repris de l'inventaire des immobilisations du
 // comptable et complété sur le terrain (lieu, état, n° de série, photos). Direction seule.
 export default async function InventairePage() {
-  const [articles, lieux] = await Promise.all([
+  const [articles, lieux, factures] = await Promise.all([
     db.articleInventaire.findMany({
       include: {
         lieu: { select: { nom: true } },
         photos: { orderBy: { ajouteLe: "asc" }, select: { id: true, url: true } },
+        factures: { orderBy: { date: "asc" }, select: { id: true, nomFichier: true, url: true } },
       },
       orderBy: [{ numeroImmo: { sort: "asc", nulls: "last" } }, { designation: "asc" }],
     }),
     db.lieuPresence.findMany({ where: { actif: true }, orderBy: { nom: "asc" }, select: { id: true, nom: true } }),
+    db.facture.findMany({ orderBy: { date: "desc" }, select: { id: true, nomFichier: true, fournisseur: true } }),
   ]);
 
   const vues: ArticleVue[] = articles.map((a) => ({
@@ -33,7 +35,15 @@ export default async function InventairePage() {
     verifieLe: a.verifieLe?.toISOString() ?? null,
     dossierDriveUrl: a.dossierDriveUrl,
     photos: a.photos,
+    factures: a.factures,
   }));
+  const contexte = {
+    biens: articles
+      .filter((a) => a.etat !== "SORTI")
+      .map((a) => ({ id: a.id, libelle: a.numeroImmo !== null ? `N°${a.numeroImmo} · ${a.designation}` : a.designation })),
+    fournisseurs: [...new Set(factures.map((f) => f.fournisseur))].sort((a, b) => a.localeCompare(b, "fr")),
+    factures: factures.map((f) => ({ id: f.id, libelle: f.nomFichier })),
+  };
   const debut = new Date(Date.UTC(anneeScolaireDebut(new Date()), 8, 1)).toISOString();
 
   return (
@@ -45,7 +55,7 @@ export default async function InventairePage() {
           note la date du dernier contrôle.
         </p>
       </div>
-      <ListeInventaire articles={vues} lieux={lieux} debutAnneeScolaire={debut} />
+      <ListeInventaire articles={vues} lieux={lieux} debutAnneeScolaire={debut} contexte={contexte} />
     </div>
   );
 }

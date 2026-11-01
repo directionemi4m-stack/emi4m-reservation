@@ -13,6 +13,8 @@ import {
 } from "@/app/(app)/admin/inventaire/actions";
 import { CATEGORIES_INVENTAIRE, ETATS_MATERIEL, formaterEuros, libelleCategorie, libelleEtat } from "@/lib/inventaire";
 import { reduirePhoto } from "@/lib/imageNavigateur";
+import { lierFacture } from "@/app/(app)/admin/achats/actions";
+import { AjoutFacture, type OptionBien } from "@/components/achats/AjoutFacture";
 
 const etatInitial: EtatAction = { succes: true };
 const champClass =
@@ -39,6 +41,14 @@ export interface ArticleVue {
   verifieLe: string | null; // ISO
   dossierDriveUrl: string | null;
   photos: { id: string; url: string }[];
+  factures: { id: string; nomFichier: string; url: string }[];
+}
+
+// Ce qu'il faut pour rattacher des factures depuis une fiche de l'inventaire.
+export interface ContexteFactures {
+  biens: OptionBien[];
+  fournisseurs: string[];
+  factures: { id: string; libelle: string }[];
 }
 
 const dateFr = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" });
@@ -235,9 +245,66 @@ function AjoutPhotos({ articleId }: { articleId: string }) {
   );
 }
 
-function CarteArticle({ article, lieux }: { article: ArticleVue; lieux: { id: string; nom: string }[] }) {
+function FacturesArticle({ article, contexte }: { article: ArticleVue; contexte: ContexteFactures }) {
+  const deja = new Set(article.factures.map((f) => f.id));
+  const autres = contexte.factures.filter((f) => !deja.has(f.id));
+  return (
+    <div className="flex flex-col gap-2 rounded-md bg-slate-50 p-3">
+      {article.factures.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {article.factures.map((f) => (
+            <li key={f.id} className="flex items-center gap-2 text-sm">
+              <a href={f.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-mono text-xs text-brand-accent hover:underline">
+                {f.nomFichier}
+              </a>
+              <form action={lierFacture}>
+                <input type="hidden" name="articleId" value={article.id} />
+                <input type="hidden" name="factureId" value={f.id} />
+                <input type="hidden" name="delier" value="1" />
+                <button type="submit" className="text-xs text-slate-400 hover:text-status-occupee" title="La facture reste archivée">
+                  Détacher
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+      {autres.length > 0 && (
+        <form action={lierFacture} className="flex gap-2">
+          <input type="hidden" name="articleId" value={article.id} />
+          <select name="factureId" required defaultValue="" className={`${champClass} min-w-0 flex-1 py-1.5`}>
+            <option value="" disabled>
+              Rattacher une facture déjà archivée…
+            </option>
+            {autres.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.libelle}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className={boutonSecondaire}>
+            Rattacher
+          </button>
+        </form>
+      )}
+      <p className="text-xs text-slate-500">Ou une nouvelle facture, archivée aussi dans « Factures achats » :</p>
+      <AjoutFacture biens={contexte.biens} fournisseurs={contexte.fournisseurs} biensInitiaux={[article.id]} />
+    </div>
+  );
+}
+
+function CarteArticle({
+  article,
+  lieux,
+  contexte,
+}: {
+  article: ArticleVue;
+  lieux: { id: string; nom: string }[];
+  contexte: ContexteFactures;
+}) {
   const [edition, setEdition] = useState(false);
   const [photos, setPhotos] = useState(false);
+  const [factures, setFactures] = useState(false);
 
   if (edition) {
     return (
@@ -301,6 +368,11 @@ function CarteArticle({ article, lieux }: { article: ArticleVue; lieux: { id: st
         <button type="button" onClick={() => setPhotos((v) => !v)} className="text-xs font-medium text-brand-accent">
           {article.photos.length ? `${article.photos.length} photo${article.photos.length > 1 ? "s" : ""}` : "Ajouter une photo"}
         </button>
+        <button type="button" onClick={() => setFactures((v) => !v)} className="text-xs font-medium text-brand-accent">
+          {article.factures.length
+            ? `${article.factures.length} facture${article.factures.length > 1 ? "s" : ""}`
+            : "Ajouter une facture"}
+        </button>
         <button type="button" onClick={() => setEdition(true)} className="text-xs font-medium text-slate-600 hover:text-brand-slate">
           Modifier
         </button>
@@ -355,20 +427,24 @@ function CarteArticle({ article, lieux }: { article: ArticleVue; lieux: { id: st
           <AjoutPhotos articleId={article.id} />
         </div>
       )}
+
+      {factures && <FacturesArticle article={article} contexte={contexte} />}
     </li>
   );
 }
 
-type Filtre = "tous" | "sans_photo" | "sans_serie" | "non_verifie" | "a_reviser";
+type Filtre = "tous" | "sans_photo" | "sans_facture" | "sans_serie" | "non_verifie" | "a_reviser";
 
 export function ListeInventaire({
   articles,
   lieux,
   debutAnneeScolaire,
+  contexte,
 }: {
   articles: ArticleVue[];
   lieux: { id: string; nom: string }[];
   debutAnneeScolaire: string; // ISO : « vérifié cette année » = depuis le 1er septembre
+  contexte: ContexteFactures;
 }) {
   const [recherche, setRecherche] = useState("");
   const [categorie, setCategorie] = useState("");
@@ -381,6 +457,7 @@ export function ListeInventaire({
   const tests: Record<Filtre, (a: ArticleVue) => boolean> = {
     tous: () => true,
     sans_photo: (a) => a.photos.length === 0,
+    sans_facture: (a) => a.factures.length === 0,
     sans_serie: (a) => !a.numeroSerie,
     non_verifie: (a) => !a.verifieLe || a.verifieLe < debutAnneeScolaire,
     a_reviser: (a) => a.etat === "A_REVISER" || a.etat === "HORS_SERVICE",
@@ -406,6 +483,7 @@ export function ListeInventaire({
     { cle: "tous", label: "Tous" },
     { cle: "non_verifie", label: "Pas vus cette année" },
     { cle: "sans_photo", label: "Sans photo" },
+    { cle: "sans_facture", label: "Sans facture" },
     { cle: "sans_serie", label: "Sans n° de série" },
     { cle: "a_reviser", label: "À réviser / HS" },
   ];
@@ -481,7 +559,7 @@ export function ListeInventaire({
       ) : (
         <ul className="flex flex-col gap-2">
           {visibles.map((a) => (
-            <CarteArticle key={a.id} article={a} lieux={lieux} />
+            <CarteArticle key={a.id} article={a} lieux={lieux} contexte={contexte} />
           ))}
         </ul>
       )}

@@ -442,3 +442,40 @@ export async function deposerPhotoInventaire(params: {
   });
   return { id: data.id!, url: data.webViewLink ?? "" };
 }
+
+// --- Factures d'achat ---
+
+const NOM_DOSSIER_FACTURES = "Factures achats";
+
+// « Factures achats / 2026 / 2026-10-28_Thomann.pdf » : le dossier racine est retrouvé par son
+// nom où que la direction l'ait rangé.
+export async function deposerFacture(params: { annee: number; nomFichier: string; pdf: Buffer }) {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive } = client;
+  const { data: racines } = await drive.files.list({
+    q: `name = '${NOM_DOSSIER_FACTURES}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id)",
+  });
+  const racine =
+    racines.files?.[0]?.id ??
+    (
+      await drive.files.create({
+        requestBody: { name: NOM_DOSSIER_FACTURES, mimeType: "application/vnd.google-apps.folder" },
+        fields: "id",
+      })
+    ).data.id!;
+  const dossierAnnee = await dossierProfId(drive, racine, String(params.annee));
+  const { data } = await drive.files.create({
+    requestBody: { name: params.nomFichier, parents: [dossierAnnee] },
+    media: { mimeType: "application/pdf", body: Readable.from(params.pdf) },
+    fields: "id, webViewLink",
+  });
+  return { id: data.id!, url: data.webViewLink ?? "" };
+}
+
+export async function renommerFichierDrive(fileId: string, nom: string) {
+  const client = await creerClientDrive();
+  if (!client) return;
+  await client.drive.files.update({ fileId, requestBody: { name: nom } });
+}
