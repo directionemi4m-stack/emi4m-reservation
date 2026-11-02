@@ -3,6 +3,7 @@ import { formaterDuree, volumeHebdoMinutes } from "@/lib/agenda";
 import { dureeEnMinutes } from "@/lib/activiteAccessoire";
 import { ajouterJours, lundiDe } from "@/lib/planning";
 import { libelleTypeEvenement } from "@/lib/saison";
+import { DRIVE_PROFS } from "@/lib/navigation";
 import { campagneOuverte, periodeCourante } from "@/lib/bulletinsCham";
 
 export interface EtatTuile {
@@ -142,6 +143,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
             : `T${periodeBulletins.trimestre} : ${bulletinsRestants} à signer`,
       pastille: campagne && bulletinsRestants ? bulletinsRestants : undefined,
     },
+    [DRIVE_PROFS]: { statut: "Documents partagés" },
     "/annuaire": { statut: pluriel(nbCollegues, "collègue") },
     "/securite": { statut: codeAlarme ? "Code alarme Lans" : "Consignes Villard" },
     "/admin/demandes": { statut: aTraiter ? pluriel(aTraiter, "demande") : "Rien à traiter", pastille: aTraiter || undefined },

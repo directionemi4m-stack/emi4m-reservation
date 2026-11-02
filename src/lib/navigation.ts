@@ -44,7 +44,11 @@ export interface LienNav {
   label: string;
   icone: CleIcone;
   couleur: CouleurTuile;
+  externe?: boolean; // ouvert dans un nouvel onglet (ex. dossier Google Drive)
 }
+
+// Dossier Google Drive partagé avec les profs (documents communs).
+export const DRIVE_PROFS = "https://drive.google.com/drive/folders/1cY-r8qA6yMeIf3PNztUkgWMWVzL2OWSa?usp=sharing";
 
 export interface SectionNav {
   titre: string;
@@ -78,6 +82,7 @@ export const SECTIONS: SectionNav[] = [
       { href: "/bulletins-cham", label: "Bulletins CHAM", icone: "bulletin", couleur: "vert" },
       { href: "/annuaire", label: "Annuaire", icone: "annuaire", couleur: "neutre" },
       { href: "/securite", label: "Sécurité", icone: "securite", couleur: "neutre" },
+      { href: DRIVE_PROFS, label: "Drive des profs", icone: "drive", couleur: "neutre", externe: true },
     ],
   },
   {

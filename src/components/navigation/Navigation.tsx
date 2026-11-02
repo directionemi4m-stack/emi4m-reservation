@@ -21,6 +21,8 @@ export function MenuLateral({ estAdmin, deconnexion }: { estAdmin: boolean; deco
       <Link
         key={l.href}
         href={l.href}
+        target={l.externe ? "_blank" : undefined}
+        rel={l.externe ? "noreferrer" : undefined}
         aria-current={estActif ? "page" : undefined}
         className={`flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm transition ${
           estActif ? "bg-slate-100 font-semibold text-brand-slate" : "text-slate-600 hover:bg-slate-50 hover:text-brand-slate"

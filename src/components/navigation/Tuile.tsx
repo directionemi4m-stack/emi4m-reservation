@@ -9,6 +9,8 @@ export function Tuile({ lien, statut, pastille }: { lien: LienNav; statut?: stri
   return (
     <Link
       href={lien.href}
+      target={lien.externe ? "_blank" : undefined}
+      rel={lien.externe ? "noreferrer" : undefined}
       className="relative flex min-w-0 flex-col items-center rounded-xl border border-slate-200 bg-white px-2 pb-3 pt-4 text-center transition hover:border-slate-300 hover:shadow-sm active:scale-[0.98]"
     >
       {pastille ? (
