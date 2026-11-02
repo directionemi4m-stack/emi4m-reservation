@@ -912,23 +912,25 @@ model Facture {
 // direction (ou reprise du registre papier). La restitution se signe sur la même ligne,
 // comme sur le registre papier.
 model RemiseCles {
-  id                   String    @id @default(cuid())
-  profId               String
-  prof                 User      @relation("ClesDetenues", fields: [profId], references: [id], onDelete: Cascade)
-  clesAutransMeaudre   Int       @default(0)
-  badgeLans            Int       @default(0)
-  clesVillard          Int       @default(0)
-  remiseLe             DateTime  @db.Date
-  signatureRemise      Bytes? // vide si signée sur le registre papier
-  remiseParId          String?
-  remisePar            User?     @relation("ClesRemisesPar", fields: [remiseParId], references: [id])
-  restitueLe           DateTime? @db.Date
-  signatureRestitution Bytes?
-  restitutionPapier    Boolean   @default(false)
-  restitueParId        String?
-  restituePar          User?     @relation("ClesRecuesPar", fields: [restitueParId], references: [id])
-  commentaire          String?
-  creeLe               DateTime  @default(now())
+  id                            String    @id @default(cuid())
+  profId                        String
+  prof                          User      @relation("ClesDetenues", fields: [profId], references: [id], onDelete: Cascade)
+  clesAutransMeaudre            Int       @default(0)
+  badgeLans                     Int       @default(0)
+  clesVillard                   Int       @default(0)
+  remiseLe                      DateTime  @db.Date
+  signatureRemise               Bytes? // vide si signée sur le registre papier
+  signatureDirectionRemise      Bytes? // contre-signature de la direction
+  remiseParId                   String?
+  remisePar                     User?     @relation("ClesRemisesPar", fields: [remiseParId], references: [id])
+  restitueLe                    DateTime? @db.Date
+  signatureRestitution          Bytes?
+  signatureDirectionRestitution Bytes?
+  restitutionPapier             Boolean   @default(false)
+  restitueParId                 String?
+  restituePar                   User?     @relation("ClesRecuesPar", fields: [restitueParId], references: [id])
+  commentaire                   String?
+  creeLe                        DateTime  @default(now())
 
   @@index([profId])
   @@index([remiseLe])

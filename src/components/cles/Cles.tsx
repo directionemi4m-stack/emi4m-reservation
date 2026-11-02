@@ -41,15 +41,22 @@ function Message({ etat }: { etat: EtatAction }) {
 
 // Signature du salarié sur le téléphone de la direction, ou mention « déjà signé sur le
 // registre papier » pour reprendre les remises antérieures à l'appli.
-function Signature({ prenom }: { prenom: string }) {
+function Signature({ prenom, maSignature }: { prenom: string; maSignature: string | null }) {
   const [papier, setPapier] = useState(false);
   return (
     <div className="flex flex-col gap-2">
       {!papier && (
-        <div className="flex flex-col gap-1">
-          <p className="text-sm font-medium text-brand-slate">Signature de {prenom}</p>
-          <PadSignature nom="signature" />
-        </div>
+        <>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-brand-slate">Signature de {prenom}</p>
+            <PadSignature nom="signature" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-brand-slate">Votre signature (direction)</p>
+            {maSignature && <p className="text-xs text-slate-400">Votre dernière signature est reprise : effacez-la pour re-signer.</p>}
+            <PadSignature nom="signatureDirection" initiale={maSignature} />
+          </div>
+        </>
       )}
       <label className="flex items-center gap-2 text-xs text-slate-500">
         <input type="checkbox" name="papier" checked={papier} onChange={(e) => setPapier(e.target.checked)} className="accent-brand-accent" />
@@ -81,7 +88,7 @@ function Compteur({ nom, libelle, detail }: { nom: string; libelle: string; deta
   );
 }
 
-function FormRemise({ salarie, onFini }: { salarie: SalarieVue; onFini: () => void }) {
+function FormRemise({ salarie, maSignature, onFini }: { salarie: SalarieVue; maSignature: string | null; onFini: () => void }) {
   const [etat, soumettre, enCours] = useSoumission(remettreCles, etatInitial);
   if (etat.succes && etat.message) {
     return (
@@ -103,7 +110,7 @@ function FormRemise({ salarie, onFini }: { salarie: SalarieVue; onFini: () => vo
         Date de remise
         <input type="date" name="date" required defaultValue={aujourdHui()} className={champClass} />
       </label>
-      <Signature prenom={salarie.prenom} />
+      <Signature prenom={salarie.prenom} maSignature={maSignature} />
       <Message etat={etat} />
       <div className="flex gap-2">
         <button type="submit" disabled={enCours} className={boutonPrincipal}>
@@ -117,7 +124,7 @@ function FormRemise({ salarie, onFini }: { salarie: SalarieVue; onFini: () => vo
   );
 }
 
-function FormRestitution({ salarie, onFini }: { salarie: SalarieVue; onFini: () => void }) {
+function FormRestitution({ salarie, maSignature, onFini }: { salarie: SalarieVue; maSignature: string | null; onFini: () => void }) {
   const [etat, soumettre, enCours] = useSoumission(restituerCles, etatInitial);
   const ouvertes = salarie.remises.filter((r) => !r.restitueLe);
   if (etat.succes && etat.message) {
@@ -145,7 +152,7 @@ function FormRestitution({ salarie, onFini }: { salarie: SalarieVue; onFini: () 
         Date de restitution
         <input type="date" name="date" required defaultValue={aujourdHui()} className={champClass} />
       </label>
-      <Signature prenom={salarie.prenom} />
+      <Signature prenom={salarie.prenom} maSignature={maSignature} />
       <Message etat={etat} />
       <div className="flex gap-2">
         <button type="submit" disabled={enCours} className={boutonPrincipal}>
@@ -159,7 +166,7 @@ function FormRestitution({ salarie, onFini }: { salarie: SalarieVue; onFini: () 
   );
 }
 
-export function CarteSalarie({ salarie }: { salarie: SalarieVue }) {
+export function CarteSalarie({ salarie, maSignature }: { salarie: SalarieVue; maSignature: string | null }) {
   const [mode, setMode] = useState<"remise" | "restitution" | null>(null);
   const [historique, setHistorique] = useState(false);
   const ouvertes = salarie.remises.filter((r) => !r.restitueLe);
@@ -190,8 +197,8 @@ export function CarteSalarie({ salarie }: { salarie: SalarieVue }) {
         )}
       </div>
 
-      {mode === "remise" && <FormRemise salarie={salarie} onFini={() => setMode(null)} />}
-      {mode === "restitution" && <FormRestitution salarie={salarie} onFini={() => setMode(null)} />}
+      {mode === "remise" && <FormRemise salarie={salarie} maSignature={maSignature} onFini={() => setMode(null)} />}
+      {mode === "restitution" && <FormRestitution salarie={salarie} maSignature={maSignature} onFini={() => setMode(null)} />}
 
       {salarie.remises.length > 0 && mode === null && (
         <button type="button" onClick={() => setHistorique((v) => !v)} className="w-fit text-xs text-slate-500 underline">

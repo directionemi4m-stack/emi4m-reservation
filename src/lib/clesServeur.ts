@@ -24,7 +24,7 @@ export function filtreSaison(anneeDebut: number) {
 
 // Régénère le registre PDF de la saison et le dépose dans le Drive (même fichier mis à jour).
 // Tous les salariés actifs y figurent, avec une ligne vide s'ils n'ont rien reçu.
-export async function regenererRegistre(anneeDebut: number, responsable: string) {
+export async function regenererRegistre(anneeDebut: number, responsableId: string) {
   const [profs, remises, existant] = await Promise.all([
     db.user.findMany({ where: salariesDuRegistre, orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true } }),
     db.remiseCles.findMany({
@@ -34,6 +34,13 @@ export async function regenererRegistre(anneeDebut: number, responsable: string)
     }),
     db.registreCles.findUnique({ where: { anneeDebut } }),
   ]);
+  // Le responsable du registre est la personne de la direction qui l'a mis à jour ; sa
+  // dernière signature dessinée figure en bas du registre.
+  const [moi, maSignature] = await Promise.all([
+    db.user.findUnique({ where: { id: responsableId }, select: { prenom: true, nom: true } }),
+    db.signatureBulletin.findUnique({ where: { userId: responsableId } }),
+  ]);
+  const responsable = { nom: moi ? `${moi.prenom} ${moi.nom}`.trim() : "Direction", signature: maSignature?.image ?? null };
 
   const nom = (p: { prenom: string; nom: string }) => `${p.prenom} ${p.nom}`.trim();
   const lignes: LigneRegistre[] = [];
@@ -51,8 +58,10 @@ export async function regenererRegistre(anneeDebut: number, responsable: string)
         clesVillard: 0,
         remiseLe: null,
         signatureRemise: null,
+        signatureDirectionRemise: null,
         restitueLe: null,
         signatureRestitution: null,
+        signatureDirectionRestitution: null,
         restitutionPapier: false,
       });
     }
@@ -64,8 +73,10 @@ export async function regenererRegistre(anneeDebut: number, responsable: string)
         clesVillard: r.clesVillard,
         remiseLe: r.remiseLe,
         signatureRemise: r.signatureRemise,
+        signatureDirectionRemise: r.signatureDirectionRemise,
         restitueLe: r.restitueLe,
         signatureRestitution: r.signatureRestitution,
+        signatureDirectionRestitution: r.signatureDirectionRestitution,
         restitutionPapier: r.restitutionPapier,
       });
     }

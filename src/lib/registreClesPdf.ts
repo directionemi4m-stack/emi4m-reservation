@@ -7,8 +7,10 @@ export interface LigneRegistre extends Quantites {
   prof: string; // « Jeanne Rival »
   remiseLe: Date | null; // null : salarié sans remise cette saison (ligne vide, comme sur le papier)
   signatureRemise: Uint8Array | null;
+  signatureDirectionRemise: Uint8Array | null;
   restitueLe: Date | null;
   signatureRestitution: Uint8Array | null;
+  signatureDirectionRestitution: Uint8Array | null;
   restitutionPapier: boolean;
 }
 
@@ -25,12 +27,12 @@ const HAUT_ENTETE = 30;
 const dateFr = (d: Date) => d.toLocaleDateString("fr-FR", { timeZone: "UTC" });
 
 // Le registre « Remise et restitution des clés et badges » d'une saison, sur le modèle du
-// registre papier : une ligne par remise, avec la signature du salarié à la remise et à la
-// restitution.
+// registre papier : une ligne par remise, avec la signature du salarié et celle de la
+// direction à la remise et à la restitution, et la signature du responsable en bas.
 export async function genererRegistreCles(params: {
   saison: string; // « 2026-2027 »
   lignes: LigneRegistre[];
-  responsable: string;
+  responsable: { nom: string; signature: Uint8Array | null };
 }): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Remise et restitution des clés et badges — ${params.saison}`);
@@ -73,10 +75,20 @@ export async function genererRegistreCles(params: {
   };
   enteteTableau();
 
-  const signatureDans = async (png: Uint8Array, x: number, haut: number) => {
+  const signatureDans = async (png: Uint8Array, x: number, bas: number, largeurMax: number, hauteurMax: number) => {
     const image = await pdf.embedPng(copieIndependante(png));
-    const echelle = Math.min(120 / image.width, 26 / image.height);
-    page.drawImage(image, { x, y: haut - 40, width: image.width * echelle, height: image.height * echelle });
+    const echelle = Math.min(largeurMax / image.width, hauteurMax / image.height);
+    page.drawImage(image, { x, y: bas, width: image.width * echelle, height: image.height * echelle });
+  };
+
+  // Une case « date & signature » : salarié à gauche, direction à droite, légendées.
+  const caseSignee = async (x: number, haut: number, salarie: Uint8Array | null, direction: Uint8Array | null) => {
+    if (salarie) await signatureDans(salarie, x + 4, haut - 36, 78, 22);
+    if (direction) await signatureDans(direction, x + 88, haut - 36, 46, 22);
+    if (salarie || direction) {
+      texte(page, "salarié", x + 4, haut - 42, 5.5, normale, GRIS);
+      if (direction) texte(page, "direction", x + 88, haut - 42, 5.5, normale, GRIS);
+    }
   };
 
   for (const l of params.lignes) {
@@ -109,24 +121,29 @@ export async function genererRegistreCles(params: {
     // Remise.
     const xRemise = MARGE + COLONNES.slice(0, 4).reduce((s, c) => s + c, 0);
     texte(page, `Date : ${l.remiseLe ? dateFr(l.remiseLe) : "…… / …… / ……"}`, xRemise + 4, haut - 11, 8, normale, GRIS);
-    if (l.signatureRemise) await signatureDans(l.signatureRemise, xRemise + 8, haut);
+    if (l.signatureRemise) await caseSignee(xRemise, haut, l.signatureRemise, l.signatureDirectionRemise);
     else if (l.remiseLe) texte(page, "Signé sur le registre papier", xRemise + 4, haut - 30, 8, normale, GRIS);
     // Restitution.
     const xRestit = xRemise + COLONNES[4];
     texte(page, `Date : ${l.restitueLe ? dateFr(l.restitueLe) : "…… / …… / ……"}`, xRestit + 4, haut - 11, 8, normale, GRIS);
-    if (l.signatureRestitution) await signatureDans(l.signatureRestitution, xRestit + 8, haut);
+    if (l.signatureRestitution) await caseSignee(xRestit, haut, l.signatureRestitution, l.signatureDirectionRestitution);
     else if (l.restitueLe && l.restitutionPapier) texte(page, "Signé sur le registre papier", xRestit + 4, haut - 30, 8, normale, GRIS);
     y -= HAUT_LIGNE;
   }
 
-  // La ligne du responsable tient sous le tableau tant qu'elle reste au-dessus du pied de page.
-  if (y - 28 < MARGE) {
+  // Le responsable signe sous le tableau, tant que ça tient au-dessus du pied de page.
+  const hauteurBas = params.responsable.signature ? 62 : 28;
+  if (y - hauteurBas < MARGE) {
     page = pdf.addPage([LARGEUR, HAUTEUR]);
     y = HAUTEUR - MARGE;
   }
-  y -= 28;
-  texte(page, `Responsable du registre : ${params.responsable}`, MARGE, y, 10, normale);
-  texte(page, `Édité le ${new Date().toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`, LARGEUR - MARGE - 110, y, 10, normale);
+  y -= 24;
+  texte(page, `Responsable du registre : ${params.responsable.nom}`, MARGE, y, 10, normale);
+  texte(page, `Édité le ${new Date().toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}`, MARGE, y - 14, 9, normale, GRIS);
+  if (params.responsable.signature) {
+    texte(page, "Signature :", MARGE + 250, y, 10, normale);
+    await signatureDans(params.responsable.signature, MARGE + 305, y - 30, 120, 40);
+  }
 
   const pages = pdf.getPages();
   pages.forEach((p, i) => {

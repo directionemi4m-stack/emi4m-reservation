@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { signatureEnDataUrl } from "@/lib/bulletinsCham";
 import { enCirculation, resumeAcces, totalAcces } from "@/lib/cles";
 import { anneeScolaireDebut } from "@/lib/fraisRecap";
 import { filtreSaison, salariesDuRegistre } from "@/lib/clesServeur";
@@ -73,6 +75,10 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
       })),
   }));
   const total = totalAcces(enCirculation(toutesOuvertes));
+  // Dernière signature de la direction connectée, proposée d'office dans son cadre.
+  const session = await auth();
+  const signature = await db.signatureBulletin.findUnique({ where: { userId: session!.user.id } });
+  const maSignature = signature ? signatureEnDataUrl(signature.image) : null;
   const saisons = [...new Set([...saisonsAvecRemises.map((r) => anneeScolaireDebut(r.remiseLe)), courante, anneeDebut])].sort((a, b) => b - a);
 
   return (
@@ -112,7 +118,7 @@ export default async function ClesPage({ searchParams }: { searchParams: Promise
 
       <ul className="flex flex-col gap-2">
         {vues.map((s) => (
-          <CarteSalarie key={s.id} salarie={s} />
+          <CarteSalarie key={s.id} salarie={s} maSignature={maSignature} />
         ))}
       </ul>
     </div>
