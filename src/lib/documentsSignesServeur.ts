@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { salariesDuRegistre } from "@/lib/clesServeur";
+import { MAIL_DIRECTION, salariesDuRegistre } from "@/lib/clesServeur";
 import { genererCopieSignee, genererRegistreDocument, type LigneRegistreDocument } from "@/lib/attestationPdf";
 import { deposerDocumentSigne } from "@/lib/drive";
 import { envoyerMailDocumentASigner } from "@/lib/mail";
@@ -52,7 +52,7 @@ export async function regenererRegistreDocument(documentId: string): Promise<boo
   const [attendus, signatures] = await Promise.all([
     signataires(),
     db.signatureDocument.findMany({
-      where: { documentId, version: document.version },
+      where: { documentId, version: document.version, user: { email: { not: MAIL_DIRECTION } } },
       include: { user: { select: { prenom: true, nom: true } } },
     }),
   ]);

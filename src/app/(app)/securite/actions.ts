@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { dechiffrerCode } from "@/lib/codesAlarme";
 import { lireSignature } from "@/lib/bulletinsCham";
 import { deposerCopieSignee, regenererRegistreDocument } from "@/lib/documentsSignesServeur";
+import { MAIL_DIRECTION } from "@/lib/clesServeur";
 
 export type ResultatCode = { code?: string; message?: string };
 
@@ -41,6 +42,10 @@ export async function signerDocument(_etat: EtatAction, formData: FormData): Pro
   // Une signature engage la personne : impossible en mode « connecté en tant que ».
   if (session.user.impersonation) {
     return { succes: false, message: "Signature impossible en mode « connecté en tant que » : seul le prof peut signer." };
+  }
+
+  if (session.user.email === MAIL_DIRECTION) {
+    return { succes: false, message: "Le compte partagé de la direction ne signe pas : connectez-vous avec votre compte personnel." };
   }
 
   const documentId = String(formData.get("documentId") ?? "");

@@ -5,7 +5,7 @@ import { ajouterJours, lundiDe } from "@/lib/planning";
 import { libelleTypeEvenement } from "@/lib/saison";
 import { DRIVE_PROFS } from "@/lib/navigation";
 import { campagneOuverte, periodeCourante } from "@/lib/bulletinsCham";
-import { salariesDuRegistre } from "@/lib/clesServeur";
+import { MAIL_DIRECTION, salariesDuRegistre } from "@/lib/clesServeur";
 
 export interface EtatTuile {
   statut?: string;
@@ -64,6 +64,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     clesEnCirculation,
     documentsActifs,
     nbSignataires,
+    moi,
   ] = await Promise.all([
     db.demandeCreneau.count({
       where: { statut: "VALIDEE", date: { gte: aujourdHui, lt: finSemaine }, demande: { profId: userId } },
@@ -102,9 +103,13 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
       : Promise.resolve(null),
     db.documentASigner.findMany({
       where: { retireLe: null },
-      select: { version: true, signatures: { select: { userId: true, version: true } } },
+      select: {
+        version: true,
+        signatures: { where: { user: { email: { not: MAIL_DIRECTION } } }, select: { userId: true, version: true } },
+      },
     }),
     estAdmin ? db.user.count({ where: salariesDuRegistre }) : Promise.resolve(0),
+    db.user.findUnique({ where: { id: userId }, select: { email: true } }),
   ]);
 
   const ficheManquante = CHAMPS_FICHE.filter((c) => !identite?.[c]).length;
@@ -114,7 +119,8 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
   // Documents à signer : ceux dont je n'ai pas signé la version en cours ; pour la
   // direction, le nombre de signatures qui manquent encore, tous documents confondus.
   const courantes = documentsActifs.map((d) => d.signatures.filter((x) => x.version === d.version));
-  const documentsASigner = courantes.filter((sigs) => !sigs.some((x) => x.userId === userId)).length;
+  // Le compte partagé de la direction ne signe pas.
+  const documentsASigner = moi?.email === MAIL_DIRECTION ? 0 : courantes.filter((sigs) => !sigs.some((x) => x.userId === userId)).length;
   const signaturesManquantes = courantes.reduce((n, sigs) => n + Math.max(0, nbSignataires - sigs.length), 0);
   const campagne = campagneOuverte(aujourdHui, periodeBulletins.anneeDebut, periodeBulletins.trimestre);
 

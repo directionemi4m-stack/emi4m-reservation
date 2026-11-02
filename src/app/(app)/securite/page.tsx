@@ -6,6 +6,7 @@ import { ConsignesAffiche } from "@/components/securite/ConsignesAffiche";
 import { MonCodeAlarme } from "@/components/securite/MonCodeAlarme";
 import { SignerDocument, type DocumentVue } from "@/components/documents/SignerDocument";
 import { dateCourte } from "@/lib/documentsSignes";
+import { MAIL_DIRECTION } from "@/lib/clesServeur";
 
 export default async function SecuritePage() {
   const session = await auth();
@@ -41,6 +42,8 @@ export default async function SecuritePage() {
     })
     .sort((a, b) => Number(!!a.signeLe) - Number(!!b.signeLe));
   const aSigner = vues.filter((v) => !v.signeLe).length;
+  // Le compte partagé de la direction n'est pas une personne : il ne signe pas.
+  const comptePartage = session!.user.email === MAIL_DIRECTION;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8">
@@ -58,7 +61,21 @@ export default async function SecuritePage() {
         )}
       </div>
 
-      {vues.length > 0 && (
+      {vues.length > 0 && comptePartage && (
+        <section className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">Documents à lire et signer</p>
+          <p className="mt-1">
+            Vous êtes connecté avec le compte partagé de la direction, qui n&apos;a rien à signer. Pour signer
+            vous-même, connectez-vous avec votre compte personnel. Le suivi des signatures est dans{" "}
+            <Link href="/admin/documents" className="underline">
+              Signatures
+            </Link>
+            .
+          </p>
+        </section>
+      )}
+
+      {vues.length > 0 && !comptePartage && (
         <section className="flex flex-col gap-3">
           <div>
             <h2 className="text-base font-semibold text-brand-slate">Documents à lire et signer</h2>

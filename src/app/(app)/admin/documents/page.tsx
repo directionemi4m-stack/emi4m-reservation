@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { dateCourte } from "@/lib/documentsSignes";
 import { signataires } from "@/lib/documentsSignesServeur";
+import { MAIL_DIRECTION } from "@/lib/clesServeur";
 import { CarteDocument, FormPublication, type DocumentAdminVue } from "@/components/documents/AdminDocuments";
 
 // Documents que tous les salariés lisent et signent dans l'appli (page « Sécurité ») :
@@ -19,7 +20,10 @@ export default async function DocumentsPage() {
         relanceLe: true,
         retireLe: true,
         registreUrl: true,
-        signatures: { select: { userId: true, version: true, signeLe: true, url: true, user: { select: { prenom: true, nom: true } } } },
+        signatures: {
+          where: { user: { email: { not: MAIL_DIRECTION } } },
+          select: { userId: true, version: true, signeLe: true, url: true, user: { select: { prenom: true, nom: true } } },
+        },
       },
     }),
     signataires(),

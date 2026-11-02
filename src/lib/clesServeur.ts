@@ -4,7 +4,7 @@ import { deposerRegistreCles } from "@/lib/drive";
 
 // Le compte partagé de la boîte mail de la direction n'est pas une personne : il ne reçoit
 // pas de clés et n'a pas de ligne au registre.
-const MAIL_DIRECTION = process.env.EMAIL_DIRECTION || "direction.emi4m@gmail.com";
+export const MAIL_DIRECTION = process.env.EMAIL_DIRECTION || "direction.emi4m@gmail.com";
 export const salariesDuRegistre = { actif: true, email: { not: MAIL_DIRECTION } };
 
 export const debutSaison = (anneeDebut: number) => new Date(Date.UTC(anneeDebut, 8, 1));
