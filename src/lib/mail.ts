@@ -449,6 +449,48 @@ export async function envoyerMailRappelBulletins(params: {
   });
 }
 
+// Document à lire et signer : annonce à la publication (ou à une nouvelle version), puis
+// relance une semaine après pour ceux qui n'ont pas encore signé.
+export async function envoyerMailDocumentASigner(params: {
+  prof: { prenom: string; email: string };
+  titre: string;
+  type: "PUBLICATION" | "NOUVELLE_VERSION" | "RELANCE";
+  url: string;
+}) {
+  const { prof, titre, type, url } = params;
+  const transport = creerTransporteur();
+  const echapper = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const intro = {
+    PUBLICATION: `Un nouveau document est à lire et à signer dans l'appli : « ${titre} ».`,
+    NOUVELLE_VERSION: `Le document « ${titre} » a été mis à jour : merci de lire la nouvelle version et de la signer.`,
+    RELANCE: `Petit rappel : vous n'avez pas encore signé le document « ${titre} ».`,
+  }[type];
+  const consigne = "Ouvrez-le depuis la page « Sécurité », lisez-le, puis signez avec le doigt ou la souris. Cela prend deux minutes.";
+
+  await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    subject: type === "RELANCE" ? `Rappel : document à signer — ${titre}` : `Document à lire et signer — ${titre}`,
+    text: `Bonjour ${prof.prenom},
+
+${intro}
+
+${consigne}
+
+${url}
+
+Direction EMI4M`,
+    html: htmlLienMotDePasse({
+      titre: type === "RELANCE" ? "Rappel : document à signer" : "Document à lire et signer",
+      intro: `Bonjour ${echapper(prof.prenom)},<br><br>${echapper(intro)}<br><br>${echapper(consigne)}`,
+      url,
+      libelleBouton: "Lire et signer",
+      mention: "",
+    }),
+  });
+}
+
 // Le bulletin CHAM d'un élève, envoyé à sa famille avec le PDF en pièce jointe. Les
 // réponses arrivent à la direction.
 export async function envoyerMailBulletinFamille(params: {

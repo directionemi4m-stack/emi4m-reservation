@@ -5,6 +5,7 @@ import { ajouterJours, lundiDe } from "@/lib/planning";
 import { libelleTypeEvenement } from "@/lib/saison";
 import { DRIVE_PROFS } from "@/lib/navigation";
 import { campagneOuverte, periodeCourante } from "@/lib/bulletinsCham";
+import { salariesDuRegistre } from "@/lib/clesServeur";
 
 export interface EtatTuile {
   statut?: string;
@@ -61,6 +62,8 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     biensInventaire,
     facturesDuMois,
     clesEnCirculation,
+    documentsActifs,
+    nbSignataires,
   ] = await Promise.all([
     db.demandeCreneau.count({
       where: { statut: "VALIDEE", date: { gte: aujourdHui, lt: finSemaine }, demande: { profId: userId } },
@@ -97,12 +100,22 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     estAdmin
       ? db.remiseCles.aggregate({ where: { restitueLe: null }, _sum: { clesAutransMeaudre: true, badgeLans: true, clesVillard: true } })
       : Promise.resolve(null),
+    db.documentASigner.findMany({
+      where: { retireLe: null },
+      select: { version: true, signatures: { select: { userId: true, version: true } } },
+    }),
+    estAdmin ? db.user.count({ where: salariesDuRegistre }) : Promise.resolve(0),
   ]);
 
   const ficheManquante = CHAMPS_FICHE.filter((c) => !identite?.[c]).length;
   const minutesActivite = activites.reduce((s, a) => s + dureeEnMinutes(a.duree), 0);
   const volume = volumeHebdoMinutes(creneaux);
   const bulletinsRestants = Math.max(0, suivisCham - bulletinsSignes);
+  // Documents à signer : ceux dont je n'ai pas signé la version en cours ; pour la
+  // direction, le nombre de signatures qui manquent encore, tous documents confondus.
+  const courantes = documentsActifs.map((d) => d.signatures.filter((x) => x.version === d.version));
+  const documentsASigner = courantes.filter((sigs) => !sigs.some((x) => x.userId === userId)).length;
+  const signaturesManquantes = courantes.reduce((n, sigs) => n + Math.max(0, nbSignataires - sigs.length), 0);
   const campagne = campagneOuverte(aujourdHui, periodeBulletins.anneeDebut, periodeBulletins.trimestre);
 
   return {
@@ -145,7 +158,9 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     },
     [DRIVE_PROFS]: { statut: "Documents partagés" },
     "/annuaire": { statut: pluriel(nbCollegues, "collègue") },
-    "/securite": { statut: codeAlarme ? "Code alarme Lans" : "Consignes Villard" },
+    "/securite": documentsASigner
+      ? { statut: `${pluriel(documentsASigner, "document")} à signer`, pastille: documentsASigner }
+      : { statut: codeAlarme ? "Code alarme Lans" : "Consignes Villard" },
     "/admin/demandes": { statut: aTraiter ? pluriel(aTraiter, "demande") : "Rien à traiter", pastille: aTraiter || undefined },
     "/admin/parametres/profs": { statut: invitations ? pluriel(invitations, "invitation") : "Comptes à jour" },
     "/admin/locations": { statut: locationsNonPayees ? `${locationsNonPayees} non payée${locationsNonPayees > 1 ? "s" : ""}` : "Tout est payé" },
@@ -156,6 +171,9 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
         const n = (clesEnCirculation?._sum.clesAutransMeaudre ?? 0) + (clesEnCirculation?._sum.badgeLans ?? 0) + (clesEnCirculation?._sum.clesVillard ?? 0);
         return n ? `${n} en circulation` : "Aucune remise";
       })(),
+    },
+    "/admin/documents": {
+      statut: documentsActifs.length === 0 ? "Publier un document" : signaturesManquantes ? `${pluriel(signaturesManquantes, "signature")} en attente` : "Tout est signé",
     },
     "/admin/parametres": { statut: "Salles, trajets…" },
   };

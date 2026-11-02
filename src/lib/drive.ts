@@ -524,3 +524,55 @@ export async function deposerRegistreCles(params: { nomFichier: string; pdf: Uin
   });
   return { id: data.id!, url: data.webViewLink ?? "" };
 }
+
+// --- Documents à lire et signer ---
+
+const NOM_DOSSIER_SIGNATURES = "Documents signés";
+
+// « Documents signés / Procédure d'évacuation / RIVAL Jeanne - … v1 signé.pdf », dans le Drive
+// de la direction (non partagé). Un fichier existant (le registre) est remplacé sur place.
+export async function deposerDocumentSigne(params: {
+  dossier: string;
+  nomFichier: string;
+  pdf: Uint8Array;
+  fichierExistantId?: string | null;
+}) {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive } = client;
+  const media = () => ({ mimeType: "application/pdf", body: Readable.from(Buffer.from(params.pdf)) });
+
+  if (params.fichierExistantId) {
+    try {
+      const { data } = await drive.files.update({
+        fileId: params.fichierExistantId,
+        requestBody: { name: params.nomFichier },
+        media: media(),
+        fields: "id, webViewLink, trashed",
+      });
+      if (!data.trashed) return { id: data.id!, url: data.webViewLink ?? "" };
+    } catch (erreur) {
+      console.error("Fichier signé introuvable dans le Drive, recréation :", erreur);
+    }
+  }
+
+  const { data: racines } = await drive.files.list({
+    q: `name = '${NOM_DOSSIER_SIGNATURES}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id)",
+  });
+  const racine =
+    racines.files?.[0]?.id ??
+    (
+      await drive.files.create({
+        requestBody: { name: NOM_DOSSIER_SIGNATURES, mimeType: "application/vnd.google-apps.folder" },
+        fields: "id",
+      })
+    ).data.id!;
+  const dossier = await dossierProfId(drive, racine, params.dossier);
+  const { data } = await drive.files.create({
+    requestBody: { name: params.nomFichier, parents: [dossier] },
+    media: media(),
+    fields: "id, webViewLink",
+  });
+  return { id: data.id!, url: data.webViewLink ?? "" };
+}

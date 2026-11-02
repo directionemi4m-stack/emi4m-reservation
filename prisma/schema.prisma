@@ -105,11 +105,12 @@ model User {
   suivisCham        SuiviCham[]
   appreciationsCham AppreciationCham[]
   signatureBulletin SignatureBulletin?
-  bilansChamSignes  BulletinCham[]     @relation("BilanDirection")
+  bilansChamSignes  BulletinCham[]      @relation("BilanDirection")
   abonnementsPush   AbonnementPush[]
-  clesDetenues      RemiseCles[]       @relation("ClesDetenues")
-  clesRemises       RemiseCles[]       @relation("ClesRemisesPar")
-  clesRecues        RemiseCles[]       @relation("ClesRecuesPar")
+  clesDetenues      RemiseCles[]        @relation("ClesDetenues")
+  clesRemises       RemiseCles[]        @relation("ClesRemisesPar")
+  clesRecues        RemiseCles[]        @relation("ClesRecuesPar")
+  documentsSignes   SignatureDocument[] @relation("DocumentsSignes")
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -942,4 +943,42 @@ model RegistreCles {
   driveFileId String
   url         String
   majLe       DateTime @updatedAt
+}
+
+// --- Documents à lire et signer ---
+
+// Un document que chaque salarié doit lire et signer (consignes de sécurité, procédure
+// d'évacuation…). Une nouvelle version remplace le PDF et demande à chacun de re-signer.
+model DocumentASigner {
+  id             String              @id @default(cuid())
+  titre          String
+  attestation    String // phrase signée : « Je certifie avoir lu… »
+  version        Int                 @default(1)
+  pdf            Bytes
+  nomFichier     String
+  publieLe       DateTime            @default(now()) // date de la version en cours
+  relanceLe      DateTime? // relance des retardataires, envoyée une fois par version
+  retireLe       DateTime? // plus à signer (gardé pour l'historique)
+  registreFileId String? // registre PDF de la version en cours, dans le Drive
+  registreUrl    String?
+  creeLe         DateTime            @default(now())
+  signatures     SignatureDocument[]
+}
+
+// La signature d'une version d'un document par un salarié, avec sa copie signée (document
+// + page d'attestation) rangée dans le Drive de la direction.
+model SignatureDocument {
+  id          String          @id @default(cuid())
+  documentId  String
+  document    DocumentASigner @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version     Int
+  userId      String
+  user        User            @relation("DocumentsSignes", fields: [userId], references: [id], onDelete: Cascade)
+  signeLe     DateTime        @default(now())
+  image       Bytes
+  driveFileId String?
+  url         String?
+
+  @@unique([documentId, version, userId])
+  @@index([userId])
 }
