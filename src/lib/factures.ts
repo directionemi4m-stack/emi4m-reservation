@@ -20,6 +20,19 @@ export function normaliserNomFichier(saisie: string): string {
   return `${base || "Facture"}.pdf`;
 }
 
+// Retrouve date et entreprise dans un nom au format « 2026-10-28_Thomann.pdf », pour classer
+// la facture (année du dossier, liste) sans avoir à les saisir à part. Un nom libre donne
+// une date nulle et l'entreprise = le nom sans extension.
+export function lireNomFacture(nom: string): { date: string | null; fournisseur: string | null } {
+  const base = nom.replace(/\.pdf$/i, "").trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[_\s-]+(.*))?$/.exec(base);
+  if (m) {
+    const date = iso(Number(m[1]), Number(m[2]), Number(m[3]));
+    if (date) return { date, fournisseur: m[4]?.trim() || null };
+  }
+  return { date: null, fournisseur: base || null };
+}
+
 const MOIS: Record<string, number> = {
   janvier: 1, janv: 1, jan: 1,
   fevrier: 2, fevr: 2, fev: 2,

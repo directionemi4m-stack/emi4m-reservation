@@ -23,8 +23,8 @@ export default async function AchatsPage() {
       <div>
         <h1 className="text-xl font-semibold text-brand-slate">Achats et factures</h1>
         <p className="text-sm text-slate-500">
-          Ajoutez la facture en PDF ou photographiez-la : Claude lit la date, l&apos;entreprise, le montant et l&apos;objet, et
-          le nom « année-mois-jour_entreprise » est proposé. Vous vérifiez avant d&apos;archiver.
+          Ajoutez le PDF scanné ou photographiez la facture, nommez le fichier (« année-mois-jour_entreprise » est
+          pré-rempli, modifiable) et archivez-le dans le Drive.
         </p>
       </div>
 

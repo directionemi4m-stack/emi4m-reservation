@@ -4,10 +4,9 @@ import { revalidatePath } from "next/cache";
 import { extractText, getDocumentProxy } from "unpdf";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { devinerFacture, nomFichierFacture, normaliserNomFichier, type PropositionFacture } from "@/lib/factures";
+import { devinerFacture, lireNomFacture, nomFichierFacture, normaliserNomFichier } from "@/lib/factures";
 import { lireEuros } from "@/lib/inventaire";
 import { photosEnPdf } from "@/lib/photoEnPdf";
-import { lectureClaudeDisponible, lireFactureAvecClaude } from "@/lib/lectureFacture";
 import { deposerFacture, estJetonRevoqueOuExpire, mettreALaCorbeilleDrive, renommerFichierDrive } from "@/lib/drive";
 
 export type EtatAction = { succes: boolean; message?: string };
@@ -24,6 +23,7 @@ function champ(formData: FormData, nom: string) {
 const TAILLE_MAX = 10 * 1024 * 1024;
 const estPdf = (o: Uint8Array) => Buffer.from(o.subarray(0, 5)).toString() === "%PDF-";
 const estJpeg = (o: Uint8Array) => o[0] === 0xff && o[1] === 0xd8 && o[2] === 0xff;
+const DATE_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 async function lireFichiers(formData: FormData) {
   return Promise.all(
@@ -39,55 +39,39 @@ async function fournisseursConnus(): Promise<string[]> {
   return lignes.map((l) => l.fournisseur);
 }
 
-export type PropositionLue = PropositionFacture & {
-  objet: string | null;
+export type PropositionLue = {
   nomFichier: string;
-  lecture: "claude" | "texte" | "aucune"; // ce qui a permis de remplir les champs
+  montantCentimes: number | null;
+  lu: boolean; // true : nom proposé à partir du texte du PDF
 };
 
-// Première étape : lit la facture (sans rien enregistrer) pour proposer date, entreprise,
-// montant, objet et nom de fichier. Claude lit photos et PDF (même scannés) ; à défaut, le
-// texte d'un PDF est analysé ; sinon la date du jour est proposée.
+// Première étape : propose un nom de fichier (sans rien enregistrer). Pour un PDF qui
+// contient du texte, la date et l'entreprise y sont cherchées (« 2026-10-28_Thomann.pdf ») ;
+// sinon (scan, photos) le nom commence par la date du jour, à compléter.
 export async function analyserFacture(formData: FormData): Promise<PropositionLue> {
   await exigerAdmin();
   const aujourdHui = new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" });
-  let proposition: PropositionFacture & { objet: string | null } = { date: null, fournisseur: null, montantCentimes: null, objet: null };
-  let lecture: PropositionLue["lecture"] = "aucune";
 
-  const fichiers = (await lireFichiers(formData)).filter((f) => f.length <= TAILLE_MAX);
-  const connus = await fournisseursConnus();
-  const pdf = fichiers.length === 1 && estPdf(fichiers[0]) ? fichiers[0] : null;
-  const photos = !pdf && fichiers.length > 0 && fichiers.every(estJpeg) ? fichiers : null;
-
-  if (lectureClaudeDisponible() && (pdf || photos)) {
+  const [fichier] = await lireFichiers(formData);
+  if (fichier && estPdf(fichier) && fichier.length <= TAILLE_MAX) {
     try {
-      const lu = await lireFactureAvecClaude(pdf ? { type: "pdf", contenu: pdf } : { type: "photos", pages: photos! }, connus);
-      if (lu) {
-        proposition = lu;
-        lecture = "claude";
-      }
-    } catch (erreur) {
-      // Claude indisponible ou clé invalide : on retombe sur la lecture du texte du PDF.
-      console.error("Lecture de la facture par Claude impossible :", erreur);
-    }
-  }
-  if (lecture === "aucune" && pdf) {
-    try {
-      const document = await getDocumentProxy(Uint8Array.from(pdf));
+      const document = await getDocumentProxy(Uint8Array.from(fichier));
       const { text } = await extractText(document, { mergePages: false });
       const texte = (Array.isArray(text) ? text : [text]).slice(0, 3).join("\n");
-      const devine = devinerFacture(texte, connus, new Date());
-      if (devine.date || devine.fournisseur || devine.montantCentimes) {
-        proposition = { ...devine, objet: null };
-        lecture = "texte";
+      const devine = devinerFacture(texte, await fournisseursConnus(), new Date());
+      if (devine.fournisseur) {
+        return {
+          nomFichier: nomFichierFacture(devine.date ?? aujourdHui, devine.fournisseur),
+          montantCentimes: devine.montantCentimes,
+          lu: true,
+        };
       }
     } catch (erreur) {
-      // PDF protégé ou illisible : on laisse simplement les champs à remplir.
+      // PDF scanné (image seule) ou protégé : on propose juste la date du jour.
       console.error("Lecture du texte de la facture impossible :", erreur);
     }
   }
-  const date = proposition.date ?? aujourdHui;
-  return { ...proposition, date, nomFichier: nomFichierFacture(date, proposition.fournisseur ?? ""), lecture };
+  return { nomFichier: `${aujourdHui}_`, montantCentimes: null, lu: false };
 }
 
 interface ChampsFacture {
@@ -99,12 +83,18 @@ interface ChampsFacture {
   articleIds: string[];
 }
 
+// Date et entreprise servent au classement (dossier de l'année, liste) : saisies à part
+// quand on modifie une facture, sinon tirées du nom du fichier (« 2026-10-28_Thomann.pdf »).
 async function lireChamps(formData: FormData): Promise<{ erreur: string } | { champs: ChampsFacture }> {
-  const dateBrute = champ(formData, "date");
-  const fournisseur = champ(formData, "fournisseur").slice(0, 80);
+  const nomSaisi = champ(formData, "nomFichier");
+  const duNom = lireNomFacture(nomSaisi);
+  const aujourdHui = new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" });
+  const dateBrute = champ(formData, "date") || duNom.date || aujourdHui;
+  const fournisseur = (champ(formData, "fournisseur") || duNom.fournisseur || "").slice(0, 80);
   const montantBrut = champ(formData, "montant");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateBrute)) return { erreur: "Date invalide." };
-  if (!fournisseur) return { erreur: "L'entreprise est obligatoire." };
+  if (!nomSaisi && !champ(formData, "fournisseur")) return { erreur: "Donnez un nom au fichier." };
+  if (!DATE_ISO.test(dateBrute)) return { erreur: "Date invalide." };
+  if (!fournisseur) return { erreur: "Ajoutez le nom de l'entreprise après la date (ex. 2026-10-28_Thomann)." };
   const montantCentimes = montantBrut ? lireEuros(montantBrut) : null;
   if (montantBrut && montantCentimes === null) return { erreur: "Montant invalide (ex. 49,80)." };
 
@@ -119,7 +109,7 @@ async function lireChamps(formData: FormData): Promise<{ erreur: string } | { ch
       fournisseur,
       montantCentimes,
       objet: champ(formData, "objet").slice(0, 200) || null,
-      nomFichier: normaliserNomFichier(champ(formData, "nomFichier") || nomFichierFacture(dateBrute, fournisseur)),
+      nomFichier: normaliserNomFichier(nomSaisi || nomFichierFacture(dateBrute, fournisseur)),
       articleIds,
     },
   };

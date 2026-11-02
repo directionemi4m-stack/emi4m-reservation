@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { IconCamera, IconFileTypePdf, IconPhoto, IconX } from "@tabler/icons-react";
-import { analyserFacture, archiverFacture, type PropositionLue } from "@/app/(app)/admin/achats/actions";
-import { nomFichierFacture, normaliserNomFichier } from "@/lib/factures";
+import { analyserFacture, archiverFacture } from "@/app/(app)/admin/achats/actions";
+import { normaliserNomFichier } from "@/lib/factures";
 import { reduirePhoto } from "@/lib/imageNavigateur";
 
 const champClass =
@@ -54,10 +54,11 @@ export function ChoixBiens({
   );
 }
 
+
 type Fichiers = { type: "pdf"; fichier: File } | { type: "photos"; pages: Blob[] };
 
-// Archive une facture : 1) choisir un PDF ou photographier le papier, 2) vérifier la date,
-// l'entreprise, le montant et le nom proposés (lus par Claude sur la photo ou le PDF),
+// Archive une facture dans le Drive : 1) choisir le PDF scanné ou photographier le papier,
+// 2) vérifier ou taper le nom du fichier (pré-rempli « année-mois-jour_entreprise »),
 // 3) valider. Rien n'est enregistré avant la validation.
 export function AjoutFacture({
   biens,
@@ -69,24 +70,20 @@ export function AjoutFacture({
   biensInitiaux?: string[];
 }) {
   const [fichiers, setFichiers] = useState<Fichiers | null>(null);
-  const [date, setDate] = useState("");
-  const [fournisseur, setFournisseur] = useState("");
+  const [nom, setNom] = useState("");
   const [montant, setMontant] = useState("");
   const [objet, setObjet] = useState("");
-  const [nomSaisi, setNomSaisi] = useState("");
-  const [nomManuel, setNomManuel] = useState(false);
   const [articleIds, setArticleIds] = useState<string[]>(biensInitiaux);
+  const [details, setDetails] = useState(biensInitiaux.length > 0);
   const [apercu, setApercu] = useState<string | null>(null);
+  const [lu, setLu] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; texte: string } | null>(null);
-  const [lecture, setLecture] = useState<PropositionLue["lecture"] | null>(null);
   const [analyse, demarrerAnalyse] = useTransition();
   const [envoi, demarrerEnvoi] = useTransition();
   const pdfRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const galerieRef = useRef<HTMLInputElement>(null);
-
-  // Tant qu'il n'a pas été retouché à la main, le nom suit la date et l'entreprise.
-  const nom = nomManuel ? nomSaisi : date ? nomFichierFacture(date, fournisseur) : "";
+  const nomRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => {
     if (apercu) URL.revokeObjectURL(apercu);
@@ -94,28 +91,23 @@ export function AjoutFacture({
 
   function reinitialiser() {
     setFichiers(null);
-    setDate("");
-    setFournisseur("");
+    setNom("");
     setMontant("");
     setObjet("");
-    setNomSaisi("");
-    setNomManuel(false);
     setArticleIds(biensInitiaux);
+    setDetails(biensInitiaux.length > 0);
     setApercu(null);
-    setLecture(null);
+    setLu(false);
   }
 
-  // Envoie la facture à la lecture (Claude, ou le texte du PDF) et pré-remplit les champs.
-  function lire(fichiersALire: Blob[]) {
-    const donnees = new FormData();
-    fichiersALire.forEach((f, i) => donnees.append("fichiers", f, f instanceof File ? f.name : `page-${i + 1}.jpg`));
-    demarrerAnalyse(async () => {
-      const p = await analyserFacture(donnees);
-      setLecture(p.lecture);
-      setDate(p.date ?? "");
-      if (p.fournisseur) setFournisseur(p.fournisseur);
-      if (p.montantCentimes != null) setMontant((p.montantCentimes / 100).toFixed(2).replace(".", ","));
-      if (p.objet) setObjet(p.objet);
+  // Curseur à la fin du nom proposé, prêt à compléter l'entreprise.
+  function placerCurseur() {
+    requestAnimationFrame(() => {
+      const champ = nomRef.current;
+      if (!champ) return;
+      champ.focus();
+      const fin = champ.value.replace(/\.pdf$/i, "").length;
+      champ.setSelectionRange(fin, fin);
     });
   }
 
@@ -124,7 +116,15 @@ export function AjoutFacture({
     setMessage(null);
     setFichiers({ type: "pdf", fichier: f });
     setApercu(URL.createObjectURL(f));
-    lire([f]);
+    const donnees = new FormData();
+    donnees.append("fichiers", f);
+    demarrerAnalyse(async () => {
+      const p = await analyserFacture(donnees);
+      setNom(p.nomFichier.replace(/\.pdf$/i, ""));
+      setLu(p.lu);
+      if (p.montantCentimes != null) setMontant((p.montantCentimes / 100).toFixed(2).replace(".", ","));
+      placerCurseur();
+    });
   }
 
   async function ajouterPhotos(liste: FileList | null) {
@@ -134,9 +134,10 @@ export function AjoutFacture({
       const reduites = await Promise.all([...liste].map((f) => reduirePhoto(f, 2000)));
       const avant = fichiers?.type === "photos" ? fichiers.pages : [];
       setFichiers({ type: "photos", pages: [...avant, ...reduites] });
-      // Lecture automatique dès les premières photos ; pour une page ajoutée ensuite, le
-      // bouton « Relire la facture » relance la lecture sur toutes les pages.
-      if (avant.length === 0) lire(reduites);
+      if (avant.length === 0) {
+        setNom(`${new Date().toLocaleDateString("fr-CA")}_`);
+        placerCurseur();
+      }
     } catch {
       setMessage({ ok: false, texte: "Cette photo n'a pas pu être lue (format non pris en charge)." });
     }
@@ -147,11 +148,9 @@ export function AjoutFacture({
     const donnees = new FormData();
     if (fichiers.type === "pdf") donnees.append("fichiers", fichiers.fichier);
     else fichiers.pages.forEach((p, i) => donnees.append("fichiers", p, `page-${i + 1}.jpg`));
-    donnees.set("date", date);
-    donnees.set("fournisseur", fournisseur);
+    donnees.set("nomFichier", normaliserNomFichier(nom));
     donnees.set("montant", montant);
     donnees.set("objet", objet);
-    donnees.set("nomFichier", normaliserNomFichier(nom));
     articleIds.forEach((id) => donnees.append("articleIds", id));
     demarrerEnvoi(async () => {
       const r = await archiverFacture(donnees);
@@ -173,7 +172,7 @@ export function AjoutFacture({
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => pdfRef.current?.click()} className={boutonSecondaire}>
-            <IconFileTypePdf size={16} aria-hidden /> Facture PDF
+            <IconFileTypePdf size={16} aria-hidden /> PDF scanné
           </button>
           <button type="button" onClick={() => photoRef.current?.click()} className={boutonSecondaire}>
             <IconCamera size={16} aria-hidden /> Photographier
@@ -188,12 +187,8 @@ export function AjoutFacture({
     );
   }
 
-  const libelle = (texte: string, enfant: React.ReactNode) => (
-    <label className="flex flex-col gap-1 text-xs text-slate-500">
-      {texte}
-      {enfant}
-    </label>
-  );
+  // Le nom saisi suit-il le format conseillé ? (simple aide visuelle, pas bloquant)
+  const normé = /^\d{4}-\d{2}-\d{2}_\S/.test(nom.trim());
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-brand-accent/30 bg-sky-50/40 p-3">
@@ -217,69 +212,63 @@ export function AjoutFacture({
             <button type="button" onClick={() => photoRef.current?.click()} className={boutonSecondaire}>
               <IconCamera size={14} aria-hidden /> Page suivante
             </button>
-            {fichiers.pages.length > 1 && (
-              <button type="button" disabled={analyse} onClick={() => lire(fichiers.pages)} className={boutonSecondaire}>
-                Relire la facture
-              </button>
-            )}
           </>
         )}
       </div>
 
       {analyse ? (
-        <p className="text-sm text-slate-500">Lecture de la facture…</p>
+        <p className="text-sm text-slate-500">Préparation du nom…</p>
       ) : (
         <>
-          {lecture && (
-            <p className={`text-xs ${lecture === "aucune" ? "text-amber-700" : "text-slate-500"}`}>
-              {lecture === "claude"
-                ? "Champs remplis par Claude à partir de la facture : vérifiez-les avant de valider."
-                : lecture === "texte"
-                  ? "Champs remplis à partir du texte du PDF : vérifiez-les avant de valider."
-                  : "La facture n'a pas pu être lue : remplissez les champs."}
-            </p>
-          )}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {libelle("Date de la facture", <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={champClass} />)}
-            {libelle(
-              "Entreprise",
-              <>
-                <input list="fournisseurs-connus" required value={fournisseur} onChange={(e) => setFournisseur(e.target.value)} className={champClass} />
-                <datalist id="fournisseurs-connus">
-                  {fournisseurs.map((f) => (
-                    <option key={f} value={f} />
-                  ))}
-                </datalist>
-              </>
-            )}
-            {libelle("Montant TTC (€)", <input inputMode="decimal" value={montant} onChange={(e) => setMontant(e.target.value)} placeholder="49,80" className={champClass} />)}
-          </div>
-          {libelle("Objet", <input value={objet} onChange={(e) => setObjet(e.target.value)} placeholder="Cordes, partitions, réparation…" className={champClass} />)}
-          <ChoixBiens biens={biens} choisis={articleIds} onChange={setArticleIds} />
-          {libelle(
-            nomManuel ? "Nom du fichier (modifié à la main)" : "Nom du fichier (proposé automatiquement, modifiable)",
-            <input
-              value={nom}
-              onChange={(e) => {
-                setNomSaisi(e.target.value);
-                setNomManuel(true);
-              }}
-              className={`${champClass} font-mono text-xs`}
-            />
-          )}
-          {nomManuel && (
-            <button type="button" onClick={() => setNomManuel(false)} className="w-fit text-xs text-slate-500 underline">
-              Revenir au nom automatique
+          <label className="flex flex-col gap-1 text-xs text-slate-500">
+            Nom du fichier
+            <div className="flex items-center gap-1">
+              <input
+                ref={nomRef}
+                list="fournisseurs-noms"
+                value={nom}
+                onChange={(e) => setNom(e.target.value)}
+                placeholder="2026-10-28_Thomann"
+                className={`${champClass} min-w-0 flex-1 font-mono`}
+              />
+              <span className="font-mono text-sm text-slate-400">.pdf</span>
+            </div>
+            <datalist id="fournisseurs-noms">
+              {fournisseurs.map((f) => (
+                <option key={f} value={`${nom.match(/^\d{4}-\d{2}-\d{2}_/)?.[0] ?? ""}${f}`} />
+              ))}
+            </datalist>
+            <span className={normé ? "text-slate-400" : "text-amber-700"}>
+              {lu
+                ? "Proposé d'après le texte du PDF : modifiez-le si besoin."
+                : normé
+                  ? "Format année-mois-jour_entreprise."
+                  : "Conseillé : année-mois-jour_entreprise (ex. 2026-10-28_Thomann)."}
+            </span>
+          </label>
+
+          {details ? (
+            <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input inputMode="decimal" value={montant} onChange={(e) => setMontant(e.target.value)} placeholder="Montant TTC (€), facultatif" className={champClass} />
+                <input value={objet} onChange={(e) => setObjet(e.target.value)} placeholder="Objet, facultatif" className={champClass} />
+              </div>
+              <ChoixBiens biens={biens} choisis={articleIds} onChange={setArticleIds} />
+            </div>
+          ) : (
+            <button type="button" onClick={() => setDetails(true)} className="w-fit text-xs text-slate-500 underline">
+              Ajouter montant, objet ou bien de l&apos;inventaire (facultatif)
             </button>
           )}
+
           <div className="flex gap-2">
             <button
               type="button"
-              disabled={envoi || !date || !fournisseur.trim()}
+              disabled={envoi || !nom.trim()}
               onClick={archiver}
               className="rounded-md bg-brand-accent px-4 py-2 text-sm font-semibold text-white hover:bg-brand-accent/90 disabled:opacity-60"
             >
-              {envoi ? "Archivage…" : "Valider et archiver"}
+              {envoi ? "Archivage…" : "Archiver dans le Drive"}
             </button>
             <button type="button" disabled={envoi} onClick={reinitialiser} className={boutonSecondaire}>
               Annuler

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { devinerFacture, nomFichierFacture, normaliserNomFichier } from "./factures";
+import { devinerFacture, lireNomFacture, nomFichierFacture, normaliserNomFichier } from "./factures";
 
 const aujourdHui = new Date("2026-11-01T10:00:00Z");
 
@@ -13,6 +13,19 @@ describe("nommage", () => {
     expect(normaliserNomFichier("2026-10-28_Thomann cordes")).toBe("2026-10-28_Thomann cordes.pdf");
     expect(normaliserNomFichier("facture:1?.PDF")).toBe("facture 1.pdf");
     expect(normaliserNomFichier("  ")).toBe("Facture.pdf");
+  });
+});
+
+describe("lireNomFacture", () => {
+  it("retrouve date et entreprise dans un nom normé", () => {
+    expect(lireNomFacture("2026-10-28_Thomann.pdf")).toEqual({ date: "2026-10-28", fournisseur: "Thomann" });
+    expect(lireNomFacture("2026-10-28_Garage à musique (2).pdf")).toEqual({ date: "2026-10-28", fournisseur: "Garage à musique (2)" });
+    expect(lireNomFacture("2026-10-28_.pdf")).toEqual({ date: "2026-10-28", fournisseur: null });
+  });
+
+  it("accepte un nom libre", () => {
+    expect(lireNomFacture("Facture cordes Thomann.pdf")).toEqual({ date: null, fournisseur: "Facture cordes Thomann" });
+    expect(lireNomFacture("2026-02-31_X.pdf")).toEqual({ date: null, fournisseur: "2026-02-31_X" });
   });
 });
 
