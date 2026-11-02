@@ -119,7 +119,8 @@ export async function genererRegistreCles(params: {
     y -= HAUT_LIGNE;
   }
 
-  if (y < MARGE + 50) {
+  // La ligne du responsable tient sous le tableau tant qu'elle reste au-dessus du pied de page.
+  if (y - 28 < MARGE) {
     page = pdf.addPage([LARGEUR, HAUTEUR]);
     y = HAUTEUR - MARGE;
   }
