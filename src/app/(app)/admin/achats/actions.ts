@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { devinerFacture, nomFichierFacture, normaliserNomFichier, type PropositionFacture } from "@/lib/factures";
 import { lireEuros } from "@/lib/inventaire";
 import { photosEnPdf } from "@/lib/photoEnPdf";
+import { lectureClaudeDisponible, lireFactureAvecClaude } from "@/lib/lectureFacture";
 import { deposerFacture, estJetonRevoqueOuExpire, mettreALaCorbeilleDrive, renommerFichierDrive } from "@/lib/drive";
 
 export type EtatAction = { succes: boolean; message?: string };
@@ -38,27 +39,55 @@ async function fournisseursConnus(): Promise<string[]> {
   return lignes.map((l) => l.fournisseur);
 }
 
-// Première étape : lit le PDF (sans rien enregistrer) pour proposer date, entreprise,
-// montant et nom de fichier. Pour des photos, rien à lire : la date du jour est proposée.
-export async function analyserFacture(formData: FormData): Promise<PropositionFacture & { nomFichier: string }> {
+export type PropositionLue = PropositionFacture & {
+  objet: string | null;
+  nomFichier: string;
+  lecture: "claude" | "texte" | "aucune"; // ce qui a permis de remplir les champs
+};
+
+// Première étape : lit la facture (sans rien enregistrer) pour proposer date, entreprise,
+// montant, objet et nom de fichier. Claude lit photos et PDF (même scannés) ; à défaut, le
+// texte d'un PDF est analysé ; sinon la date du jour est proposée.
+export async function analyserFacture(formData: FormData): Promise<PropositionLue> {
   await exigerAdmin();
   const aujourdHui = new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" });
-  let proposition: PropositionFacture = { date: null, fournisseur: null, montantCentimes: null };
+  let proposition: PropositionFacture & { objet: string | null } = { date: null, fournisseur: null, montantCentimes: null, objet: null };
+  let lecture: PropositionLue["lecture"] = "aucune";
 
-  const [fichier] = await lireFichiers(formData);
-  if (fichier && estPdf(fichier) && fichier.length <= TAILLE_MAX) {
+  const fichiers = (await lireFichiers(formData)).filter((f) => f.length <= TAILLE_MAX);
+  const connus = await fournisseursConnus();
+  const pdf = fichiers.length === 1 && estPdf(fichiers[0]) ? fichiers[0] : null;
+  const photos = !pdf && fichiers.length > 0 && fichiers.every(estJpeg) ? fichiers : null;
+
+  if (lectureClaudeDisponible() && (pdf || photos)) {
     try {
-      const pdf = await getDocumentProxy(Uint8Array.from(fichier));
-      const { text } = await extractText(pdf, { mergePages: false });
-      const texte = (Array.isArray(text) ? text : [text]).slice(0, 3).join("\n");
-      proposition = devinerFacture(texte, await fournisseursConnus(), new Date());
+      const lu = await lireFactureAvecClaude(pdf ? { type: "pdf", contenu: pdf } : { type: "photos", pages: photos! }, connus);
+      if (lu) {
+        proposition = lu;
+        lecture = "claude";
+      }
     } catch (erreur) {
-      // PDF scanné sans texte, protégé… : on laisse simplement les champs à remplir.
+      // Claude indisponible ou clé invalide : on retombe sur la lecture du texte du PDF.
+      console.error("Lecture de la facture par Claude impossible :", erreur);
+    }
+  }
+  if (lecture === "aucune" && pdf) {
+    try {
+      const document = await getDocumentProxy(Uint8Array.from(pdf));
+      const { text } = await extractText(document, { mergePages: false });
+      const texte = (Array.isArray(text) ? text : [text]).slice(0, 3).join("\n");
+      const devine = devinerFacture(texte, connus, new Date());
+      if (devine.date || devine.fournisseur || devine.montantCentimes) {
+        proposition = { ...devine, objet: null };
+        lecture = "texte";
+      }
+    } catch (erreur) {
+      // PDF protégé ou illisible : on laisse simplement les champs à remplir.
       console.error("Lecture du texte de la facture impossible :", erreur);
     }
   }
   const date = proposition.date ?? aujourdHui;
-  return { ...proposition, date, nomFichier: nomFichierFacture(date, proposition.fournisseur ?? "") };
+  return { ...proposition, date, nomFichier: nomFichierFacture(date, proposition.fournisseur ?? ""), lecture };
 }
 
 interface ChampsFacture {

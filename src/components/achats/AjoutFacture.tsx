@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { IconCamera, IconFileTypePdf, IconPhoto, IconX } from "@tabler/icons-react";
-import { analyserFacture, archiverFacture } from "@/app/(app)/admin/achats/actions";
+import { analyserFacture, archiverFacture, type PropositionLue } from "@/app/(app)/admin/achats/actions";
 import { nomFichierFacture, normaliserNomFichier } from "@/lib/factures";
 import { reduirePhoto } from "@/lib/imageNavigateur";
 
@@ -57,7 +57,7 @@ export function ChoixBiens({
 type Fichiers = { type: "pdf"; fichier: File } | { type: "photos"; pages: Blob[] };
 
 // Archive une facture : 1) choisir un PDF ou photographier le papier, 2) vérifier la date,
-// l'entreprise, le montant et le nom proposés (lus dans le PDF quand c'est possible),
+// l'entreprise, le montant et le nom proposés (lus par Claude sur la photo ou le PDF),
 // 3) valider. Rien n'est enregistré avant la validation.
 export function AjoutFacture({
   biens,
@@ -78,6 +78,7 @@ export function AjoutFacture({
   const [articleIds, setArticleIds] = useState<string[]>(biensInitiaux);
   const [apercu, setApercu] = useState<string | null>(null);
   const [message, setMessage] = useState<{ ok: boolean; texte: string } | null>(null);
+  const [lecture, setLecture] = useState<PropositionLue["lecture"] | null>(null);
   const [analyse, demarrerAnalyse] = useTransition();
   const [envoi, demarrerEnvoi] = useTransition();
   const pdfRef = useRef<HTMLInputElement>(null);
@@ -101,6 +102,21 @@ export function AjoutFacture({
     setNomManuel(false);
     setArticleIds(biensInitiaux);
     setApercu(null);
+    setLecture(null);
+  }
+
+  // Envoie la facture à la lecture (Claude, ou le texte du PDF) et pré-remplit les champs.
+  function lire(fichiersALire: Blob[]) {
+    const donnees = new FormData();
+    fichiersALire.forEach((f, i) => donnees.append("fichiers", f, f instanceof File ? f.name : `page-${i + 1}.jpg`));
+    demarrerAnalyse(async () => {
+      const p = await analyserFacture(donnees);
+      setLecture(p.lecture);
+      setDate(p.date ?? "");
+      if (p.fournisseur) setFournisseur(p.fournisseur);
+      if (p.montantCentimes != null) setMontant((p.montantCentimes / 100).toFixed(2).replace(".", ","));
+      if (p.objet) setObjet(p.objet);
+    });
   }
 
   function choisirPdf(f: File | undefined) {
@@ -108,14 +124,7 @@ export function AjoutFacture({
     setMessage(null);
     setFichiers({ type: "pdf", fichier: f });
     setApercu(URL.createObjectURL(f));
-    const donnees = new FormData();
-    donnees.append("fichiers", f);
-    demarrerAnalyse(async () => {
-      const p = await analyserFacture(donnees);
-      setDate(p.date ?? "");
-      if (p.fournisseur) setFournisseur(p.fournisseur);
-      if (p.montantCentimes != null) setMontant((p.montantCentimes / 100).toFixed(2).replace(".", ","));
-    });
+    lire([f]);
   }
 
   async function ajouterPhotos(liste: FileList | null) {
@@ -123,8 +132,11 @@ export function AjoutFacture({
     setMessage(null);
     try {
       const reduites = await Promise.all([...liste].map((f) => reduirePhoto(f, 2000)));
-      setFichiers((avant) => ({ type: "photos", pages: [...(avant?.type === "photos" ? avant.pages : []), ...reduites] }));
-      setDate((d) => d || new Date().toLocaleDateString("fr-CA"));
+      const avant = fichiers?.type === "photos" ? fichiers.pages : [];
+      setFichiers({ type: "photos", pages: [...avant, ...reduites] });
+      // Lecture automatique dès les premières photos ; pour une page ajoutée ensuite, le
+      // bouton « Relire la facture » relance la lecture sur toutes les pages.
+      if (avant.length === 0) lire(reduites);
     } catch {
       setMessage({ ok: false, texte: "Cette photo n'a pas pu être lue (format non pris en charge)." });
     }
@@ -205,6 +217,11 @@ export function AjoutFacture({
             <button type="button" onClick={() => photoRef.current?.click()} className={boutonSecondaire}>
               <IconCamera size={14} aria-hidden /> Page suivante
             </button>
+            {fichiers.pages.length > 1 && (
+              <button type="button" disabled={analyse} onClick={() => lire(fichiers.pages)} className={boutonSecondaire}>
+                Relire la facture
+              </button>
+            )}
           </>
         )}
       </div>
@@ -213,6 +230,15 @@ export function AjoutFacture({
         <p className="text-sm text-slate-500">Lecture de la facture…</p>
       ) : (
         <>
+          {lecture && (
+            <p className={`text-xs ${lecture === "aucune" ? "text-amber-700" : "text-slate-500"}`}>
+              {lecture === "claude"
+                ? "Champs remplis par Claude à partir de la facture : vérifiez-les avant de valider."
+                : lecture === "texte"
+                  ? "Champs remplis à partir du texte du PDF : vérifiez-les avant de valider."
+                  : "La facture n'a pas pu être lue : remplissez les champs."}
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {libelle("Date de la facture", <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={champClass} />)}
             {libelle(
