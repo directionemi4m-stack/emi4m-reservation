@@ -59,6 +59,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     locationsNonPayees,
     biensInventaire,
     facturesDuMois,
+    clesEnCirculation,
   ] = await Promise.all([
     db.demandeCreneau.count({
       where: { statut: "VALIDEE", date: { gte: aujourdHui, lt: finSemaine }, demande: { profId: userId } },
@@ -92,6 +93,9 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
       : Promise.resolve(0),
     estAdmin ? db.articleInventaire.count({ where: { etat: { not: "SORTI" } } }) : Promise.resolve(0),
     estAdmin ? db.facture.count({ where: { date: { gte: debutMois, lt: finMois } } }) : Promise.resolve(0),
+    estAdmin
+      ? db.remiseCles.aggregate({ where: { restitueLe: null }, _sum: { clesAutransMeaudre: true, badgeLans: true, clesVillard: true } })
+      : Promise.resolve(null),
   ]);
 
   const ficheManquante = CHAMPS_FICHE.filter((c) => !identite?.[c]).length;
@@ -145,6 +149,12 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     "/admin/locations": { statut: locationsNonPayees ? `${locationsNonPayees} non payée${locationsNonPayees > 1 ? "s" : ""}` : "Tout est payé" },
     "/admin/inventaire": { statut: `${biensInventaire} bien${biensInventaire > 1 ? "s" : ""}` },
     "/admin/achats": { statut: facturesDuMois ? `${facturesDuMois} facture${facturesDuMois > 1 ? "s" : ""} ce mois` : "Archiver une facture" },
+    "/admin/cles": {
+      statut: (() => {
+        const n = (clesEnCirculation?._sum.clesAutransMeaudre ?? 0) + (clesEnCirculation?._sum.badgeLans ?? 0) + (clesEnCirculation?._sum.clesVillard ?? 0);
+        return n ? `${n} en circulation` : "Aucune remise";
+      })(),
+    },
     "/admin/parametres": { statut: "Salles, trajets…" },
   };
 }

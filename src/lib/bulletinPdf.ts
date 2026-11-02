@@ -182,7 +182,7 @@ function dessinerPied(page: PDFPage, texte: string, police: PDFFont) {
 // on remplace ce qui manque plutôt que de faire échouer la génération.
 const caracteresParPolice = new WeakMap<PDFFont, Set<number>>();
 
-function nettoyer(texte: string, police: PDFFont): string {
+export function nettoyer(texte: string, police: PDFFont): string {
   let jeu = caracteresParPolice.get(police);
   if (!jeu) {
     jeu = new Set(police.getCharacterSet());

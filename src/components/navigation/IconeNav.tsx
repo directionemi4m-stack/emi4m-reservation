@@ -18,6 +18,7 @@ import {
   IconHome,
   IconHourglass,
   IconId,
+  IconKey,
   IconInbox,
   IconLayoutDashboard,
   IconMapPin,
@@ -63,6 +64,7 @@ const ICONES: Record<CleIcone, typeof IconHome> = {
   location: IconGuitarPick,
   inventaire: IconClipboardList,
   achats: IconReceipt,
+  cles: IconKey,
 };
 
 // Pastille ronde colorée derrière l'icône, comme sur Home Assistant.

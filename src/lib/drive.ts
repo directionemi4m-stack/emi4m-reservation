@@ -479,3 +479,48 @@ export async function renommerFichierDrive(fileId: string, nom: string) {
   if (!client) return;
   await client.drive.files.update({ fileId, requestBody: { name: nom } });
 }
+
+// --- Clés et badges : registre signé ---
+
+const NOM_DOSSIER_CLES = "Clés et badges";
+
+// « Clés et badges / Registre clés et badges 2026-2027.pdf », remplacé sur place à chaque
+// signature (lien stable) ; recréé s'il a été supprimé à la main.
+export async function deposerRegistreCles(params: { nomFichier: string; pdf: Uint8Array; fichierExistantId: string | null }) {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive } = client;
+
+  if (params.fichierExistantId) {
+    try {
+      const { data } = await drive.files.update({
+        fileId: params.fichierExistantId,
+        requestBody: { name: params.nomFichier },
+        media: { mimeType: "application/pdf", body: Readable.from(Buffer.from(params.pdf)) },
+        fields: "id, webViewLink, trashed",
+      });
+      if (!data.trashed) return { id: data.id!, url: data.webViewLink ?? "" };
+    } catch (erreur) {
+      console.error("Registre des clés introuvable dans le Drive, recréation :", erreur);
+    }
+  }
+
+  const { data: racines } = await drive.files.list({
+    q: `name = '${NOM_DOSSIER_CLES}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id)",
+  });
+  const racine =
+    racines.files?.[0]?.id ??
+    (
+      await drive.files.create({
+        requestBody: { name: NOM_DOSSIER_CLES, mimeType: "application/vnd.google-apps.folder" },
+        fields: "id",
+      })
+    ).data.id!;
+  const { data } = await drive.files.create({
+    requestBody: { name: params.nomFichier, parents: [racine] },
+    media: { mimeType: "application/pdf", body: Readable.from(Buffer.from(params.pdf)) },
+    fields: "id, webViewLink",
+  });
+  return { id: data.id!, url: data.webViewLink ?? "" };
+}
