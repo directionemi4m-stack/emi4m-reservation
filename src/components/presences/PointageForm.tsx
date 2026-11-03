@@ -43,7 +43,7 @@ export function PointageForm({
   Object.values(marks).forEach((s) => compte[s]++);
 
   return (
-    <form action={action} className="flex flex-col gap-4 pb-24">
+    <form action={action} className="flex flex-col gap-4 pb-28 md:pb-24">
       <input type="hidden" name="classeId" value={classeId} />
       <input type="hidden" name="seanceId" value={seanceId} />
       {eleves.map((e) => (
@@ -113,7 +113,9 @@ export function PointageForm({
       {etat.message && <p className="text-sm text-status-occupee">{etat.message}</p>}
 
       {eleves.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white p-4 shadow-lg">
+        // Sur téléphone, la barre d'enregistrement se pose au-dessus de la barre de navigation
+        // du bas (sinon celle-ci la recouvre et le bouton « Enregistrer » disparaît).
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 border-t border-slate-200 bg-white p-4 shadow-lg md:bottom-0">
           <div className="mx-auto flex max-w-2xl items-center justify-between">
             <div className="flex gap-4 text-sm text-slate-600">
               <span>
