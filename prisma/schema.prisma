@@ -982,3 +982,13 @@ model SignatureDocument {
   @@unique([documentId, version, userId])
   @@index([userId])
 }
+
+// Message type des demandes de salle aux mairies, modifiable par la direction (repli sur
+// le texte d'origine tant qu'il n'a pas été enregistré). Variables : {salle}, {commune},
+// {date}, {debut}, {fin}.
+model ModeleMailMairie {
+  id    String   @id @default("singleton")
+  sujet String
+  corps String
+  majLe DateTime @updatedAt
+}

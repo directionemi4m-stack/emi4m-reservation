@@ -3,6 +3,7 @@ import { LigneAction } from "@/components/admin/LigneAction";
 import { LigneAnnulation } from "@/components/admin/LigneAnnulation";
 import { DemandeMailForm } from "@/components/admin/DemandeMailForm";
 import { ModifierReservation } from "@/components/admin/ModifierReservation";
+import { MODELE_MAIRIE_DEFAUT } from "@/lib/modeleMairie";
 
 function formatterDate(date: Date) {
   return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
@@ -25,7 +26,7 @@ export default async function AdminDemandesPage({
   searchParams: Promise<{ modifier?: string }>;
 }) {
   const { modifier } = await searchParams;
-  const [enAttente, validees, contacts, salles] = await Promise.all([
+  const [enAttente, validees, contacts, salles, modeleEnregistre] = await Promise.all([
     db.demandeCreneau.findMany({
       where: { statut: "EN_ATTENTE" },
       include: {
@@ -53,7 +54,9 @@ export default async function AdminDemandesPage({
       include: { commune: true },
       orderBy: [{ commune: { nom: "asc" } }, { nom: "asc" }],
     }),
+    db.modeleMailMairie.findUnique({ where: { id: "singleton" } }),
   ]);
+  const modele = modeleEnregistre ?? MODELE_MAIRIE_DEFAUT;
 
   return (
     <div className="flex flex-col gap-8">
@@ -92,6 +95,7 @@ export default async function AdminDemandesPage({
                   heureDebut={formatterHeure(ligne.heureDebut)}
                   heureFin={formatterHeure(ligne.heureFin)}
                   contacts={contacts}
+                  modele={{ sujet: modele.sujet, corps: modele.corps }}
                 />
               </div>
             </div>
@@ -148,6 +152,7 @@ export default async function AdminDemandesPage({
                     heureDebut={formatterHeure(ligne.heureDebut)}
                     heureFin={formatterHeure(ligne.heureFin)}
                     contacts={contacts}
+                  modele={{ sujet: modele.sujet, corps: modele.corps }}
                   />
                 </div>
               </div>

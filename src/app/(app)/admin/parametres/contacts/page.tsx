@@ -2,14 +2,17 @@ import { db } from "@/lib/db";
 import { AjouterContactForm } from "@/components/admin/AjouterContactForm";
 import { ActionsItemPresence } from "@/components/admin/ActionsItemPresence";
 import { basculerActifContact, supprimerContact } from "./actions";
+import { ModeleMairieForm } from "@/components/admin/ModeleMairieForm";
+import { MODELE_MAIRIE_DEFAUT } from "@/lib/modeleMairie";
 
 export default async function AdminContactsPage() {
-  const [contacts, communes] = await Promise.all([
+  const [contacts, communes, modele] = await Promise.all([
     db.contact.findMany({
       include: { commune: true },
       orderBy: [{ actif: "desc" }, { commune: { nom: "asc" } }, { nom: "asc" }],
     }),
     db.commune.findMany({ orderBy: { nom: "asc" } }),
+    db.modeleMailMairie.findUnique({ where: { id: "singleton" } }),
   ]);
 
   return (
@@ -72,6 +75,12 @@ export default async function AdminContactsPage() {
           </tbody>
         </table>
       </div>
+
+      <ModeleMairieForm
+        sujet={modele?.sujet ?? MODELE_MAIRIE_DEFAUT.sujet}
+        corps={modele?.corps ?? MODELE_MAIRIE_DEFAUT.corps}
+        personnalise={!!modele}
+      />
     </div>
   );
 }

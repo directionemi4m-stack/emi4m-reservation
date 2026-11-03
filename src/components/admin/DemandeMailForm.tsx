@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { envoyerDemandeMail } from "@/app/(app)/admin/demandes/actions";
+import { remplirModele, type ModeleMairie } from "@/lib/modeleMairie";
 
 interface Contact {
   id: string;
@@ -18,6 +20,7 @@ export function DemandeMailForm({
   heureDebut,
   heureFin,
   contacts,
+  modele,
 }: {
   salleNom: string;
   communeNom: string;
@@ -26,6 +29,7 @@ export function DemandeMailForm({
   heureDebut: string;
   heureFin: string;
   contacts: Contact[];
+  modele: ModeleMairie; // message type (cf. Paramètres › Contacts)
 }) {
   const [ouvert, setOuvert] = useState(false);
   const [envoye, setEnvoye] = useState(false);
@@ -39,12 +43,9 @@ export function DemandeMailForm({
   const [nomLibre, setNomLibre] = useState("");
   const [emailLibre, setEmailLibre] = useState("");
 
-  const [sujet, setSujet] = useState(
-    `Demande de réservation de salle — ${salleNom} (${communeNom}) — ${dateFormatee}`
-  );
-  const [corps, setCorps] = useState(
-    `Bonjour,\n\nJe me permets de vous solliciter afin de réserver la salle ${salleNom} (${communeNom}) pour l'École de Musique Itinérante des 4 Montagnes (EMI4M), à la date et l'horaire suivants :\n\n${dateFormatee}, de ${heureDebut} à ${heureFin}\n\nMerci de bien vouloir me confirmer la disponibilité de cette salle.\n\nCordialement,\nLa direction — EMI4M`
-  );
+  const valeurs = { salle: salleNom, commune: communeNom, date: dateFormatee, debut: heureDebut, fin: heureFin };
+  const [sujet, setSujet] = useState(() => remplirModele(modele.sujet, valeurs));
+  const [corps, setCorps] = useState(() => remplirModele(modele.corps, valeurs));
 
   function basculerContact(id: string) {
     setCoches((prec) => {
@@ -164,6 +165,10 @@ export function DemandeMailForm({
               className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
             />
           </label>
+
+          <Link href="/admin/parametres/contacts#message-mairie" className="text-[11px] text-slate-500 underline">
+            Modifier le message type
+          </Link>
 
           {erreur && <p className="text-xs text-status-occupee">{erreur}</p>}
 
