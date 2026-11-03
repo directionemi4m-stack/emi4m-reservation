@@ -11,6 +11,20 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // En-têtes de sécurité de toutes les pages : l'appli ne peut pas être affichée dans
+        // le cadre d'un autre site (anti-« clickjacking »), le navigateur ne devine pas le
+        // type des fichiers servis, et l'adresse des pages n'est pas transmise aux autres sites.
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=()" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+        ],
+      },
+      {
         // Le service worker des notifications : jamais mis en cache, pour que chaque
         // téléphone récupère tout de suite la dernière version.
         source: "/sw.js",

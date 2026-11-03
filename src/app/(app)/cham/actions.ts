@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { contenuCorrespond } from "@/lib/typeFichier";
 import { AUTORISATIONS, AUTORISATIONS_INTERCOURS } from "@/lib/cham";
 import {
   alerterConnexionDriveInterrompue,
@@ -146,8 +147,11 @@ export async function televerserFicheCham(_etatPrecedent: EtatAction, formData: 
   if (!extension) return { succes: false, message: "Format non accepté (photo ou PDF uniquement)." };
   if (fichier.size > TAILLE_MAX_FICHE) return { succes: false, message: "Fichier trop volumineux (10 Mo max)." };
 
+  const contenu = Buffer.from(await fichier.arrayBuffer());
+  if (!contenuCorrespond(contenu, fichier.type)) return { succes: false, message: "Ce fichier n'est pas une vraie photo ou un vrai PDF." };
+
   try {
-    const eleve = await televerserDocumentCham(id, Buffer.from(await fichier.arrayBuffer()), fichier.type, extension);
+    const eleve = await televerserDocumentCham(id, contenu, fichier.type, extension);
     if (!eleve) return { succes: false, message: "Envoi vers Google Drive indisponible." };
   } catch (erreur) {
     console.error("Envoi de la fiche CHAM vers Google Drive impossible :", erreur);

@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "crypto";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { auth } from "@/lib/auth";
@@ -8,6 +10,17 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   if (!session?.user || session.user.role !== "ADMIN") {
     return new NextResponse("Non autorisé", { status: 403 });
+  }
+
+  const etatRecu = url.searchParams.get("state") ?? "";
+  const etatAttendu = (await cookies()).get("drive_oauth_state")?.value ?? "";
+  const etatValide =
+    etatAttendu.length > 0 &&
+    etatRecu.length === etatAttendu.length &&
+    timingSafeEqual(Buffer.from(etatRecu), Buffer.from(etatAttendu));
+  (await cookies()).delete({ name: "drive_oauth_state", path: "/api/admin/drive-oauth" });
+  if (!etatValide) {
+    return NextResponse.redirect(new URL("/admin/parametres/google-drive?erreur=1", url.origin));
   }
 
   const code = url.searchParams.get("code");

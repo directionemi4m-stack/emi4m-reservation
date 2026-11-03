@@ -21,7 +21,10 @@ export async function demanderReinitialisation(
   if (email && email.includes("@")) {
     try {
       const compte = await db.user.findUnique({ where: { email } });
-      if (compte?.actif) {
+      const recent = compte
+        ? await db.tokenMotDePasse.findFirst({ where: { userId: compte.id, creeLe: { gte: new Date(Date.now() - 2 * 60 * 1000) } } })
+        : null;
+      if (compte?.actif && !recent) {
         const token = await genererTokenMotDePasse(compte.id);
         const urlDefinirMotDePasse = `${await urlBase()}/definir-mot-de-passe?token=${token}`;
         await envoyerMailReinitialisationMotDePasse({ prof: compte, urlDefinirMotDePasse });

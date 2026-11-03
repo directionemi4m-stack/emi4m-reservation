@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { auth } from "@/lib/auth";
@@ -17,7 +18,11 @@ export async function GET(request: Request) {
   const origine = new URL(request.url).origin;
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, `${origine}/api/admin/drive-oauth/callback`);
 
+  // Code à usage unique renvoyé par Google et comparé au retour : seul un retour issu de
+  // ce clic peut relier l'appli à un compte Google (pas un lien piégé).
+  const etat = randomBytes(24).toString("hex");
   const urlConsentement = oauth2Client.generateAuthUrl({
+    state: etat,
     access_type: "offline",
     prompt: "consent",
     scope: [
@@ -31,5 +36,13 @@ export async function GET(request: Request) {
     ],
   });
 
-  return NextResponse.redirect(urlConsentement);
+  const reponse = NextResponse.redirect(urlConsentement);
+  reponse.cookies.set("drive_oauth_state", etat, {
+    httpOnly: true,
+    secure: origine.startsWith("https"),
+    sameSite: "lax",
+    path: "/api/admin/drive-oauth",
+    maxAge: 600,
+  });
+  return reponse;
 }

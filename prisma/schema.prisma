@@ -992,3 +992,13 @@ model ModeleMailMairie {
   corps String
   majLe DateTime @updatedAt
 }
+
+// Échecs de connexion récents, par adresse : au-delà d'un seuil, les essais sont refusés
+// un moment (protection contre la recherche du mot de passe par essais successifs).
+model EchecConnexion {
+  id    String   @id @default(cuid())
+  email String
+  le    DateTime @default(now())
+
+  @@index([email, le])
+}

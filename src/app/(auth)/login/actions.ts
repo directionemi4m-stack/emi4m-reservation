@@ -26,7 +26,7 @@ export async function connecter(
     return { statut: "idle" };
   } catch (erreur) {
     if (erreur instanceof AuthError) {
-      return { statut: "erreur", message: "Email ou mot de passe incorrect." };
+      return { statut: "erreur", message: "Email ou mot de passe incorrect. Après 10 essais manqués, la connexion est bloquée 15 minutes." };
     }
     throw erreur;
   }

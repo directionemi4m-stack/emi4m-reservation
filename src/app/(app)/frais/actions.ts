@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { contenuCorrespond } from "@/lib/typeFichier";
 import { synchroniserFraisProf } from "@/lib/sheets";
 import {
   televerserDocumentProf,
@@ -172,6 +173,9 @@ export async function televerserDocument(
   }
 
   const buffer = Buffer.from(await fichier.arrayBuffer());
+  if (!contenuCorrespond(buffer, fichier.type)) {
+    return { succes: false, message: "Ce fichier n'est pas une vraie photo ou un vrai PDF." };
+  }
   let document;
   try {
     document = await televerserDocumentProf(session.user.id, type, buffer, fichier.type, extension);

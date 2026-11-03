@@ -19,12 +19,14 @@ async function chargerClasseAutorisee(classeId: string) {
   return { classe, session };
 }
 
+const DATE_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
 export async function ajouterEleve(
   _etatPrecedent: EtatAction,
   formData: FormData
 ): Promise<EtatAction> {
   const classeId = String(formData.get("classeId"));
-  const nom = String(formData.get("nom") ?? "").trim();
+  const nom = String(formData.get("nom") ?? "").trim().slice(0, 120);
   if (!nom) return { succes: false, message: "Le nom de l'élève est requis." };
 
   const { classe } = await chargerClasseAutorisee(classeId);
@@ -49,7 +51,8 @@ export async function supprimerEleve(formData: FormData) {
   const { classe } = await chargerClasseAutorisee(classeId);
   if (!classe) return;
 
-  await db.eleve.delete({ where: { id: eleveId } });
+  const { count } = await db.eleve.deleteMany({ where: { id: eleveId, classeId } });
+  if (count === 0) return;
   revalidatePath(`/presences/${classeId}`);
 
   try {
@@ -65,7 +68,7 @@ export async function ajouterSeance(
 ): Promise<EtatAction> {
   const classeId = String(formData.get("classeId"));
   const dateStr = String(formData.get("date") ?? "");
-  if (!dateStr) return { succes: false, message: "La date est requise." };
+  if (!DATE_ISO.test(dateStr)) return { succes: false, message: "La date est requise." };
 
   const { classe } = await chargerClasseAutorisee(classeId);
   if (!classe) return { succes: false, message: "Cours introuvable." };
@@ -84,15 +87,17 @@ export async function modifierDateSeance(
   const classeId = String(formData.get("classeId"));
   const seanceId = String(formData.get("seanceId"));
   const dateStr = String(formData.get("date") ?? "");
-  if (!dateStr) return { succes: false, message: "La date est requise." };
+  if (!DATE_ISO.test(dateStr)) return { succes: false, message: "La date est requise." };
 
   const { classe } = await chargerClasseAutorisee(classeId);
   if (!classe) return { succes: false, message: "Cours introuvable." };
 
-  await db.seance.update({
-    where: { id: seanceId },
+  // La séance doit appartenir au cours autorisé.
+  const { count } = await db.seance.updateMany({
+    where: { id: seanceId, classeId },
     data: { date: new Date(`${dateStr}T00:00:00.000Z`) },
   });
+  if (count === 0) return { succes: false, message: "Séance introuvable." };
   revalidatePath(`/presences/${classeId}`);
 
   try {

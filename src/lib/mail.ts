@@ -5,6 +5,11 @@ const COULEUR_ACCENT = "#2980B9";
 
 const EMAIL_DIRECTION = process.env.EMAIL_DIRECTION || "direction.emi4m@gmail.com";
 
+// Échappe un texte saisi (nom, salle, motif…) avant de l'insérer dans le HTML d'un mail.
+function h(t: string | null | undefined) {
+  return String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function creerTransporteur() {
   return createTransport({
     host: process.env.EMAIL_SERVER_HOST,
@@ -112,8 +117,8 @@ function htmlNouvelleDemande({ prof, salle, enAttente, refusees }: ParametresNou
           </tr>
           <tr>
             <td style="padding:32px;color:#2C3E50;">
-              <p style="margin:0 0 16px;"><strong>${prof.prenom} ${prof.nom}</strong> (${prof.email}) demande à réserver :</p>
-              <p style="margin:0 0 20px;"><strong>${salle.commune.nom} — ${salle.nom}</strong></p>
+              <p style="margin:0 0 16px;"><strong>${h(prof.prenom)} ${h(prof.nom)}</strong> (${h(prof.email)}) demande à réserver :</p>
+              <p style="margin:0 0 20px;"><strong>${h(salle.commune.nom)} — ${h(salle.nom)}</strong></p>
               <p style="margin:0 0 8px;font-weight:bold;">En attente de validation :</p>
               <ul style="margin:0 0 20px;padding-left:20px;">${enAttente.map(ligne).join("")}</ul>
               ${
@@ -151,7 +156,7 @@ export async function envoyerMailDemandeValidee(params: ParametresDecision) {
     html: htmlDecision({
       couleur: "#27AE60",
       titre: "Votre réservation est validée",
-      corps: `<p style="margin:0 0 16px;">Bonjour ${prof.prenom},</p><p style="margin:0 0 20px;">Votre demande de réservation a été validée :</p><p style="margin:0 0 20px;font-weight:bold;">${salle.commune.nom} — ${salle.nom}<br>${formatterDateFr(ligne.date)} · ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}</p>`,
+      corps: `<p style="margin:0 0 16px;">Bonjour ${h(prof.prenom)},</p><p style="margin:0 0 20px;">Votre demande de réservation a été validée :</p><p style="margin:0 0 20px;font-weight:bold;">${h(salle.commune.nom)} — ${h(salle.nom)}<br>${formatterDateFr(ligne.date)} · ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}</p>`,
     }),
   });
 }
@@ -171,7 +176,7 @@ export async function envoyerMailDemandeRefusee(params: ParametresDecision) {
     html: htmlDecision({
       couleur: "#C0392B",
       titre: "Votre réservation est refusée",
-      corps: `<p style="margin:0 0 16px;">Bonjour ${prof.prenom},</p><p style="margin:0 0 20px;">Votre demande de réservation a été refusée :</p><p style="margin:0 0 12px;font-weight:bold;">${salle.commune.nom} — ${salle.nom}<br>${formatterDateFr(ligne.date)} · ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}</p>${motif ? `<p style="margin:0;color:#7f8c8d;">Motif : ${motif}</p>` : ""}`,
+      corps: `<p style="margin:0 0 16px;">Bonjour ${h(prof.prenom)},</p><p style="margin:0 0 20px;">Votre demande de réservation a été refusée :</p><p style="margin:0 0 12px;font-weight:bold;">${h(salle.commune.nom)} — ${h(salle.nom)}<br>${formatterDateFr(ligne.date)} · ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}</p>${motif ? `<p style="margin:0;color:#7f8c8d;">Motif : ${h(motif)}</p>` : ""}`,
     }),
   });
 }
@@ -191,7 +196,7 @@ export async function envoyerMailReservationAnnulee(params: ParametresDecision) 
     html: htmlDecision({
       couleur: "#7f8c8d",
       titre: "Une réservation validée a été annulée",
-      corps: `<p style="margin:0 0 16px;">Bonjour ${prof.prenom},</p><p style="margin:0 0 20px;">Une réservation déjà validée vient d'être annulée par la direction :</p><p style="margin:0 0 12px;font-weight:bold;">${salle.commune.nom} — ${salle.nom}<br>${formatterDateFr(ligne.date)} · ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}</p>${motif ? `<p style="margin:0;color:#7f8c8d;">Motif : ${motif}</p>` : ""}`,
+      corps: `<p style="margin:0 0 16px;">Bonjour ${h(prof.prenom)},</p><p style="margin:0 0 20px;">Une réservation déjà validée vient d'être annulée par la direction :</p><p style="margin:0 0 12px;font-weight:bold;">${h(salle.commune.nom)} — ${h(salle.nom)}<br>${formatterDateFr(ligne.date)} · ${formatterHeure(ligne.heureDebut)}–${formatterHeure(ligne.heureFin)}</p>${motif ? `<p style="margin:0;color:#7f8c8d;">Motif : ${h(motif)}</p>` : ""}`,
     }),
   });
 }
@@ -215,7 +220,7 @@ export async function envoyerMailReservationModifiee(params: {
   const decrire = (c: CreneauAvecSalle) =>
     `${c.salle.commune.nom} — ${c.salle.nom}\n${formatterDateFr(c.date)} ${formatterHeure(c.heureDebut)}–${formatterHeure(c.heureFin)}`;
   const decrireHtml = (c: CreneauAvecSalle) =>
-    `${c.salle.commune.nom} — ${c.salle.nom}<br>${formatterDateFr(c.date)} · ${formatterHeure(c.heureDebut)}–${formatterHeure(c.heureFin)}`;
+    `${h(c.salle.commune.nom)} — ${h(c.salle.nom)}<br>${formatterDateFr(c.date)} · ${formatterHeure(c.heureDebut)}–${formatterHeure(c.heureFin)}`;
 
   await transport.sendMail({
     to: prof.email,
@@ -225,7 +230,7 @@ export async function envoyerMailReservationModifiee(params: {
     html: htmlDecision({
       couleur: "#2980B9",
       titre: "Votre réservation a été modifiée",
-      corps: `<p style="margin:0 0 16px;">Bonjour ${prof.prenom},</p><p style="margin:0 0 20px;">La direction a modifié une de vos réservations validées.</p><p style="margin:0 0 6px;color:#7f8c8d;">Ancien créneau</p><p style="margin:0 0 20px;text-decoration:line-through;color:#7f8c8d;">${decrireHtml(ancienne)}</p><p style="margin:0 0 6px;color:#7f8c8d;">Nouveau créneau</p><p style="margin:0;font-weight:bold;">${decrireHtml(nouvelle)}</p>`,
+      corps: `<p style="margin:0 0 16px;">Bonjour ${h(prof.prenom)},</p><p style="margin:0 0 20px;">La direction a modifié une de vos réservations validées.</p><p style="margin:0 0 6px;color:#7f8c8d;">Ancien créneau</p><p style="margin:0 0 20px;text-decoration:line-through;color:#7f8c8d;">${decrireHtml(ancienne)}</p><p style="margin:0 0 6px;color:#7f8c8d;">Nouveau créneau</p><p style="margin:0;font-weight:bold;">${decrireHtml(nouvelle)}</p>`,
     }),
   });
 }
@@ -246,7 +251,7 @@ export async function envoyerMailBienvenue(params: ParametresBienvenue) {
     text: `Bonjour ${prof.prenom},\n\nLa direction vient de créer votre compte sur l'application de réservation des salles EMI4M (identifiant : ${prof.email}). Définissez votre mot de passe pour activer votre compte :\n${urlDefinirMotDePasse}\n\nCe lien est valable 7 jours et à usage unique. S'il a expiré, cliquez sur « Mot de passe oublié ? » sur la page de connexion pour en recevoir un nouveau.\n\nÀ bientôt,\nDirection EMI4M`,
     html: htmlLienMotDePasse({
       titre: "Bienvenue sur EMI4M Réservation",
-      intro: `La direction vient de créer votre compte sur l'application de réservation des salles EMI4M (identifiant : ${prof.email}). Cliquez ci-dessous pour définir votre mot de passe et activer votre compte.`,
+      intro: `La direction vient de créer votre compte sur l'application de réservation des salles EMI4M (identifiant : ${h(prof.email)}). Cliquez ci-dessous pour définir votre mot de passe et activer votre compte.`,
       url: urlDefinirMotDePasse,
       libelleBouton: "Définir mon mot de passe",
     }),
@@ -270,7 +275,7 @@ export async function envoyerMailReinitialisationMotDePasse(params: ParametresRe
     text: `Bonjour ${prof.prenom},\n\nVoici votre lien pour définir un nouveau mot de passe :\n${urlDefinirMotDePasse}\n\nCe lien est valable ${validite} et à usage unique. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\nDirection EMI4M`,
     html: htmlLienMotDePasse({
       titre: "Réinitialisation de mot de passe",
-      intro: `Bonjour ${prof.prenom}, cliquez ci-dessous pour définir un nouveau mot de passe. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`,
+      intro: `Bonjour ${h(prof.prenom)}, cliquez ci-dessous pour définir un nouveau mot de passe. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`,
       url: urlDefinirMotDePasse,
       libelleBouton: "Définir mon mot de passe",
     }),
@@ -372,7 +377,7 @@ export async function envoyerMailAlerteAbsences(params: ParametresAlerteAbsences
 
   const lignesTexte = alertes.map((a) => `- ${a.nom} : ${a.total} absences injustifiées`).join("\n");
   const lignesHtml = alertes
-    .map((a) => `<li style="margin:0 0 6px;"><strong>${a.nom}</strong> — ${a.total} absences injustifiées</li>`)
+    .map((a) => `<li style="margin:0 0 6px;"><strong>${h(a.nom)}</strong> — ${a.total} absences injustifiées</li>`)
     .join("");
 
   await transport.sendMail({
@@ -383,7 +388,7 @@ export async function envoyerMailAlerteAbsences(params: ParametresAlerteAbsences
     html: htmlDecision({
       couleur: "#C0392B",
       titre: "Alerte assiduité",
-      corps: `<p style="margin:0 0 16px;">${prof.prenom} ${prof.nom} vient de pointer le cours <strong>${classe}</strong>.</p><p style="margin:0 0 8px;font-weight:bold;">Seuil d'absences injustifiées atteint pour :</p><ul style="margin:0;padding-left:20px;">${lignesHtml}</ul>`,
+      corps: `<p style="margin:0 0 16px;">${h(prof.prenom)} ${h(prof.nom)} vient de pointer le cours <strong>${h(classe)}</strong>.</p><p style="margin:0 0 8px;font-weight:bold;">Seuil d'absences injustifiées atteint pour :</p><ul style="margin:0;padding-left:20px;">${lignesHtml}</ul>`,
     }),
   });
 }

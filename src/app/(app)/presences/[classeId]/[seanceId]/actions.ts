@@ -32,6 +32,10 @@ export async function enregistrerPointage(
   if (classe.profId !== session.user.id && session.user.role !== "ADMIN") {
     return { succes: false, message: "Action non autorisée." };
   }
+  // La séance doit appartenir à ce cours (sinon on toucherait à l'appel d'un autre cours).
+  if (!(await db.seance.findFirst({ where: { id: seanceId, classeId }, select: { id: true } }))) {
+    return { succes: false, message: "Séance introuvable." };
+  }
 
   const marques = classe.eleves.map((eleve) => {
     const brut = String(formData.get(`statut-${eleve.id}`) ?? "PRESENT");
@@ -90,10 +94,12 @@ const TYPES_ABSENCE_VALIDES: TypeAbsenceProf[] = ["RATTRAPAGE", "ARRET_MALADIE"]
 
 export type EtatAbsence = { succes: boolean; message?: string };
 
-async function autoriserSeance(classeId: string, session: Session) {
+async function autoriserSeance(classeId: string, seanceId: string, session: Session) {
   const classe = await db.classe.findUnique({ where: { id: classeId } });
   if (!classe) return null;
   if (classe.profId !== session.user.id && session.user.role !== "ADMIN") return null;
+  // La séance doit appartenir à ce cours.
+  if (!(await db.seance.findFirst({ where: { id: seanceId, classeId }, select: { id: true } }))) return null;
   return classe;
 }
 
@@ -115,11 +121,11 @@ export async function signalerAbsenceProf(
 
   if (!type) return { succes: false, message: "Type d'absence invalide." };
 
-  const classe = await autoriserSeance(classeId, session);
+  const classe = await autoriserSeance(classeId, seanceId, session);
   if (!classe) return { succes: false, message: "Action non autorisée." };
 
   const dateRattrapage =
-    type === "RATTRAPAGE" && dateRattrapageBrute ? new Date(`${dateRattrapageBrute}T00:00:00.000Z`) : null;
+    type === "RATTRAPAGE" && /^\d{4}-\d{2}-\d{2}$/.test(dateRattrapageBrute) ? new Date(`${dateRattrapageBrute}T00:00:00.000Z`) : null;
 
   await db.pointage.deleteMany({ where: { seanceId } });
   await db.absenceProf.upsert({
@@ -147,7 +153,7 @@ export async function retirerAbsenceProf(formData: FormData) {
   const classeId = String(formData.get("classeId"));
   const seanceId = String(formData.get("seanceId"));
 
-  const classe = await autoriserSeance(classeId, session);
+  const classe = await autoriserSeance(classeId, seanceId, session);
   if (!classe) return;
 
   await db.absenceProf.deleteMany({ where: { seanceId } });
