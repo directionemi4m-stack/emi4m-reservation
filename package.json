@@ -43,5 +43,8 @@
     "tsx": "^4.23.8",
     "typescript": "^5",
     "vitest": "^2.1.9"
+  },
+  "overrides": {
+    "nodemailer": "$nodemailer"
   }
 }
