@@ -113,6 +113,7 @@ export const PARAMETRES: LienNav[] = [
   { href: "/admin/parametres/trajets", label: "Types de trajet", icone: "trajet", couleur: "ambre" },
   { href: "/admin/parametres/types-evenement", label: "Types d'événement", icone: "evenement", couleur: "ambre" },
   { href: "/admin/parametres/forfaits", label: "Forfaits", icone: "forfait", couleur: "ambre" },
+  { href: "/admin/annuaire-eleves", label: "Annuaire élèves", icone: "annuaire", couleur: "neutre" },
   { href: "/admin/parametres/securite", label: "Sécurité", icone: "securite", couleur: "neutre" },
   { href: "/admin/parametres/google-drive", label: "Google Drive", icone: "drive", couleur: "neutre" },
   { href: "/admin/parametres/journal-impersonation", label: "Journal", icone: "journal", couleur: "neutre" },

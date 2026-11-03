@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CoordonneesForm } from "@/components/annuaire/CoordonneesForm";
+import { OngletsAnnuaire } from "@/components/annuaire/OngletsAnnuaire";
 
 export default async function AnnuairePage() {
   const session = await auth();
@@ -16,7 +17,7 @@ export default async function AnnuairePage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <h1 className="text-xl font-semibold text-brand-slate">Annuaire</h1>
+      <OngletsAnnuaire actif="collegues" />
 
       <div>
         <h2 className="mb-1 text-sm font-semibold text-brand-slate">Mes coordonnées</h2>

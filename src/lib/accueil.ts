@@ -65,6 +65,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     documentsActifs,
     nbSignataires,
     moi,
+    nbEleves,
   ] = await Promise.all([
     db.demandeCreneau.count({
       where: { statut: "VALIDEE", date: { gte: aujourdHui, lt: finSemaine }, demande: { profId: userId } },
@@ -110,6 +111,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     }),
     estAdmin ? db.user.count({ where: salariesDuRegistre }) : Promise.resolve(0),
     db.user.findUnique({ where: { id: userId }, select: { email: true } }),
+    db.eleveAnnuaire.count(),
   ]);
 
   const ficheManquante = CHAMPS_FICHE.filter((c) => !identite?.[c]).length;
@@ -163,7 +165,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
       pastille: campagne && bulletinsRestants ? bulletinsRestants : undefined,
     },
     [DRIVE_PROFS]: { statut: "Documents partagés" },
-    "/annuaire": { statut: pluriel(nbCollegues, "collègue") },
+    "/annuaire": { statut: nbEleves > 0 ? `${pluriel(nbEleves, "élève")} · ${pluriel(nbCollegues, "collègue")}` : pluriel(nbCollegues, "collègue") },
     "/securite": documentsASigner
       ? { statut: `${pluriel(documentsASigner, "document")} à signer`, pastille: documentsASigner }
       : { statut: codeAlarme ? "Code alarme Lans" : "Consignes Villard" },

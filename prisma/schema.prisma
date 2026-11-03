@@ -1002,3 +1002,31 @@ model EchecConnexion {
 
   @@index([email, le])
 }
+
+// --- Annuaire des élèves ---
+
+// Un élève de l'année, tiré du fichier Excel des inscriptions que la direction importe
+// chaque année (chaque import remplace l'annuaire entier). Visible par tous les comptes
+// de l'école. Plusieurs instruments, mails ou téléphones possibles (ex. ceux des parents).
+model EleveAnnuaire {
+  id          String   @id @default(cuid())
+  nom         String
+  prenom      String
+  instruments String[]
+  emails      String[]
+  telephones  String[]
+  commune     String?
+
+  @@index([nom, prenom])
+}
+
+// Trace de chaque import : la date affichée aux profs, et la correspondance colonnes →
+// informations, reproposée telle quelle au fichier de l'année suivante.
+model ImportAnnuaireEleves {
+  id             String   @id @default(cuid())
+  nomFichier     String
+  nbEleves       Int
+  importePar     String
+  correspondance Json
+  importeLe      DateTime @default(now())
+}
