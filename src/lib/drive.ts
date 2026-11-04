@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { estCopieDeTest } from "@/lib/modeTest";
 import { Readable } from "stream";
 import { db } from "@/lib/db";
 import type { TypeDocument } from "@/generated/prisma/client";
@@ -10,6 +11,7 @@ import { envoyerMailConnexionDriveInterrompue, type MotifAlerteDrive } from "@/l
 // une fois via OAuth par un admin (cf. /admin/parametres/google-drive), dont le
 // jeton de rafraîchissement est stocké en base.
 async function creerClientDrive() {
+  if (estCopieDeTest()) return null;
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   const dossierParentId = process.env.GOOGLE_DRIVE_DOCUMENTS_FOLDER_ID;

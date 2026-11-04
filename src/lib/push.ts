@@ -1,4 +1,5 @@
 import webpush from "web-push";
+import { estCopieDeTest } from "@/lib/modeTest";
 import { db } from "@/lib/db";
 
 export interface MessagePush {
@@ -8,6 +9,7 @@ export interface MessagePush {
 }
 
 function configurer(): boolean {
+  if (estCopieDeTest()) return false;
   const publique = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privee = process.env.VAPID_PRIVATE_KEY;
   if (!publique || !privee) return false;

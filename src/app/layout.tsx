@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { estCopieDeTest } from "@/lib/modeTest";
 
 export const metadata: Metadata = {
   title: "EMI4M — Réservation des salles",
@@ -25,7 +26,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="fr" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {estCopieDeTest() && (
+          <div className="sticky top-0 z-50 bg-amber-400 px-4 py-1 text-center text-xs font-semibold text-amber-950">
+            COPIE DE TEST — données de test, aucun mail ni notification envoyés, Drive non modifié
+          </div>
+        )}
+        {children}
+      </body>
     </html>
   );
 }

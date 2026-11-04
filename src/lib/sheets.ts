@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { estCopieDeTest } from "@/lib/modeTest";
 import { db } from "@/lib/db";
 import type { StatutPresence, TypeAbsenceProf, TypeCours } from "@/generated/prisma/client";
 import { libelleMission } from "@/lib/mission";
@@ -26,6 +27,7 @@ const LIBELLES_TYPE_ABSENCE: Record<TypeAbsenceProf, string> = {
 };
 
 function creerClientSheets(idFeuille: string | undefined) {
+  if (estCopieDeTest()) return null;
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const cle = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
   if (!email || !cle || !idFeuille) return null;

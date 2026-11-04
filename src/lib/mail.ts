@@ -1,4 +1,5 @@
 import { createTransport } from "nodemailer";
+import { estCopieDeTest } from "@/lib/modeTest";
 
 const COULEUR_SLATE = "#2C3E50";
 const COULEUR_ACCENT = "#2980B9";
@@ -10,7 +11,7 @@ function h(t: string | null | undefined) {
   return String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function creerTransporteur() {
+function transporteurSmtp() {
   return createTransport({
     host: process.env.EMAIL_SERVER_HOST,
     port: Number(process.env.EMAIL_SERVER_PORT ?? 587),
@@ -19,6 +20,20 @@ function creerTransporteur() {
       pass: process.env.EMAIL_SERVER_PASSWORD,
     },
   });
+}
+
+function creerTransporteur(): Pick<ReturnType<typeof transporteurSmtp>, "sendMail" | "verify"> {
+  // Copie de test : le mail est seulement affiché dans le terminal, jamais envoyé.
+  if (estCopieDeTest()) {
+    return {
+      sendMail: (async (mail: { to?: unknown; subject?: string }) => {
+        console.log(`[copie de test] mail NON envoyé à ${JSON.stringify(mail.to)} : ${mail.subject}`);
+        return { accepted: [], rejected: [], pending: [], messageId: "copie-de-test", envelope: { from: false, to: [] }, response: "non envoyé" };
+      }) as unknown as ReturnType<typeof transporteurSmtp>["sendMail"],
+      verify: (async () => true) as ReturnType<typeof transporteurSmtp>["verify"],
+    };
+  }
+  return transporteurSmtp();
 }
 
 interface Destinataire {
