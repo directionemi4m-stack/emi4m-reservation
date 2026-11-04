@@ -16,6 +16,8 @@ import { basculerEtapeRentree } from "./actions";
 
 const jour = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" });
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? "s" : ""}`;
+// Une sauvegarde hebdomadaire réussie récemment (un dimanche manqué se voit).
+const moinsDe8Jours = (d: Date) => new Date().getTime() - d.getTime() < 8 * 86400000;
 
 // La liste de la rentrée : ce que l'appli vérifie seule (d'après ses données), et les
 // quelques étapes à cocher à la main. Réservé à la direction (cf. admin/layout.tsx).
@@ -68,7 +70,7 @@ export default async function RentreePage({ searchParams }: { searchParams: Prom
     (s, d) => s + Math.max(0, nbSalaries - d.signatures.filter((x) => x.version === d.version).length),
     0
   );
-  const sauvegardeRecente = !!sauvegarde?.reussieLe && Date.now() - sauvegarde.reussieLe.getTime() < 8 * 86400000;
+  const sauvegardeRecente = !!sauvegarde?.reussieLe && moinsDe8Jours(sauvegarde.reussieLe);
 
   const etats: Record<CleEtapeAuto, { ok: boolean; detail: string }> = {
     annuaire: importAnnuaire
