@@ -14,6 +14,8 @@ import {
 } from "@/lib/mail";
 import { noterDemandeMairie, noterDemandeMairieEvenement, suivreReservation } from "@/lib/conventionsServeur";
 import { noterEchecMail } from "@/lib/echecsMail";
+import { envoyerPush } from "@/lib/push";
+import { after } from "next/server";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -29,6 +31,18 @@ async function exigerAdmin() {
 const qui = (p: { prenom: string; nom: string; email: string }) => `${p.prenom} ${p.nom} (${p.email})`;
 const quoi = (salle: { nom: string; commune: { nom: string } }, date: Date, debut: Date, fin: Date) =>
   `${salle.commune.nom} — ${salle.nom}, ${date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" })} ${formatterHeure(debut)}–${formatterHeure(fin)}`;
+
+// En plus du mail : une notification sur le téléphone du prof (s'il les a activées), envoyée
+// une fois la réponse rendue à la direction.
+function notifierProf(profId: string, titre: string, corps: string) {
+  after(async () => {
+    try {
+      await envoyerPush([profId], { titre, corps, url: "/demandes" });
+    } catch (erreur) {
+      console.error("Notification au prof non envoyée :", erreur);
+    }
+  });
+}
 
 async function chargerLigneEnAttente(id: string) {
   const ligne = await db.demandeCreneau.findUnique({
@@ -86,6 +100,7 @@ export async function validerCreneau(
   } catch (erreur) {
     await noterEchecMail({ destinataire: qui(ligne.demande.prof), objet: "Réservation validée", detail: quoi(ligne.salle, ligne.date, ligne.heureDebut, ligne.heureFin) }, erreur);
   }
+  notifierProf(ligne.demande.profId, "Réservation validée ✓", quoi(ligne.salle, ligne.date, ligne.heureDebut, ligne.heureFin));
   await suivreReservation(id);
 
   revalidatePath("/admin/demandes");
@@ -120,6 +135,11 @@ export async function refuserCreneau(
   } catch (erreur) {
     await noterEchecMail({ destinataire: qui(ligne.demande.prof), objet: "Réservation refusée", detail: quoi(ligne.salle, ligne.date, ligne.heureDebut, ligne.heureFin) }, erreur);
   }
+  notifierProf(
+    ligne.demande.profId,
+    "Réservation refusée",
+    `${quoi(ligne.salle, ligne.date, ligne.heureDebut, ligne.heureFin)}${motif ? ` — ${motif}` : ""}`
+  );
   await suivreReservation(id);
 
   revalidatePath("/admin/demandes");
@@ -161,6 +181,11 @@ export async function annulerReservationValidee(
   } catch (erreur) {
     await noterEchecMail({ destinataire: qui(ligne.demande.prof), objet: "Réservation annulée", detail: quoi(ligne.salle, ligne.date, ligne.heureDebut, ligne.heureFin) }, erreur);
   }
+  notifierProf(
+    ligne.demande.profId,
+    "Réservation annulée",
+    `${quoi(ligne.salle, ligne.date, ligne.heureDebut, ligne.heureFin)}${motif ? ` — ${motif}` : ""}`
+  );
   await suivreReservation(id);
 
   revalidatePath("/admin/demandes");
@@ -244,6 +269,7 @@ export async function modifierReservationValidee(
       } catch (erreur) {
         await noterEchecMail({ destinataire: qui(ligne.demande.prof), objet: "Réservation modifiée", detail: quoi(nouvelleSalle, date, nouvelleDebut, nouvelleFin) }, erreur);
       }
+      notifierProf(ligne.demande.profId, "Réservation modifiée", `Nouveau créneau : ${quoi(nouvelleSalle, date, nouvelleDebut, nouvelleFin)}`);
     }
   }
   if (modifiee) await suivreReservation(id);
