@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { ajouterInscription, type EtatAction } from "@/app/(app)/saison/actions";
 
 const ETAT_INITIAL: EtatAction = { succes: true };
@@ -26,11 +26,17 @@ export function InscriptionForm({
   inscription,
 }: {
   evenementId: string;
-  eleves: string[];
+  eleves: { nom: string; instrument?: string }[]; // ses élèves, puis ceux de l'annuaire
   instruments: string[];
   inscription?: InscriptionInitiale;
 }) {
   const [etat, action, enCours] = useActionState(ajouterInscription, ETAT_INITIAL);
+  const instrumentRef = useRef<HTMLInputElement>(null);
+  // Élève choisi dans la liste : son instrument (annuaire) est proposé s'il n'est pas déjà saisi.
+  function eleveChoisi(nom: string) {
+    const instrument = eleves.find((e) => e.nom === nom)?.instrument;
+    if (instrument && instrumentRef.current && !instrumentRef.current.value) instrumentRef.current.value = instrument;
+  }
 
   return (
     <form
@@ -48,6 +54,7 @@ export function InscriptionForm({
           <input
             name="eleveNom"
             required
+            onChange={(e) => eleveChoisi(e.target.value)}
             list="hm-eleves"
             autoComplete="off"
             placeholder="Prénom Nom"
@@ -56,7 +63,7 @@ export function InscriptionForm({
           />
           <datalist id="hm-eleves">
             {eleves.map((e) => (
-              <option key={e} value={e} />
+              <option key={e.nom} value={e.nom} label={e.instrument} />
             ))}
           </datalist>
         </label>
@@ -64,6 +71,7 @@ export function InscriptionForm({
           Instrument
           <input
             name="instrument"
+            ref={instrumentRef}
             required
             list="hm-instruments"
             autoComplete="off"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { TelephonesEleve } from "@/components/presences/TelephonesEleve";
 import {
   enregistrerPointage,
   type EtatAction,
@@ -11,6 +12,7 @@ type Statut = "PRESENT" | "ABSENT" | "EXCUSE";
 interface Eleve {
   id: string;
   nom: string;
+  telephones?: string[]; // de l'annuaire des élèves : appeler la famille d'un absent
 }
 
 const etatInitial: EtatAction = { succes: true };
@@ -66,7 +68,10 @@ export function PointageForm({
                     : "bg-white"
               }`}
             >
-              <span className="text-sm font-medium text-slate-700">{e.nom}</span>
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm font-medium text-slate-700">
+                {e.nom}
+                {s === "ABSENT" && <TelephonesEleve telephones={e.telephones ?? []} />}
+              </span>
               <div className="flex gap-1.5">
                 <button
                   type="button"

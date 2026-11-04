@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { seanceLaPlusProche } from "@/lib/presences";
 import { infoSansJour, libelleJourCours } from "@/lib/joursSemaine";
 import { AjouterEleveForm } from "@/components/presences/AjouterEleveForm";
+import { TelephonesEleve } from "@/components/presences/TelephonesEleve";
+import { cleNomEleve, indexAnnuaire, nomAffiche } from "@/lib/annuaireEleves";
 import { SupprimerEleveBouton } from "@/components/presences/SupprimerEleveBouton";
 import { AjouterSeanceForm } from "@/components/presences/AjouterSeanceForm";
 import { SeanceRow } from "@/components/presences/SeanceRow";
@@ -55,6 +57,17 @@ export default async function ClassePage({
     ? new Date(derniereSeance.date.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     : new Date().toISOString().slice(0, 10);
 
+
+  // Annuaire des élèves : téléphones des familles, et noms proposés à l'ajout d'un élève
+  // (ceux qui jouent l'instrument du cours en premier).
+  const elevesAnnuaire = await db.eleveAnnuaire.findMany({ select: { nom: true, prenom: true, instruments: true, commune: true, telephones: true } });
+  const annuaire = indexAnnuaire(elevesAnnuaire);
+  const dejaInscrits = new Set(classe.eleves.map((e) => cleNomEleve(e.nom)));
+  const joueInstrument = (e: (typeof elevesAnnuaire)[number]) => e.instruments.some((i) => cleNomEleve(i) === cleNomEleve(classe.nom));
+  const suggestions = elevesAnnuaire
+    .filter((e) => !dejaInscrits.has(cleNomEleve(`${e.nom} ${e.prenom}`)))
+    .sort((a, b) => Number(joueInstrument(b)) - Number(joueInstrument(a)) || a.nom.localeCompare(b.nom, "fr"))
+    .map((e) => ({ valeur: nomAffiche(e), detail: [e.instruments.join(", "), e.commune].filter(Boolean).join(" · ") }));
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <div>
@@ -84,8 +97,11 @@ export default async function ClassePage({
         <h2 className="mb-3 text-sm font-semibold text-brand-slate">Élèves ({classe.eleves.length})</h2>
         <ul className="mb-3 flex flex-col gap-2">
           {classe.eleves.map((eleve) => (
-            <li key={eleve.id} className="flex items-center justify-between text-sm text-slate-700">
-              {eleve.nom}
+            <li key={eleve.id} className="flex items-center justify-between gap-2 text-sm text-slate-700">
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                {eleve.nom}
+                <TelephonesEleve telephones={annuaire.get(cleNomEleve(eleve.nom))?.telephones ?? []} />
+              </span>
               <SupprimerEleveBouton classeId={classe.id} eleveId={eleve.id} />
             </li>
           ))}
@@ -93,7 +109,7 @@ export default async function ClassePage({
             <li className="text-sm text-slate-500">Aucun élève pour l&apos;instant.</li>
           )}
         </ul>
-        <AjouterEleveForm classeId={classe.id} />
+        <AjouterEleveForm classeId={classe.id} suggestions={suggestions} />
       </div>
 
       <div className="flex flex-col gap-2">

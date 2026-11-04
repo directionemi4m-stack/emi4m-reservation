@@ -324,3 +324,20 @@ export function valeursFiltre(eleves: EleveExtrait[], champ: "instruments" | "co
     .map(([valeur, nombre]) => ({ valeur, nombre }))
     .sort((a, b) => a.valeur.localeCompare(b.valeur, "fr", { sensitivity: "base" }));
 }
+
+// --- Lien avec les listes d'appel et les inscriptions ---
+
+// « Colin MOSSALGUE (trompette) » et « MOSSALGUE Colin » donnent la même clé : l'ordre des
+// mots, les majuscules, les accents et les précisions entre parenthèses sont ignorés.
+export function cleNomEleve(t: string): string {
+  return motsDe(t.replace(/\([^)]*\)/g, " ")).sort().join(" ");
+}
+
+// Nom tel que les profs l'écrivent dans leurs listes : « Prénom NOM ».
+export const nomAffiche = (e: { nom: string; prenom: string }) => [e.prenom, e.nom].filter(Boolean).join(" ");
+
+export function indexAnnuaire<T extends { nom: string; prenom: string }>(eleves: T[]): Map<string, T> {
+  const index = new Map<string, T>();
+  for (const e of eleves) index.set(cleNomEleve(`${e.nom} ${e.prenom}`), e);
+  return index;
+}

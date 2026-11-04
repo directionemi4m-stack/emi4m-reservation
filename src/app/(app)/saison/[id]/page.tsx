@@ -8,6 +8,7 @@ import { formaterDuree, minutesVersHeure } from "@/lib/agenda";
 import { anneeScolaireDebut } from "@/lib/fraisRecap";
 import { formaterMinutage, libelleLieu, minutageEditable } from "@/lib/saison";
 import { deplacerInscription } from "../actions";
+import { cleNomEleve, nomAffiche } from "@/lib/annuaireEleves";
 
 const formatDateLongue = (d: Date) =>
   d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -33,7 +34,7 @@ export default async function HeureMusicalePage({
   });
   if (!evenement || evenement.type !== "HEURE_MUSICALE") notFound();
 
-  const [eleves, instruments] = await Promise.all([
+  const [eleves, instruments, annuaire] = await Promise.all([
     // Suggestions : les élèves des cours de Présences du prof connecté.
     db.eleve.findMany({
       where: { actif: true, classe: { profId: session!.user.id, actif: true } },
@@ -42,7 +43,16 @@ export default async function HeureMusicalePage({
       orderBy: { nom: "asc" },
     }),
     db.discipline.findMany({ where: { actif: true, type: "INSTRUMENT" }, select: { nom: true }, orderBy: { nom: "asc" } }),
+    db.eleveAnnuaire.findMany({ select: { nom: true, prenom: true, instruments: true }, orderBy: [{ nom: "asc" }, { prenom: "asc" }] }),
   ]);
+  // Suggestions : ses propres élèves d'abord, puis tous ceux de l'annuaire (avec leur instrument).
+  const instrumentDe = new Map(annuaire.map((e) => [cleNomEleve(`${e.nom} ${e.prenom}`), e.instruments[0]]));
+  const suggestionsEleves = [
+    ...eleves.map((e) => ({ nom: e.nom, instrument: instrumentDe.get(cleNomEleve(e.nom)) })),
+    ...annuaire
+      .filter((e) => !eleves.some((m) => cleNomEleve(m.nom) === cleNomEleve(`${e.nom} ${e.prenom}`)))
+      .map((e) => ({ nom: nomAffiche(e), instrument: e.instruments[0] })),
+  ];
 
   const inscriptions = evenement.inscriptions;
   const peutModifier = (i: (typeof inscriptions)[number]) => estAdmin || i.profId === session!.user.id;
@@ -85,7 +95,7 @@ export default async function HeureMusicalePage({
       <InscriptionForm
         key={enModification?.id ?? "nouvelle"}
         evenementId={evenement.id}
-        eleves={eleves.map((e) => e.nom)}
+        eleves={suggestionsEleves}
         instruments={instruments.map((i) => i.nom)}
         inscription={
           enModification && {

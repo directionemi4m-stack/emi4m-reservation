@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cleNomEleve, indexAnnuaire } from "@/lib/annuaireEleves";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -39,6 +40,8 @@ export default async function SeancePage({
       }
     : null;
 
+  // Annuaire des élèves : le téléphone de la famille s'affiche à côté d'un élève marqué absent.
+  const annuaire = indexAnnuaire(await db.eleveAnnuaire.findMany({ select: { nom: true, prenom: true, telephones: true } }));
   return (
     <div className="mx-auto max-w-2xl">
       <Link href={`/presences/${classeId}`} className="text-sm text-brand-accent hover:underline">
@@ -54,7 +57,7 @@ export default async function SeancePage({
       <SeanceContent
         classeId={classeId}
         seanceId={seanceId}
-        eleves={classe.eleves}
+        eleves={classe.eleves.map((e) => ({ id: e.id, nom: e.nom, telephones: annuaire.get(cleNomEleve(e.nom))?.telephones ?? [] }))}
         marquesExistantes={marquesExistantes}
         absenceExistante={absenceExistante}
       />

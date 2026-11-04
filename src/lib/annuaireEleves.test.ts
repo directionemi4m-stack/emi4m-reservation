@@ -9,6 +9,9 @@ import {
   miseEnFormeCommune,
   trouverLigneEnTetes,
   valeursFiltre,
+  cleNomEleve,
+  indexAnnuaire,
+  nomAffiche,
 } from "./annuaireEleves";
 
 describe("devinerChamp", () => {
@@ -134,5 +137,15 @@ describe("filtrerEleves", () => {
       { valeur: "Autrans", nombre: 2 },
       { valeur: "Villard-de-Lans", nombre: 1 },
     ]);
+  });
+});
+
+describe("cleNomEleve", () => {
+  it("retrouve un élève quel que soit l'ordre ou la précision ajoutée", () => {
+    const index = indexAnnuaire([{ nom: "MOSSALGUE", prenom: "Colin" }, { nom: "GIRARD-BLANC", prenom: "Eliott" }]);
+    expect(index.get(cleNomEleve("Colin MOSSALGUE (trompette)"))?.prenom).toBe("Colin");
+    expect(index.get(cleNomEleve("eliott girard blanc"))?.nom).toBe("GIRARD-BLANC");
+    expect(index.get(cleNomEleve("Colin Martin"))).toBeUndefined();
+    expect(nomAffiche({ nom: "MOSSALGUE", prenom: "Colin" })).toBe("Colin MOSSALGUE");
   });
 });
