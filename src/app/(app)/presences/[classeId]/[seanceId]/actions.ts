@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { noterEchecMail } from "@/lib/echecsMail";
 import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { auth } from "@/lib/auth";
@@ -83,7 +84,14 @@ export async function enregistrerPointage(
     try {
       await envoyerMailAlerteAbsences({ prof, classe: classe.nom, alertes });
     } catch (erreur) {
-      console.error("Échec d'envoi du mail d'alerte absences :", erreur);
+      await noterEchecMail(
+        {
+          destinataire: "Direction",
+          objet: "Alerte absences répétées",
+          detail: `${classe.nom} (${prof.prenom} ${prof.nom}) : ${alertes.map((a) => `${a.nom}, ${a.total} absences`).join(" ; ")}`,
+        },
+        erreur
+      );
     }
   }
 

@@ -13,6 +13,7 @@ import {
   envoyerMailDemandeSalle,
 } from "@/lib/mail";
 import { noterDemandeMairie, suivreReservation } from "@/lib/conventionsServeur";
+import { noterEchecMail } from "@/lib/echecsMail";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -23,6 +24,11 @@ async function exigerAdmin() {
   }
   return session;
 }
+
+// Pour le bandeau « mail non parti » : à qui, et pour quelle réservation.
+const qui = (p: { prenom: string; nom: string; email: string }) => `${p.prenom} ${p.nom} (${p.email})`;
+const quoi = (salle: { nom: string; commune: { nom: string } }, date: Date, debut: Date, fin: Date) =>
+  `${salle.commune.nom} — ${salle.nom}, ${date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" })} ${formatterHeure(debut)}–${formatterHeure(fin)}`;
 
 async function chargerLigneEnAttente(id: string) {
   const ligne = await db.demandeCreneau.findUnique({
@@ -78,7 +84,7 @@ export async function validerCreneau(
   try {
     await envoyerMailDemandeValidee({ prof: ligne.demande.prof, salle: ligne.salle, ligne });
   } catch (erreur) {
-    console.error("Échec d'envoi du mail de validation :", erreur);
+    await noterEchecMail({ destinataire: qui(ligne.demande.prof), objet: "Réservation validée", detail: quoi(ligne.salle, ligne.date, ligne.heureDebut, ligne.heureFin) }, erreur);
   }
   await suivreReservation(id);
 
@@ -112,7 +118,7 @@ export async function refuserCreneau(
   try {
     await envoyerMailDemandeRefusee({ prof: ligne.demande.prof, salle: ligne.salle, ligne, motif });
   } catch (erreur) {
-    console.error("Échec d'envoi du mail de refus :", erreur);
+    await noterEchecMail({ destinataire: qui(ligne.demande.prof), objet: "Réservation refusée", detail: quoi(ligne.salle, ligne.date, ligne.heureDebut, ligne.heureFin) }, erreur);
   }
   await suivreReservation(id);
 
@@ -153,7 +159,7 @@ export async function annulerReservationValidee(
   try {
     await envoyerMailReservationAnnulee({ prof: ligne.demande.prof, salle: ligne.salle, ligne, motif });
   } catch (erreur) {
-    console.error("Échec d'envoi du mail d'annulation :", erreur);
+    await noterEchecMail({ destinataire: qui(ligne.demande.prof), objet: "Réservation annulée", detail: quoi(ligne.salle, ligne.date, ligne.heureDebut, ligne.heureFin) }, erreur);
   }
   await suivreReservation(id);
 
@@ -236,7 +242,7 @@ export async function modifierReservationValidee(
           nouvelle: { salle: nouvelleSalle, date, heureDebut: nouvelleDebut, heureFin: nouvelleFin },
         });
       } catch (erreur) {
-        console.error("Échec d'envoi du mail de modification :", erreur);
+        await noterEchecMail({ destinataire: qui(ligne.demande.prof), objet: "Réservation modifiée", detail: quoi(nouvelleSalle, date, nouvelleDebut, nouvelleFin) }, erreur);
       }
     }
   }
@@ -311,4 +317,11 @@ export async function supprimerLigneDemande(
   revalidatePath("/planning");
   revalidatePath("/demandes");
   return { succes: true };
+}
+
+export async function marquerEchecMailVu(formData: FormData) {
+  await exigerAdmin();
+  await db.echecMail.updateMany({ where: { id: String(formData.get("id") ?? ""), vuLe: null }, data: { vuLe: new Date() } });
+  revalidatePath("/admin/demandes");
+  revalidatePath("/accueil");
 }

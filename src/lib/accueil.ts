@@ -67,6 +67,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     moi,
     nbEleves,
     conventionsManquantes,
+    echecsMail,
   ] = await Promise.all([
     db.demandeCreneau.count({
       where: { statut: "VALIDEE", date: { gte: aujourdHui, lt: finSemaine }, demande: { profId: userId } },
@@ -124,6 +125,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
           },
         })
       : Promise.resolve(0),
+    estAdmin ? db.echecMail.count({ where: { vuLe: null } }) : Promise.resolve(0),
   ]);
 
   const ficheManquante = CHAMPS_FICHE.filter((c) => !identite?.[c]).length;
@@ -181,7 +183,10 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     "/securite": documentsASigner
       ? { statut: `${pluriel(documentsASigner, "document")} à signer`, pastille: documentsASigner }
       : { statut: codeAlarme ? "Code alarme Lans" : "Consignes Villard" },
-    "/admin/demandes": { statut: aTraiter ? pluriel(aTraiter, "demande") : "Rien à traiter", pastille: aTraiter || undefined },
+    "/admin/demandes": {
+      statut: echecsMail ? `${pluriel(echecsMail, "mail")} non parti${echecsMail > 1 ? "s" : ""}` : aTraiter ? pluriel(aTraiter, "demande") : "Rien à traiter",
+      pastille: aTraiter + echecsMail || undefined,
+    },
     "/admin/parametres/profs": { statut: invitations ? pluriel(invitations, "invitation") : "Comptes à jour" },
     "/admin/locations": { statut: locationsNonPayees ? `${locationsNonPayees} non payée${locationsNonPayees > 1 ? "s" : ""}` : "Tout est payé" },
     "/admin/inventaire": { statut: `${biensInventaire} bien${biensInventaire > 1 ? "s" : ""}` },

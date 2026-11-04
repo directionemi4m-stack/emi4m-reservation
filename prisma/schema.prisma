@@ -1083,3 +1083,16 @@ model EtatSauvegarde {
   nbLignes   Int?
   erreur     String?
 }
+
+// Mail important qui n'a pas pu partir (décision envoyée à un prof…) : affiché à la
+// direction en haut de « À traiter » jusqu'à ce qu'elle le marque comme vu.
+model EchecMail {
+  id           String    @id @default(cuid())
+  le           DateTime  @default(now())
+  destinataire String
+  objet        String
+  detail       String
+  vuLe         DateTime?
+
+  @@index([vuLe])
+}

@@ -5,6 +5,7 @@ import { DemandeMailForm } from "@/components/admin/DemandeMailForm";
 import { ModifierReservation } from "@/components/admin/ModifierReservation";
 import { MODELE_MAIRIE_DEFAUT } from "@/lib/modeleMairie";
 import Link from "next/link";
+import { marquerEchecMailVu } from "./actions";
 import { ConventionReservation, type ConventionVue } from "@/components/admin/ConventionReservation";
 
 function formatterDate(date: Date) {
@@ -43,7 +44,7 @@ export default async function AdminDemandesPage({
   searchParams: Promise<{ modifier?: string }>;
 }) {
   const { modifier } = await searchParams;
-  const [enAttente, validees, contacts, salles, modeleEnregistre] = await Promise.all([
+  const [enAttente, validees, contacts, salles, modeleEnregistre, echecsMail] = await Promise.all([
     db.demandeCreneau.findMany({
       where: { statut: "EN_ATTENTE" },
       include: {
@@ -74,6 +75,7 @@ export default async function AdminDemandesPage({
       orderBy: [{ commune: { nom: "asc" } }, { nom: "asc" }],
     }),
     db.modeleMailMairie.findUnique({ where: { id: "singleton" } }),
+    db.echecMail.findMany({ where: { vuLe: null }, orderBy: { le: "desc" } }),
   ]);
   const modele = modeleEnregistre ?? MODELE_MAIRIE_DEFAUT;
 
@@ -86,6 +88,33 @@ export default async function AdminDemandesPage({
             Conventions des salles
           </Link>
         </div>
+
+        {echecsMail.length > 0 && (
+          <div className="flex flex-col gap-2 rounded-lg border border-status-occupee/30 bg-red-50 p-4">
+            <p className="text-sm font-semibold text-status-occupee">
+              {echecsMail.length > 1 ? `${echecsMail.length} mails ne sont pas partis` : "Un mail n'est pas parti"} : prévenez la
+              personne directement.
+            </p>
+            <ul className="flex flex-col gap-2">
+              {echecsMail.map((e) => (
+                <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-700">
+                  <span>
+                    <strong>{e.objet}</strong> → {e.destinataire} · {e.detail}
+                    <span className="ml-1 text-xs text-slate-400">
+                      ({e.le.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" })})
+                    </span>
+                  </span>
+                  <form action={marquerEchecMailVu}>
+                    <input type="hidden" name="id" value={e.id} />
+                    <button type="submit" className="text-xs font-medium text-brand-accent hover:underline">
+                      C&apos;est fait
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {enAttente.length === 0 && (
           <p className="text-sm text-slate-500">Aucune demande en attente.</p>
