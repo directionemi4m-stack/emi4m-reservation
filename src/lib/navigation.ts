@@ -39,7 +39,8 @@ export type CleIcone =
   | "achats"
   | "cles"
   | "signature"
-  | "convention";
+  | "convention"
+  | "rentree";
 
 export interface LienNav {
   href: string;
@@ -106,6 +107,7 @@ export const SECTIONS: SectionNav[] = [
 
 // Écran « Paramètres » de la direction : tout ce qui se règle une fois de temps en temps.
 export const PARAMETRES: LienNav[] = [
+  { href: "/admin/rentree", label: "Rentrée", icone: "rentree", couleur: "neutre" },
   { href: "/admin/tableau-de-bord", label: "Tableau de bord", icone: "tableau", couleur: "neutre" },
   { href: "/admin/parametres/salles", label: "Salles", icone: "salle", couleur: "bleu" },
   { href: "/admin/parametres/creneaux-recurrents", label: "Créneaux des salles", icone: "calendrier", couleur: "bleu" },

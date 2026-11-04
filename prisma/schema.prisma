@@ -1098,3 +1098,13 @@ model EchecMail {
 
   @@index([vuLe])
 }
+
+// Étapes de la rentrée cochées à la main par la direction (cf. /admin/rentree) ; les autres
+// étapes sont vérifiées automatiquement d'après les données de l'appli.
+model EtapeRentree {
+  saison  Int // année de début : 2026 pour 2026-2027
+  cle     String
+  faiteLe DateTime @default(now())
+
+  @@id([saison, cle])
+}
