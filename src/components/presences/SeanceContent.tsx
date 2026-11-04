@@ -1,14 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { PointageForm } from "@/components/presences/PointageForm";
+import { PointageForm, type ElevePointage as Eleve } from "@/components/presences/PointageForm";
 import { AbsenceProfForm } from "@/components/presences/AbsenceProfForm";
 import type { StatutPresence, TypeAbsenceProf } from "@/generated/prisma/client";
-
-interface Eleve {
-  id: string;
-  nom: string;
-}
 
 interface AbsenceExistante {
   type: TypeAbsenceProf;

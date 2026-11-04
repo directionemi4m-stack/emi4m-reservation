@@ -6,7 +6,7 @@ import { seanceLaPlusProche } from "@/lib/presences";
 import { infoSansJour, libelleJourCours } from "@/lib/joursSemaine";
 import { AjouterEleveForm } from "@/components/presences/AjouterEleveForm";
 import { TelephonesEleve } from "@/components/presences/TelephonesEleve";
-import { cleNomEleve, indexAnnuaire, nomAffiche } from "@/lib/annuaireEleves";
+import { cleNomEleve, nomAffiche, rapprocheurAnnuaire } from "@/lib/annuaireEleves";
 import { SupprimerEleveBouton } from "@/components/presences/SupprimerEleveBouton";
 import { AjouterSeanceForm } from "@/components/presences/AjouterSeanceForm";
 import { SeanceRow } from "@/components/presences/SeanceRow";
@@ -61,11 +61,12 @@ export default async function ClassePage({
   // Annuaire des élèves : téléphones des familles, et noms proposés à l'ajout d'un élève
   // (ceux qui jouent l'instrument du cours en premier).
   const elevesAnnuaire = await db.eleveAnnuaire.findMany({ select: { nom: true, prenom: true, instruments: true, commune: true, telephones: true } });
-  const annuaire = indexAnnuaire(elevesAnnuaire);
-  const dejaInscrits = new Set(classe.eleves.map((e) => cleNomEleve(e.nom)));
+  const retrouver = rapprocheurAnnuaire(elevesAnnuaire);
+  const fiches = new Map(classe.eleves.map((e) => [e.id, retrouver(e.nom, classe.nom)]));
+  const dejaInscrits = new Set([...fiches.values()].map((r) => r?.eleve));
   const joueInstrument = (e: (typeof elevesAnnuaire)[number]) => e.instruments.some((i) => cleNomEleve(i) === cleNomEleve(classe.nom));
   const suggestions = elevesAnnuaire
-    .filter((e) => !dejaInscrits.has(cleNomEleve(`${e.nom} ${e.prenom}`)))
+    .filter((e) => !dejaInscrits.has(e))
     .sort((a, b) => Number(joueInstrument(b)) - Number(joueInstrument(a)) || a.nom.localeCompare(b.nom, "fr"))
     .map((e) => ({ valeur: nomAffiche(e), detail: [e.instruments.join(", "), e.commune].filter(Boolean).join(" · ") }));
   return (
@@ -100,7 +101,10 @@ export default async function ClassePage({
             <li key={eleve.id} className="flex items-center justify-between gap-2 text-sm text-slate-700">
               <span className="flex flex-wrap items-baseline gap-x-2">
                 {eleve.nom}
-                <TelephonesEleve telephones={annuaire.get(cleNomEleve(eleve.nom))?.telephones ?? []} />
+                <TelephonesEleve
+                  telephones={fiches.get(eleve.id)?.eleve.telephones ?? []}
+                  nomAnnuaire={fiches.get(eleve.id)?.approche ? nomAffiche(fiches.get(eleve.id)!.eleve) : null}
+                />
               </span>
               <SupprimerEleveBouton classeId={classe.id} eleveId={eleve.id} />
             </li>

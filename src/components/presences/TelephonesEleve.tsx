@@ -1,10 +1,21 @@
 import { IconPhone } from "@tabler/icons-react";
 
 // Les numéros de la famille d'un élève, tirés de l'annuaire des élèves : un appel d'un clic.
-export function TelephonesEleve({ telephones, compact = false }: { telephones: string[]; compact?: boolean }) {
+// Quand l'élève a été retrouvé malgré une écriture différente (prénom seul, faute…), le nom
+// de l'annuaire est rappelé pour que le prof vérifie que c'est bien la bonne famille.
+export function TelephonesEleve({
+  telephones,
+  nomAnnuaire,
+  compact = false,
+}: {
+  telephones: string[];
+  nomAnnuaire?: string | null;
+  compact?: boolean;
+}) {
   if (telephones.length === 0) return null;
   return (
-    <span className="inline-flex flex-wrap gap-x-2">
+    <span className="inline-flex flex-wrap items-center gap-x-2">
+      {nomAnnuaire && <span className="text-xs font-normal text-slate-400">{nomAnnuaire} :</span>}
       {telephones.map((t) => (
         <a
           key={t}

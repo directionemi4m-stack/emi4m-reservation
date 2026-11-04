@@ -10,8 +10,8 @@ import {
   trouverLigneEnTetes,
   valeursFiltre,
   cleNomEleve,
-  indexAnnuaire,
   nomAffiche,
+  rapprocheurAnnuaire,
 } from "./annuaireEleves";
 
 describe("devinerChamp", () => {
@@ -140,12 +140,55 @@ describe("filtrerEleves", () => {
   });
 });
 
-describe("cleNomEleve", () => {
+describe("rapprocheurAnnuaire", () => {
+  const annuaire = [
+    { nom: "MOSSALGUE", prenom: "Colin", instruments: ["Trompette"] },
+    { nom: "HERMANT", prenom: "Colin", instruments: ["Batterie"] },
+    { nom: "GIRARD-BLANC", prenom: "Eliott", instruments: [] },
+    { nom: "PODKOWA", prenom: "Cassandre", instruments: ["Violon"] },
+    { nom: "DI SAN BERNARDO - SAPHENGTHONG", prenom: "Vanh", instruments: ["Guitare sèche"] },
+    { nom: "ZAWADZKI", prenom: "Ulysse", instruments: ["Guitare sèche"] },
+    { nom: "MAGNIN", prenom: "Leoni", instruments: ["Violon"] },
+    { nom: "THIERY-TILLON", prenom: "Léonie", instruments: ["Flûte traversière"] },
+    { nom: "DARGAUD", prenom: "Sibylle", instruments: ["Violon"] },
+    { nom: "DESBOIS", prenom: "Sibylle", instruments: ["Guitare sèche"] },
+    { nom: "MARTIN", prenom: "Jeanne", instruments: ["Piano"] },
+    { nom: "MARTIN", prenom: "Paul", instruments: ["Piano"] },
+  ];
+  const retrouver = rapprocheurAnnuaire(annuaire);
+  const qui = (nom: string, cours = "") => {
+    const r = retrouver(nom, cours);
+    return r ? `${nomAffiche(r.eleve)}${r.approche ? " ~" : ""}` : null;
+  };
+
   it("retrouve un élève quel que soit l'ordre ou la précision ajoutée", () => {
-    const index = indexAnnuaire([{ nom: "MOSSALGUE", prenom: "Colin" }, { nom: "GIRARD-BLANC", prenom: "Eliott" }]);
-    expect(index.get(cleNomEleve("Colin MOSSALGUE (trompette)"))?.prenom).toBe("Colin");
-    expect(index.get(cleNomEleve("eliott girard blanc"))?.nom).toBe("GIRARD-BLANC");
-    expect(index.get(cleNomEleve("Colin Martin"))).toBeUndefined();
+    expect(qui("Colin MOSSALGUE (trompette)")).toBe("Colin MOSSALGUE");
+    expect(qui("eliott girard blanc")).toBe("Eliott GIRARD-BLANC");
     expect(nomAffiche({ nom: "MOSSALGUE", prenom: "Colin" })).toBe("Colin MOSSALGUE");
+    expect(cleNomEleve("MOSSALGUE Colin")).toBe(cleNomEleve("colin mossalgue"));
+  });
+
+  it("tolère les fautes, les noms incomplets et les mots collés", () => {
+    expect(qui("Cassandre podkova")).toBe("Cassandre PODKOWA ~");
+    expect(qui("Vanh Di San Bernardo")).toBe("Vanh DI SAN BERNARDO - SAPHENGTHONG ~");
+    expect(qui("Vanh Di Sanbernardo  Saphengthong")).toBe("Vanh DI SAN BERNARDO - SAPHENGTHONG ~");
+    expect(qui("UlysseZawadski")).toBe("Ulysse ZAWADZKI ~");
+    expect(qui("MAGNIN Léonie")).toBe("Leoni MAGNIN ~");
+    expect(qui("Colin M")).toBe("Colin MOSSALGUE ~");
+  });
+
+  it("prend un prénom seul s'il est sans ambiguïté, ou si l'instrument du cours départage", () => {
+    expect(qui("Cassandre")).toBe("Cassandre PODKOWA ~");
+    expect(qui("Leoni")).toBe("Leoni MAGNIN ~"); // écrit pareil, pas Léonie THIERY-TILLON
+    expect(qui("Colin", "Trompette")).toBe("Colin MOSSALGUE ~");
+    expect(qui("Sibylle", "Ensemble Cordes")).toBe("Sibylle DARGAUD ~");
+    expect(qui("Colin")).toBeNull(); // deux Colin, rien pour départager
+  });
+
+  it("ne propose personne plutôt qu'une mauvaise famille", () => {
+    expect(qui("Colin Martin")).toBeNull();
+    expect(qui("Martin", "Piano")).toBeNull();
+    expect(qui("Louis Cressi")).toBeNull();
+    expect(qui("Cassandr")).toBeNull(); // pas de faute sur un prénom seul
   });
 });

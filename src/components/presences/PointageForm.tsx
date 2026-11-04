@@ -9,10 +9,12 @@ import {
 
 type Statut = "PRESENT" | "ABSENT" | "EXCUSE";
 
-interface Eleve {
+export interface ElevePointage {
   id: string;
   nom: string;
   telephones?: string[]; // de l'annuaire des élèves : appeler la famille d'un absent
+  nomAnnuaire?: string | null; // rappelé quand l'élève est écrit autrement dans l'annuaire
+  dansAnnuaire?: boolean;
 }
 
 const etatInitial: EtatAction = { succes: true };
@@ -25,7 +27,7 @@ export function PointageForm({
 }: {
   classeId: string;
   seanceId: string;
-  eleves: Eleve[];
+  eleves: ElevePointage[];
   marquesExistantes: Record<string, Statut>;
 }) {
   const [etat, action, enCours] = useActionState(enregistrerPointage, etatInitial);
@@ -70,7 +72,14 @@ export function PointageForm({
             >
               <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm font-medium text-slate-700">
                 {e.nom}
-                {s === "ABSENT" && <TelephonesEleve telephones={e.telephones ?? []} />}
+                {s === "ABSENT" &&
+                  (e.telephones?.length ? (
+                    <TelephonesEleve telephones={e.telephones} nomAnnuaire={e.nomAnnuaire} />
+                  ) : (
+                    <span className="text-xs font-normal text-slate-400">
+                      {e.dansAnnuaire ? "pas de numéro dans l'annuaire" : "pas trouvé dans l'annuaire"}
+                    </span>
+                  ))}
               </span>
               <div className="flex gap-1.5">
                 <button

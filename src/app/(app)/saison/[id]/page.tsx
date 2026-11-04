@@ -8,7 +8,7 @@ import { formaterDuree, minutesVersHeure } from "@/lib/agenda";
 import { anneeScolaireDebut } from "@/lib/fraisRecap";
 import { formaterMinutage, libelleLieu, minutageEditable } from "@/lib/saison";
 import { deplacerInscription } from "../actions";
-import { cleNomEleve, nomAffiche } from "@/lib/annuaireEleves";
+import { nomAffiche, rapprocheurAnnuaire } from "@/lib/annuaireEleves";
 
 const formatDateLongue = (d: Date) =>
   d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -46,12 +46,12 @@ export default async function HeureMusicalePage({
     db.eleveAnnuaire.findMany({ select: { nom: true, prenom: true, instruments: true }, orderBy: [{ nom: "asc" }, { prenom: "asc" }] }),
   ]);
   // Suggestions : ses propres élèves d'abord, puis tous ceux de l'annuaire (avec leur instrument).
-  const instrumentDe = new Map(annuaire.map((e) => [cleNomEleve(`${e.nom} ${e.prenom}`), e.instruments[0]]));
+  const retrouver = rapprocheurAnnuaire(annuaire);
+  const siens = eleves.map((e) => ({ nom: e.nom, fiche: retrouver(e.nom)?.eleve }));
+  const dejaProposes = new Set(siens.map((e) => e.fiche));
   const suggestionsEleves = [
-    ...eleves.map((e) => ({ nom: e.nom, instrument: instrumentDe.get(cleNomEleve(e.nom)) })),
-    ...annuaire
-      .filter((e) => !eleves.some((m) => cleNomEleve(m.nom) === cleNomEleve(`${e.nom} ${e.prenom}`)))
-      .map((e) => ({ nom: nomAffiche(e), instrument: e.instruments[0] })),
+    ...siens.map((e) => ({ nom: e.nom, instrument: e.fiche?.instruments[0] })),
+    ...annuaire.filter((e) => !dejaProposes.has(e)).map((e) => ({ nom: nomAffiche(e), instrument: e.instruments[0] })),
   ];
 
   const inscriptions = evenement.inscriptions;

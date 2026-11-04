@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cleNomEleve, indexAnnuaire } from "@/lib/annuaireEleves";
+import { nomAffiche, rapprocheurAnnuaire } from "@/lib/annuaireEleves";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -41,7 +41,19 @@ export default async function SeancePage({
     : null;
 
   // Annuaire des élèves : le téléphone de la famille s'affiche à côté d'un élève marqué absent.
-  const annuaire = indexAnnuaire(await db.eleveAnnuaire.findMany({ select: { nom: true, prenom: true, telephones: true } }));
+  const retrouver = rapprocheurAnnuaire(
+    await db.eleveAnnuaire.findMany({ select: { nom: true, prenom: true, instruments: true, telephones: true } })
+  );
+  const eleves = classe.eleves.map((e) => {
+    const r = retrouver(e.nom, classe.nom);
+    return {
+      id: e.id,
+      nom: e.nom,
+      telephones: r?.eleve.telephones ?? [],
+      nomAnnuaire: r?.approche ? nomAffiche(r.eleve) : null,
+      dansAnnuaire: !!r,
+    };
+  });
   return (
     <div className="mx-auto max-w-2xl">
       <Link href={`/presences/${classeId}`} className="text-sm text-brand-accent hover:underline">
@@ -57,7 +69,7 @@ export default async function SeancePage({
       <SeanceContent
         classeId={classeId}
         seanceId={seanceId}
-        eleves={classe.eleves.map((e) => ({ id: e.id, nom: e.nom, telephones: annuaire.get(cleNomEleve(e.nom))?.telephones ?? [] }))}
+        eleves={eleves}
         marquesExistantes={marquesExistantes}
         absenceExistante={absenceExistante}
       />

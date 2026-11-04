@@ -336,8 +336,101 @@ export function cleNomEleve(t: string): string {
 // Nom tel que les profs l'écrivent dans leurs listes : « Prénom NOM ».
 export const nomAffiche = (e: { nom: string; prenom: string }) => [e.prenom, e.nom].filter(Boolean).join(" ");
 
-export function indexAnnuaire<T extends { nom: string; prenom: string }>(eleves: T[]): Map<string, T> {
-  const index = new Map<string, T>();
-  for (const e of eleves) index.set(cleNomEleve(`${e.nom} ${e.prenom}`), e);
-  return index;
+// Distance d'édition (une lettre changée, ajoutée, retirée ou deux lettres inversées = 1).
+function distance(a: string, b: string): number {
+  if (a === b) return 0;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cout = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cout);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
+
+// Fautes tolérées selon la longueur : aucune sur un mot court, 1 jusqu'à 6 lettres, 2 au-delà.
+const tolerance = (t: string) => (t.length <= 3 ? 0 : t.length <= 6 ? 1 : 2);
+const proche = (a: string, b: string) => Math.abs(a.length - b.length) <= tolerance(a) && distance(a, b) <= tolerance(a);
+
+// Chaque mot du nom de la liste retrouve un mot différent de l'annuaire (« Vanh Di San
+// Bernardo » dans « Vanh DI SAN BERNARDO - SAPHENGTHONG »). Une initiale (« Colin M ») vaut
+// pour un mot qui commence par elle.
+function motsRetrouves(mots: string[], cible: string[], approche: boolean): boolean {
+  const libres = [...cible];
+  for (const m of mots) {
+    const i = libres.findIndex((c) => c === m || (approche && (m.length === 1 ? c.startsWith(m) : proche(m, c))));
+    if (i < 0) return false;
+    libres.splice(i, 1);
+  }
+  return true;
+}
+
+// Les instruments d'un cours de groupe (« Ensemble Cordes ») pour départager deux prénoms.
+const FAMILLES: Record<string, string[]> = {
+  cordes: ["violon", "alto", "violoncelle", "contrebasse"],
+  vents: ["flute", "clarinette", "saxophone", "trompette", "trombone", "hautbois", "basson", "cor", "tuba"],
+};
+const MOTS_VIDES = new Set(["ensemble", "cours", "atelier", "groupe", "collectif", "de", "du", "des", "la", "le", "les", "et"]);
+
+// Combien de mots du nom du cours se retrouvent dans les instruments de l'élève.
+function affinite(nomCours: string, instruments: string[]): number {
+  const motsCours = motsDe(nomCours)
+    .filter((m) => !MOTS_VIDES.has(m))
+    .flatMap((m) => FAMILLES[m] ?? [m]);
+  const motsInstr = instruments.flatMap(motsDe).filter((m) => m.length >= 3);
+  return motsCours.filter((m) => motsInstr.some((i) => m.length >= 3 && (i.startsWith(m) || m.startsWith(i)))).length;
+}
+
+export interface Correspondant<T> {
+  eleve: T;
+  approche: boolean; // retrouvé malgré une écriture différente : on affiche le nom de l'annuaire
+}
+
+// Retrouve dans l'annuaire l'élève d'une liste d'appel, même écrit autrement : ordre des
+// mots, prénom seul (s'il n'y a pas d'ambiguïté), petite faute de frappe, nom composé
+// incomplet, mots collés. En cas de doute entre plusieurs élèves, l'instrument du cours
+// départage ; sinon personne n'est proposé (mieux vaut rien qu'une mauvaise famille).
+export function rapprocheurAnnuaire<T extends { nom: string; prenom: string; instruments?: string[] }>(eleves: T[]) {
+  const fiches = eleves.map((eleve) => {
+    const mots = motsDe(`${eleve.nom} ${eleve.prenom}`);
+    return {
+      eleve,
+      cle: [...mots].sort().join(" "),
+      mots,
+      colles: [motsDe(`${eleve.prenom} ${eleve.nom}`).join(""), motsDe(`${eleve.nom} ${eleve.prenom}`).join("")],
+    };
+  });
+  const parCle = new Map(fiches.map((f) => [f.cle, f.eleve]));
+
+  return (nomListe: string, nomCours = ""): Correspondant<T> | null => {
+    const cle = cleNomEleve(nomListe);
+    if (!cle) return null;
+    const exact = parCle.get(cle);
+    if (exact) return { eleve: exact, approche: false };
+
+    const mots = cle.split(" ");
+    const colle = motsDe(nomListe.replace(/\([^)]*\)/g, " ")).join("");
+    // D'abord les mots écrits pareil (« Leoni » = Leoni MAGNIN, pas Léonie THIERY), puis
+    // avec une faute ou des mots collés (« UlysseZawadski »). Un prénom seul n'est jamais
+    // cherché avec une faute.
+    let trouves = fiches.filter((f) => motsRetrouves(mots, f.mots, false));
+    if (trouves.length === 0) {
+      trouves = fiches.filter(
+        (f) =>
+          (mots.length > 1 && motsRetrouves(mots, f.mots, true)) ||
+          (colle.length >= 8 && f.colles.some((c) => proche(colle, c)))
+      );
+    }
+    if (trouves.length === 0) return null;
+    if (trouves.length > 1) {
+      const scores = trouves.map((f) => affinite(nomCours, f.eleve.instruments ?? []));
+      const max = Math.max(...scores);
+      if (max === 0 || scores.filter((s) => s === max).length > 1) return null;
+      trouves = [trouves[scores.indexOf(max)]];
+    }
+    return { eleve: trouves[0].eleve, approche: true };
+  };
 }
