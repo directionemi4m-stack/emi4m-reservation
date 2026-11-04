@@ -584,7 +584,7 @@ const NOM_REGISTRE_CONVENTIONS = "Registre des conventions de réservation";
 
 async function dossierRacineParNom(drive: ReturnType<typeof google.drive>, nom: string) {
   const { data } = await drive.files.list({
-    q: `name = '${nom.replace(/'/g, "\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    q: `name = '${nom.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
     fields: "files(id)",
   });
   return (
@@ -738,4 +738,33 @@ export async function ecrireRegistreConventions(lignes: LigneRegistreConvention[
     },
   });
   return { url: registre.url };
+}
+
+// --- Sauvegardes de la base ---
+
+const NOM_DOSSIER_SAUVEGARDES = "Sauvegardes de l'appli";
+const SAUVEGARDES_GARDEES = 12; // environ trois mois de sauvegardes hebdomadaires
+
+// « Sauvegardes de l'appli / sauvegarde-2026-11-08.json.gz » ; au-delà des 12 plus récentes,
+// les anciennes partent à la corbeille du Drive (récupérables 30 jours).
+export async function deposerSauvegarde(params: { nomFichier: string; contenu: Buffer }) {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive } = client;
+  const racine = await dossierRacineParNom(drive, NOM_DOSSIER_SAUVEGARDES);
+  const { data } = await drive.files.create({
+    requestBody: { name: params.nomFichier, parents: [racine] },
+    media: { mimeType: "application/gzip", body: Readable.from(params.contenu) },
+    fields: "id, webViewLink",
+  });
+  const { data: liste } = await drive.files.list({
+    q: `'${racine}' in parents and trashed = false and name contains 'sauvegarde-'`,
+    orderBy: "createdTime desc",
+    fields: "files(id)",
+    pageSize: 100,
+  });
+  for (const ancien of (liste.files ?? []).slice(SAUVEGARDES_GARDEES)) {
+    await drive.files.update({ fileId: ancien.id!, requestBody: { trashed: true } });
+  }
+  return { id: data.id!, url: data.webViewLink ?? "" };
 }

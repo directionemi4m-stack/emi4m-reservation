@@ -316,6 +316,25 @@ export async function envoyerMailConnexionDriveInterrompue(params: {
   });
 }
 
+// Alerte ou rappel adressé à la direction (sauvegarde en échec, convention à archiver…),
+// avec un bouton vers la page de l'appli concernée.
+export async function envoyerAlerteDirection(params: { sujet: string; titre: string; texte: string; url: string; libelleBouton: string }) {
+  const transport = creerTransporteur();
+  await transport.sendMail({
+    to: EMAIL_DIRECTION,
+    from: process.env.EMAIL_FROM,
+    subject: params.sujet,
+    text: `Bonjour,
+
+${params.texte}
+
+${params.url}
+
+EMI4M Réservation`,
+    html: htmlLienMotDePasse({ titre: params.titre, intro: h(params.texte), url: params.url, libelleBouton: params.libelleBouton }),
+  });
+}
+
 function htmlLienMotDePasse({
   titre,
   intro,

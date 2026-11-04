@@ -1072,3 +1072,14 @@ model ImportAnnuaireEleves {
   correspondance Json
   importeLe      DateTime @default(now())
 }
+
+// Dernière sauvegarde hebdomadaire de la base dans le Drive (cf. lib/sauvegarde.ts).
+model EtatSauvegarde {
+  id         String    @id @default("singleton")
+  tenteeLe   DateTime
+  reussieLe  DateTime?
+  fichierUrl String?
+  taille     Int?
+  nbLignes   Int?
+  erreur     String?
+}

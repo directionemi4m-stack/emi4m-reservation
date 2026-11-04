@@ -1,4 +1,6 @@
 import { verifierConnexionDrive, type EtatConnexionDrive } from "@/lib/drive";
+import { db } from "@/lib/db";
+import { BoutonSauvegarde } from "@/components/admin/BoutonSauvegarde";
 
 const MESSAGES_ERREUR: Record<string, string> = {
   "1": "Connexion annulée.",
@@ -69,7 +71,11 @@ export default async function GoogleDrivePage({
 }: {
   searchParams: Promise<{ succes?: string; erreur?: string }>;
 }) {
-  const [etat, params] = await Promise.all([verifierConnexionDrive(), searchParams]);
+  const [etat, params, sauvegarde] = await Promise.all([
+    verifierConnexionDrive(),
+    searchParams,
+    db.etatSauvegarde.findUnique({ where: { id: "singleton" } }),
+  ]);
   const connecte = etat.statut !== "non_connecte" && etat.statut !== "non_configure";
 
   return (
@@ -96,6 +102,38 @@ export default async function GoogleDrivePage({
       >
         {connecte ? "Reconnecter" : "Connecter"} Google Drive
       </a>
+
+      <section className="mt-4 flex flex-col gap-2 rounded-lg bg-white p-4 shadow-sm">
+        <h2 className="text-base font-semibold text-brand-slate">Sauvegarde de l&apos;appli</h2>
+        <p className="text-sm text-slate-500">
+          Chaque dimanche à l&apos;aube, une copie complète de la base (réservations, présences, signatures, conventions,
+          annuaire…) est déposée dans le Drive, dossier « Sauvegardes de l&apos;appli ». Les 12 dernières sont gardées.
+        </p>
+        <p className="text-sm text-slate-700">
+          {sauvegarde?.reussieLe ? (
+            <>
+              Dernière sauvegarde réussie : <strong>{formaterDate(sauvegarde.reussieLe)}</strong>
+              {sauvegarde.fichierUrl && (
+                <>
+                  {" "}
+                  ·{" "}
+                  <a href={sauvegarde.fichierUrl} target="_blank" rel="noopener noreferrer" className="text-brand-accent hover:underline">
+                    voir le fichier
+                  </a>
+                </>
+              )}
+            </>
+          ) : (
+            "Aucune sauvegarde pour l'instant."
+          )}
+        </p>
+        {sauvegarde?.erreur && (
+          <p className="text-sm text-status-occupee">
+            Dernier essai en échec ({formaterDate(sauvegarde.tenteeLe)}) : {sauvegarde.erreur}
+          </p>
+        )}
+        <BoutonSauvegarde />
+      </section>
     </div>
   );
 }
