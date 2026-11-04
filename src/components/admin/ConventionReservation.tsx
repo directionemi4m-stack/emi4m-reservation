@@ -8,6 +8,7 @@ import { reduirePhoto } from "@/lib/imageNavigateur";
 export interface ConventionVue {
   conventionId?: string;
   demandeCreneauId?: string;
+  evenementSaisonId?: string;
   demandeMairieLe: string | null; // AAAA-MM-JJ
   reponseMairieLe: string | null;
   commentaire: string | null;
@@ -60,6 +61,7 @@ export function ConventionReservation({ convention }: { convention: ConventionVu
     const donnees = new FormData();
     if (convention.conventionId) donnees.set("conventionId", convention.conventionId);
     if (convention.demandeCreneauId) donnees.set("demandeCreneauId", convention.demandeCreneauId);
+    if (convention.evenementSaisonId) donnees.set("evenementSaisonId", convention.evenementSaisonId);
     donnees.set("demandeMairieLe", demande);
     donnees.set("reponseMairieLe", reponse);
     donnees.set("commentaire", commentaire);

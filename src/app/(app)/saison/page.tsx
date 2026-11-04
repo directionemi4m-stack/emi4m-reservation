@@ -6,6 +6,8 @@ import { SupprimerEvenementBouton } from "@/components/saison/SupprimerEvenement
 import { formaterDuree, minutesVersHeure } from "@/lib/agenda";
 import { anneeScolaireDebut, libelleAnneeScolaire } from "@/lib/fraisRecap";
 import { formaterMinutage, grouperParMois, libelleLieu, libelleTypeEvenement } from "@/lib/saison";
+import { salleDuLieu } from "@/lib/conventions";
+import { ConventionReservation } from "@/components/admin/ConventionReservation";
 
 const formatJour = (d: Date) =>
   d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -24,11 +26,23 @@ export default async function SaisonPage({
   const [evenements, lieux, salles] = await Promise.all([
     db.evenementSaison.findMany({
       where: { date: { gte: new Date(Date.UTC(debut, 8, 1)), lt: new Date(Date.UTC(debut + 1, 8, 1)) } },
-      include: { lieu: true, inscriptions: { select: { minutageSecondes: true } } },
+      include: { lieu: true, inscriptions: { select: { minutageSecondes: true } }, convention: estAdmin },
     }),
     db.lieuPresence.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
     db.salle.findMany({ where: { actif: true }, select: { nom: true }, distinct: ["nom"], orderBy: { nom: "asc" } }),
   ]);
+  // Direction : la convention mairie des événements prévus dans une salle à convention.
+  const sallesConvention = estAdmin
+    ? (await db.salle.findMany({ where: { conventionRequise: true }, include: { commune: true } })).map((s) => ({ nom: s.nom, commune: s.commune.nom }))
+    : [];
+  const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+  const conventionDe = (e: (typeof evenements)[number]) => {
+    if (!estAdmin) return null;
+    const c = e.convention;
+    if (c) return { conventionId: c.id, demandeMairieLe: iso(c.demandeMairieLe), reponseMairieLe: iso(c.reponseMairieLe), commentaire: c.commentaire, fichierUrl: c.fichierUrl };
+    if (!salleDuLieu(e.lieuPrecis, e.lieu?.nom ?? null, sallesConvention)) return null;
+    return { evenementSaisonId: e.id, demandeMairieLe: null, reponseMairieLe: null, commentaire: null, fichierUrl: null };
+  };
   const enModification = estAdmin && modifier ? await db.evenementSaison.findUnique({ where: { id: modifier } }) : null;
 
   return (
@@ -98,6 +112,7 @@ export default async function SaisonPage({
                 </div>
                 <p className="text-xs text-slate-500">{libelleLieu(e.lieu?.nom, e.lieuPrecis) || "Lieu à préciser"}</p>
                 {e.description && <p className="text-xs text-slate-600">{e.description}</p>}
+                {conventionDe(e) && <ConventionReservation convention={conventionDe(e)!} />}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                   {estHM ? (
                     <Link href={`/saison/${e.id}`} className="text-sm font-medium text-brand-accent hover:underline">

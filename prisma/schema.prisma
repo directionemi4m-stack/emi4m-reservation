@@ -223,22 +223,25 @@ model DemandeCreneau {
 // réservation »), jamais montré aux profs. La réservation est recopiée (salle, date…) pour
 // que la convention reste lisible dans le registre même si la réservation est supprimée.
 model ConventionSalle {
-  id               String          @id @default(cuid())
-  demandeCreneauId String?         @unique
-  demandeCreneau   DemandeCreneau? @relation(fields: [demandeCreneauId], references: [id], onDelete: SetNull)
-  salle            String
-  commune          String
-  date             DateTime        @db.Date
-  horaire          String
-  prof             String
-  demandeMairieLe  DateTime?       @db.Date
-  reponseMairieLe  DateTime?       @db.Date
-  commentaire      String?
-  fichierDriveId   String?
-  fichierUrl       String?
-  nomFichier       String?
-  creeLe           DateTime        @default(now())
-  majLe            DateTime        @updatedAt
+  id                String           @id @default(cuid())
+  demandeCreneauId  String?          @unique
+  demandeCreneau    DemandeCreneau?  @relation(fields: [demandeCreneauId], references: [id], onDelete: SetNull)
+  // Ou bien un événement de l'agenda de la saison (concert à La Verrière…), sans réservation.
+  evenementSaisonId String?          @unique
+  evenementSaison   EvenementSaison? @relation(fields: [evenementSaisonId], references: [id], onDelete: SetNull)
+  salle             String
+  commune           String
+  date              DateTime         @db.Date
+  horaire           String
+  prof              String
+  demandeMairieLe   DateTime?        @db.Date
+  reponseMairieLe   DateTime?        @db.Date
+  commentaire       String?
+  fichierDriveId    String?
+  fichierUrl        String?
+  nomFichier        String?
+  creeLe            DateTime         @default(now())
+  majLe             DateTime         @updatedAt
 
   @@index([date])
 }
@@ -776,6 +779,7 @@ model EvenementSaison {
   creeLe            DateTime            @default(now())
 
   inscriptions InscriptionHeureMusicale[]
+  convention   ConventionSalle?
 
   @@index([date])
 }

@@ -680,7 +680,7 @@ export async function ecrireRegistreConventions(lignes: LigneRegistreConvention[
   const date = (d: Date | null) =>
     d ? { userEnteredValue: { numberValue: d.getTime() / 86400000 + 25569 }, userEnteredFormat: { numberFormat: { type: "DATE", pattern: "dd/mm/yyyy" } } } : texte("");
   const gras = { textFormat: { bold: true } };
-  const entete = ["Date", "Horaire", "Salle", "Commune", "Prof", "Demande à la mairie", "Réponse de la mairie", "Réservation", "Convention", "Commentaire"];
+  const entete = ["Date", "Horaire", "Salle", "Commune", "Prof / événement", "Demande à la mairie", "Réponse de la mairie", "Réservation", "Convention", "Commentaire"];
   const maintenant = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" });
 
   const rows = [
@@ -712,7 +712,7 @@ export async function ecrireRegistreConventions(lignes: LigneRegistreConvention[
       ],
     })),
   ];
-  const largeurs = [95, 95, 130, 140, 150, 140, 150, 100, 130, 260];
+  const largeurs = [95, 95, 130, 140, 230, 140, 150, 140, 130, 260];
 
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: registre.fichierId,

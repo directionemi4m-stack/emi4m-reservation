@@ -1,7 +1,8 @@
 import { after } from "next/server";
 import { db } from "@/lib/db";
 import { ecrireRegistreConventions } from "@/lib/drive";
-import { aujourdHuiUTC, LIBELLES_RESERVATION } from "@/lib/conventions";
+import { aujourdHuiUTC, LIBELLES_RESERVATION, salleDuLieu } from "@/lib/conventions";
+import { minutesVersHeure } from "@/lib/agenda";
 
 const heure = (d: Date) => d.toISOString().slice(11, 16);
 
@@ -58,7 +59,66 @@ export async function suivreReservation(demandeCreneauId: string) {
   }
 }
 
+// --- Événements de l'agenda de la saison (concert à La Verrière…) ---
+
+async function sallesAConvention() {
+  return (await db.salle.findMany({ where: { conventionRequise: true }, include: { commune: true } })).map((s) => ({
+    nom: s.nom,
+    commune: s.commune.nom,
+  }));
+}
+
+// L'événement recopié sur la convention : la salle reconnue (sinon le lieu saisi), la date,
+// l'heure, et le titre de l'événement à la place du prof.
+function copieEvenement(
+  e: { titre: string; date: Date; heureDebutMinutes: number | null; lieuPrecis: string | null; lieu: { nom: string } | null },
+  salle: { nom: string; commune: string } | null
+) {
+  return {
+    salle: salle?.nom ?? e.lieuPrecis ?? "Lieu à préciser",
+    commune: salle?.commune ?? e.lieu?.nom ?? "",
+    date: e.date,
+    horaire: e.heureDebutMinutes !== null ? minutesVersHeure(e.heureDebutMinutes, ":") : "",
+    prof: `Agenda : ${e.titre}`,
+  };
+}
+
+// Fiche convention d'un événement de l'agenda : créée d'office si l'événement a lieu dans
+// une salle à convention, ou à la demande (forcer) pour un autre lieu ; null sinon.
+export async function assurerConventionEvenement(evenementId: string, { forcer = false } = {}) {
+  const e = await db.evenementSaison.findUnique({ where: { id: evenementId }, include: { lieu: true, convention: true } });
+  if (!e) return null;
+  const salle = salleDuLieu(e.lieuPrecis, e.lieu?.nom ?? null, await sallesAConvention());
+  if (!e.convention && !salle && !forcer) return null;
+  return db.conventionSalle.upsert({
+    where: { evenementSaisonId: evenementId },
+    create: { evenementSaisonId: evenementId, ...copieEvenement(e, salle) },
+    update: copieEvenement(e, salle),
+  });
+}
+
+// Après l'ajout ou la modification d'un événement de l'agenda.
+export async function suivreEvenement(evenementId: string) {
+  try {
+    const c = await assurerConventionEvenement(evenementId);
+    if (c) after(regenererRegistreSansErreur);
+  } catch (erreur) {
+    console.error("Mise à jour de la convention de l'événement impossible :", erreur);
+  }
+}
+
+// Les événements à venir de l'agenda qui ont lieu dans une salle à convention.
+export async function evenementsAConvention() {
+  const [evenements, salles] = await Promise.all([
+    db.evenementSaison.findMany({ where: { date: { gte: aujourdHuiUTC() } }, include: { lieu: true, convention: true } }),
+    sallesAConvention(),
+  ]);
+  return evenements.filter((e) => e.convention || salleDuLieu(e.lieuPrecis, e.lieu?.nom ?? null, salles));
+}
+
 export async function regenererRegistreConventions() {
+  for (const e of await evenementsAConvention()) if (!e.convention) await assurerConventionEvenement(e.id);
+
   // Les réservations à venir de ces salles figurent au registre même avant toute démarche.
   const oubliees = await db.demandeCreneau.findMany({
     where: { statut: { in: ["EN_ATTENTE", "VALIDEE"] }, date: { gte: aujourdHuiUTC() }, salle: { conventionRequise: true }, convention: { is: null } },
@@ -68,7 +128,7 @@ export async function regenererRegistreConventions() {
 
   const conventions = await db.conventionSalle.findMany({
     orderBy: [{ date: "asc" }, { horaire: "asc" }],
-    include: { demandeCreneau: { select: { statut: true } } },
+    include: { demandeCreneau: { select: { statut: true } }, evenementSaison: { select: { id: true } } },
   });
   return ecrireRegistreConventions(
     conventions.map((c) => ({
@@ -79,7 +139,11 @@ export async function regenererRegistreConventions() {
       prof: c.prof,
       demandeMairieLe: c.demandeMairieLe,
       reponseMairieLe: c.reponseMairieLe,
-      reservation: c.demandeCreneau ? LIBELLES_RESERVATION[c.demandeCreneau.statut] : "Supprimée",
+      reservation: c.demandeCreneau
+        ? LIBELLES_RESERVATION[c.demandeCreneau.statut]
+        : c.evenementSaison
+          ? "Agenda de la saison"
+          : "Supprimée",
       conventionUrl: c.fichierUrl,
       commentaire: c.commentaire,
     }))

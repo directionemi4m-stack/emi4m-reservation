@@ -9,6 +9,8 @@ import { anneeScolaireDebut } from "@/lib/fraisRecap";
 import { lireMinutage, TYPES_EVENEMENT_SAISON } from "@/lib/saison";
 import { supprimerOngletSaison, synchroniserAgendaSaison, synchroniserProgrammeHeureMusicale } from "@/lib/sheets";
 import type { TypeEvenementSaison } from "@/generated/prisma/client";
+import { regenererRegistreSansErreur, suivreEvenement } from "@/lib/conventionsServeur";
+import { after } from "next/server";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -74,6 +76,8 @@ export async function enregistrerEvenement(_etatPrecedent: EtatAction, formData:
   const saisons = [anneeScolaireDebut(evenement.date), ...(avant ? [anneeScolaireDebut(avant.date)] : [])];
   revalidatePath("/saison");
   revalidatePath(`/saison/${evenement.id}`);
+  await suivreEvenement(evenement.id);
+  revalidatePath("/admin/conventions");
   await synchroniser(evenement.id, saisons);
   if (avant) redirect(`/saison?saison=${anneeScolaireDebut(evenement.date)}`);
   return { succes: true, message: "Événement ajouté." };
@@ -86,6 +90,8 @@ export async function supprimerEvenement(_etatPrecedent: EtatAction, formData: F
 
   await db.evenementSaison.delete({ where: { id: evenement.id } }); // inscriptions supprimées avec
   revalidatePath("/saison");
+  // Une convention déjà archivée reste au registre (marquée « Supprimée »).
+  after(regenererRegistreSansErreur);
   try {
     if (evenement.ongletSheetId !== null) await supprimerOngletSaison(evenement.ongletSheetId);
   } catch (erreur) {

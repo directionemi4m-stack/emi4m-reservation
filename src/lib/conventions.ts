@@ -36,3 +36,30 @@ export function aujourdHuiUTC(maintenant = new Date()): Date {
 }
 
 export const COMMENTAIRE_MAX = 500;
+
+// « Verrière », « LA VERRIÈRE » → « verriere » : pour reconnaître la salle saisie en texte
+// libre dans l'agenda de la saison.
+const cleLieu = (t: string) =>
+  t
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/^(la|le|les|l) /, "")
+    .trim();
+
+// La salle à convention d'un événement de l'agenda, d'après son lieu précis (et sa commune
+// quand elle est indiquée, pour départager deux « Salle des fêtes »).
+export function salleDuLieu<S extends { nom: string; commune: string }>(
+  lieuPrecis: string | null,
+  commune: string | null,
+  salles: S[]
+): S | null {
+  if (!lieuPrecis?.trim()) return null;
+  const memeNom = salles.filter((s) => cleLieu(s.nom) === cleLieu(lieuPrecis));
+  if (commune) {
+    const memeCommune = memeNom.filter((s) => cleLieu(s.commune) === cleLieu(commune));
+    if (memeCommune.length > 0) return memeCommune[0];
+  }
+  return memeNom.length === 1 ? memeNom[0] : null;
+}

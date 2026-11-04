@@ -8,7 +8,7 @@ import { deposerConvention, estJetonRevoqueOuExpire } from "@/lib/drive";
 import { photosEnPdf } from "@/lib/photoEnPdf";
 import { contenuCorrespond } from "@/lib/typeFichier";
 import { COMMENTAIRE_MAX, lireDate, nomFichierConvention, saisonDe } from "@/lib/conventions";
-import { assurerConvention, regenererRegistreConventions, regenererRegistreSansErreur } from "@/lib/conventionsServeur";
+import { assurerConvention, assurerConventionEvenement, regenererRegistreConventions, regenererRegistreSansErreur } from "@/lib/conventionsServeur";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -21,6 +21,7 @@ async function exigerAdmin() {
 
 function revalider() {
   revalidatePath("/admin/conventions");
+  revalidatePath("/saison");
   revalidatePath("/admin/demandes");
 }
 
@@ -30,6 +31,7 @@ export async function enregistrerConvention(formData: FormData): Promise<EtatAct
   await exigerAdmin();
   const conventionId = String(formData.get("conventionId") ?? "");
   const demandeCreneauId = String(formData.get("demandeCreneauId") ?? "");
+  const evenementSaisonId = String(formData.get("evenementSaisonId") ?? "");
 
   const demandeMairieLe = lireDate(formData.get("demandeMairieLe"));
   const reponseMairieLe = lireDate(formData.get("reponseMairieLe"));
@@ -43,7 +45,9 @@ export async function enregistrerConvention(formData: FormData): Promise<EtatAct
     ? await db.conventionSalle.findUnique({ where: { id: conventionId } })
     : demandeCreneauId
       ? await assurerConvention(demandeCreneauId)
-      : null;
+      : evenementSaisonId
+        ? await assurerConventionEvenement(evenementSaisonId, { forcer: true })
+        : null;
   if (!convention) return { succes: false, message: "Réservation introuvable, ou salle sans convention." };
 
   const fichiers = await Promise.all(
@@ -107,4 +111,15 @@ export async function mettreAJourRegistre(): Promise<EtatAction> {
   }
   revalider();
   return { succes: true, message: "Registre mis à jour." };
+}
+
+// Convention pour un événement de l'agenda dont le lieu n'est pas reconnu comme une salle à
+// convention (autre salle municipale…) : la fiche est créée, à compléter ensuite.
+export async function ajouterConventionEvenement(formData: FormData) {
+  await exigerAdmin();
+  const id = String(formData.get("evenementSaisonId") ?? "");
+  if (!id) return;
+  await assurerConventionEvenement(id, { forcer: true });
+  after(regenererRegistreSansErreur);
+  revalider();
 }
