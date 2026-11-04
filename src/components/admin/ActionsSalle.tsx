@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import {
   basculerActifSalle,
+  basculerConventionSalle,
   supprimerSalle,
   type EtatAction,
 } from "@/app/(app)/admin/parametres/salles/actions";
@@ -10,12 +11,19 @@ import { BoutonConfirmation } from "@/components/admin/BoutonConfirmation";
 
 const etatInitial: EtatAction = { succes: true };
 
-export function ActionsSalle({ salleId, actif }: { salleId: string; actif: boolean }) {
+export function ActionsSalle({ salleId, actif, conventionRequise }: { salleId: string; actif: boolean; conventionRequise: boolean }) {
   const [etat, action, enCours] = useActionState(supprimerSalle, etatInitial);
 
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-3">
+        <form action={basculerConventionSalle}>
+          <input type="hidden" name="salleId" value={salleId} />
+          <input type="hidden" name="conventionRequise" value={(!conventionRequise).toString()} />
+          <button type="submit" className="text-xs font-medium text-brand-accent hover:underline">
+            {conventionRequise ? "Sans convention" : "Avec convention"}
+          </button>
+        </form>
         <form action={basculerActifSalle}>
           <input type="hidden" name="salleId" value={salleId} />
           <input type="hidden" name="actif" value={(!actif).toString()} />

@@ -21,7 +21,7 @@ async function creerClientDrive() {
   const auth = new google.auth.OAuth2(clientId, clientSecret);
   auth.setCredentials({ refresh_token: config.refreshToken });
 
-  return { drive: google.drive({ version: "v3", auth }), dossierParentId };
+  return { drive: google.drive({ version: "v3", auth }), auth, dossierParentId };
 }
 
 export type EtatConnexionDrive =
@@ -575,4 +575,167 @@ export async function deposerDocumentSigne(params: {
     fields: "id, webViewLink",
   });
   return { id: data.id!, url: data.webViewLink ?? "" };
+}
+
+// --- Conventions de réservation des salles (mairies) ---
+
+const NOM_DOSSIER_CONVENTIONS = "Conventions de réservation";
+const NOM_REGISTRE_CONVENTIONS = "Registre des conventions de réservation";
+
+async function dossierRacineParNom(drive: ReturnType<typeof google.drive>, nom: string) {
+  const { data } = await drive.files.list({
+    q: `name = '${nom.replace(/'/g, "\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: "files(id)",
+  });
+  return (
+    data.files?.[0]?.id ??
+    (await drive.files.create({ requestBody: { name: nom, mimeType: "application/vnd.google-apps.folder" }, fields: "id" })).data.id!
+  );
+}
+
+// « Conventions de réservation / 2026-2027 / 2026-12-19 La Coupole (Villard-de-Lans) - Alice X.pdf ».
+// Un nouveau scan remplace l'ancien sur place : le lien du registre ne change pas.
+export async function deposerConvention(params: {
+  saison: string;
+  nomFichier: string;
+  pdf: Buffer;
+  fichierExistantId: string | null;
+}): Promise<{ id: string; url: string } | null> {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive } = client;
+  const media = () => ({ mimeType: "application/pdf", body: Readable.from(params.pdf) });
+
+  if (params.fichierExistantId) {
+    try {
+      const { data } = await drive.files.update({
+        fileId: params.fichierExistantId,
+        requestBody: { name: params.nomFichier },
+        media: media(),
+        fields: "id, webViewLink, trashed",
+      });
+      if (!data.trashed) return { id: data.id!, url: data.webViewLink ?? "" };
+    } catch (erreur) {
+      console.error("Convention introuvable dans le Drive, nouveau dépôt :", erreur);
+    }
+  }
+
+  const racine = await dossierRacineParNom(drive, NOM_DOSSIER_CONVENTIONS);
+  const dossierSaison = await dossierProfId(drive, racine, params.saison);
+  const { data } = await drive.files.create({
+    requestBody: { name: params.nomFichier, parents: [dossierSaison] },
+    media: media(),
+    fields: "id, webViewLink",
+  });
+  return { id: data.id!, url: data.webViewLink ?? "" };
+}
+
+export interface LigneRegistreConvention {
+  date: Date;
+  horaire: string;
+  salle: string;
+  commune: string;
+  prof: string;
+  demandeMairieLe: Date | null;
+  reponseMairieLe: Date | null;
+  reservation: string;
+  conventionUrl: string | null;
+  commentaire: string | null;
+}
+
+// Le tableur registre, dans le dossier des conventions, entièrement réécrit à chaque
+// changement. Créé (et retrouvé) avec le compte Google de la direction, comme les scans.
+export async function ecrireRegistreConventions(lignes: LigneRegistreConvention[]): Promise<{ url: string } | null> {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive, auth } = client;
+  const sheets = google.sheets({ version: "v4", auth });
+
+  let registre = await db.registreConventions.findUnique({ where: { id: "singleton" } });
+  if (registre) {
+    try {
+      const { data } = await drive.files.get({ fileId: registre.fichierId, fields: "trashed" });
+      if (data.trashed) registre = null;
+    } catch {
+      registre = null; // supprimé à la main : on le recrée
+    }
+  }
+  if (!registre) {
+    const racine = await dossierRacineParNom(drive, NOM_DOSSIER_CONVENTIONS);
+    const { data } = await drive.files.create({
+      requestBody: { name: NOM_REGISTRE_CONVENTIONS, mimeType: "application/vnd.google-apps.spreadsheet", parents: [racine] },
+      fields: "id, webViewLink",
+    });
+    registre = await db.registreConventions.upsert({
+      where: { id: "singleton" },
+      create: { fichierId: data.id!, url: data.webViewLink ?? "" },
+      update: { fichierId: data.id!, url: data.webViewLink ?? "" },
+    });
+  }
+
+  const { data: classeur } = await sheets.spreadsheets.get({ spreadsheetId: registre.fichierId, fields: "sheets(properties(sheetId))" });
+  const sheetId = classeur.sheets?.[0]?.properties?.sheetId ?? 0;
+
+  const texte = (v: string | null | undefined) => ({ userEnteredValue: { stringValue: v ?? "" } });
+  const date = (d: Date | null) =>
+    d ? { userEnteredValue: { numberValue: d.getTime() / 86400000 + 25569 }, userEnteredFormat: { numberFormat: { type: "DATE", pattern: "dd/mm/yyyy" } } } : texte("");
+  const gras = { textFormat: { bold: true } };
+  const entete = ["Date", "Horaire", "Salle", "Commune", "Prof", "Demande à la mairie", "Réponse de la mairie", "Réservation", "Convention", "Commentaire"];
+  const maintenant = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" });
+
+  const rows = [
+    { values: [{ ...texte(NOM_REGISTRE_CONVENTIONS), userEnteredFormat: { textFormat: { bold: true, fontSize: 14 } } }] },
+    { values: [texte(`École Musicale Itinérante des 4 Montagnes · mis à jour par l'appli le ${maintenant}`)] },
+    {
+      values: entete.map((t) => ({
+        ...texte(t),
+        userEnteredFormat: { backgroundColor: { red: 0.17, green: 0.24, blue: 0.31 }, textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } } },
+      })),
+    },
+    ...lignes.map((l) => ({
+      values: [
+        {
+          userEnteredValue: { numberValue: l.date.getTime() / 86400000 + 25569 },
+          userEnteredFormat: { numberFormat: { type: "DATE", pattern: "dd/mm/yyyy" }, ...gras },
+        },
+        texte(l.horaire),
+        texte(l.salle),
+        texte(l.commune),
+        texte(l.prof),
+        date(l.demandeMairieLe),
+        date(l.reponseMairieLe),
+        texte(l.reservation),
+        l.conventionUrl
+          ? { ...texte("Voir la convention"), userEnteredFormat: { textFormat: { link: { uri: l.conventionUrl } } } }
+          : { ...texte("Manquante"), userEnteredFormat: { textFormat: { foregroundColor: { red: 0.75, green: 0.22, blue: 0.17 } } } },
+        texte(l.commentaire),
+      ],
+    })),
+  ];
+  const largeurs = [95, 95, 130, 140, 150, 140, 150, 100, 130, 260];
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: registre.fichierId,
+    requestBody: {
+      requests: [
+        { updateSheetProperties: { properties: { sheetId, title: "Conventions", gridProperties: { frozenRowCount: 3 } }, fields: "title,gridProperties.frozenRowCount" } },
+        { clearBasicFilter: { sheetId } },
+        { updateCells: { range: { sheetId }, fields: "*" } },
+        { updateCells: { range: { sheetId, startRowIndex: 0, startColumnIndex: 0 }, rows, fields: "*" } },
+        ...largeurs.map((pixelSize, i) => ({
+          updateDimensionProperties: {
+            range: { sheetId, dimension: "COLUMNS", startIndex: i, endIndex: i + 1 },
+            properties: { pixelSize },
+            fields: "pixelSize",
+          },
+        })),
+        {
+          setBasicFilter: {
+            filter: { range: { sheetId, startRowIndex: 2, endRowIndex: 3 + lignes.length, startColumnIndex: 0, endColumnIndex: entete.length } },
+          },
+        },
+      ],
+    },
+  });
+  return { url: registre.url };
 }

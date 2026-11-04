@@ -144,11 +144,14 @@ model Contact {
 }
 
 model Salle {
-  id        String  @id @default(cuid())
-  nom       String
-  communeId String
-  commune   Commune @relation(fields: [communeId], references: [id])
-  actif     Boolean @default(true)
+  id                String  @id @default(cuid())
+  nom               String
+  communeId         String
+  commune           Commune @relation(fields: [communeId], references: [id])
+  actif             Boolean @default(true)
+  // Salle prêtée par la mairie contre une convention signée par la direction (La Coupole,
+  // La Verrière, salle des fêtes de Méaudre…) : chaque réservation y a sa convention.
+  conventionRequise Boolean @default(false)
 
   creneauxRecurrents CreneauRecurrent[]
   demandes           Demande[]
@@ -210,7 +213,42 @@ model DemandeCreneau {
   traiteeParId     String?
   traiteePar       User?         @relation("CreneauTraitePar", fields: [traiteeParId], references: [id])
 
+  convention ConventionSalle?
+
   @@index([salleId, date])
+}
+
+// Convention signée avec la mairie pour une réservation d'une salle « à convention » :
+// dates de la demande et de la réponse, et scan archivé dans le Drive (« Conventions de
+// réservation »), jamais montré aux profs. La réservation est recopiée (salle, date…) pour
+// que la convention reste lisible dans le registre même si la réservation est supprimée.
+model ConventionSalle {
+  id               String          @id @default(cuid())
+  demandeCreneauId String?         @unique
+  demandeCreneau   DemandeCreneau? @relation(fields: [demandeCreneauId], references: [id], onDelete: SetNull)
+  salle            String
+  commune          String
+  date             DateTime        @db.Date
+  horaire          String
+  prof             String
+  demandeMairieLe  DateTime?       @db.Date
+  reponseMairieLe  DateTime?       @db.Date
+  commentaire      String?
+  fichierDriveId   String?
+  fichierUrl       String?
+  nomFichier       String?
+  creeLe           DateTime        @default(now())
+  majLe            DateTime        @updatedAt
+
+  @@index([date])
+}
+
+// Le tableur « Registre des conventions de réservation » du Drive, réécrit à chaque
+// changement (lien stable).
+model RegistreConventions {
+  id        String @id @default("singleton")
+  fichierId String
+  url       String
 }
 
 // --- Présences ---

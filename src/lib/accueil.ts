@@ -66,6 +66,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     nbSignataires,
     moi,
     nbEleves,
+    conventionsManquantes,
   ] = await Promise.all([
     db.demandeCreneau.count({
       where: { statut: "VALIDEE", date: { gte: aujourdHui, lt: finSemaine }, demande: { profId: userId } },
@@ -112,6 +113,17 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     estAdmin ? db.user.count({ where: salariesDuRegistre }) : Promise.resolve(0),
     db.user.findUnique({ where: { id: userId }, select: { email: true } }),
     db.eleveAnnuaire.count(),
+    // Réservations validées à venir d'une salle à convention dont le scan n'est pas archivé.
+    estAdmin
+      ? db.demandeCreneau.count({
+          where: {
+            statut: "VALIDEE",
+            date: { gte: aujourdHui },
+            salle: { conventionRequise: true },
+            OR: [{ convention: { is: null } }, { convention: { is: { fichierUrl: null } } }],
+          },
+        })
+      : Promise.resolve(0),
   ]);
 
   const ficheManquante = CHAMPS_FICHE.filter((c) => !identite?.[c]).length;
@@ -182,6 +194,10 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     },
     "/admin/documents": {
       statut: documentsActifs.length === 0 ? "Publier un document" : signaturesManquantes ? `${pluriel(signaturesManquantes, "signature")} en attente` : "Tout est signé",
+    },
+    "/admin/conventions": {
+      statut: conventionsManquantes ? `${pluriel(conventionsManquantes, "convention")} à archiver` : "Tout est archivé",
+      pastille: conventionsManquantes || undefined,
     },
     "/admin/parametres": { statut: "Salles, trajets…" },
   };

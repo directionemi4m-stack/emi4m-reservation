@@ -79,6 +79,20 @@ export async function basculerActifSalle(formData: FormData) {
   revalidatePath("/admin/parametres/salles");
 }
 
+// Salle prêtée contre une convention avec la mairie : ses réservations ont alors un suivi
+// de convention (À traiter, page Conventions, registre du Drive).
+export async function basculerConventionSalle(formData: FormData) {
+  await exigerAdmin();
+
+  const salleId = String(formData.get("salleId"));
+  const conventionRequise = formData.get("conventionRequise") === "true";
+
+  await db.salle.update({ where: { id: salleId }, data: { conventionRequise } });
+  revalidatePath("/admin/parametres/salles");
+  revalidatePath("/admin/demandes");
+  revalidatePath("/admin/conventions");
+}
+
 export async function supprimerSalle(
   _etatPrecedent: EtatAction,
   formData: FormData

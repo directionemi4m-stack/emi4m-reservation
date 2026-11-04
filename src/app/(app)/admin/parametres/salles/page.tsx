@@ -40,9 +40,14 @@ export default async function AdminSallesPage() {
                         >
                           {salle.actif ? "Active" : "Désactivée"}
                         </span>
+                        {salle.conventionRequise && (
+                          <span className="ml-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                            Convention mairie
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 text-right">
-                        <ActionsSalle salleId={salle.id} actif={salle.actif} />
+                        <ActionsSalle salleId={salle.id} actif={salle.actif} conventionRequise={salle.conventionRequise} />
                       </td>
                     </tr>
                   ))}

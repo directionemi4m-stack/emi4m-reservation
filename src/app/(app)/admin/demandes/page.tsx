@@ -4,6 +4,8 @@ import { LigneAnnulation } from "@/components/admin/LigneAnnulation";
 import { DemandeMailForm } from "@/components/admin/DemandeMailForm";
 import { ModifierReservation } from "@/components/admin/ModifierReservation";
 import { MODELE_MAIRIE_DEFAUT } from "@/lib/modeleMairie";
+import Link from "next/link";
+import { ConventionReservation, type ConventionVue } from "@/components/admin/ConventionReservation";
 
 function formatterDate(date: Date) {
   return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
@@ -11,6 +13,21 @@ function formatterDate(date: Date) {
 
 function formatterHeure(date: Date) {
   return date.toISOString().slice(11, 16);
+}
+
+// Le bloc « Convention mairie » d'une ligne : seulement pour les salles à convention (ou
+// une ligne qui a déjà sa convention, même si la salle a été changée depuis).
+function conventionDe(ligne: {
+  id: string;
+  salle: { conventionRequise: boolean };
+  convention: { id: string; demandeMairieLe: Date | null; reponseMairieLe: Date | null; commentaire: string | null; fichierUrl: string | null } | null;
+}): ConventionVue | null {
+  const c = ligne.convention;
+  if (!c && !ligne.salle.conventionRequise) return null;
+  const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+  return c
+    ? { conventionId: c.id, demandeMairieLe: iso(c.demandeMairieLe), reponseMairieLe: iso(c.reponseMairieLe), commentaire: c.commentaire, fichierUrl: c.fichierUrl }
+    : { demandeCreneauId: ligne.id, demandeMairieLe: null, reponseMairieLe: null, commentaire: null, fichierUrl: null };
 }
 
 function aujourdHuiUTC(): Date {
@@ -32,6 +49,7 @@ export default async function AdminDemandesPage({
       include: {
         demande: { include: { prof: true } },
         salle: { include: { commune: true } },
+        convention: true,
       },
       orderBy: [{ date: "asc" }, { heureDebut: "asc" }],
     }),
@@ -45,6 +63,7 @@ export default async function AdminDemandesPage({
       include: {
         demande: { include: { prof: true } },
         salle: { include: { commune: true } },
+        convention: true,
       },
       orderBy: [{ date: "asc" }, { heureDebut: "asc" }],
     }),
@@ -61,7 +80,12 @@ export default async function AdminDemandesPage({
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-4">
-        <h1 className="text-xl font-semibold text-brand-slate">Demandes à traiter</h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h1 className="text-xl font-semibold text-brand-slate">Demandes à traiter</h1>
+          <Link href="/admin/conventions" className="text-sm text-brand-accent hover:underline">
+            Conventions des salles
+          </Link>
+        </div>
 
         {enAttente.length === 0 && (
           <p className="text-sm text-slate-500">Aucune demande en attente.</p>
@@ -96,8 +120,14 @@ export default async function AdminDemandesPage({
                   heureFin={formatterHeure(ligne.heureFin)}
                   contacts={contacts}
                   modele={{ sujet: modele.sujet, corps: modele.corps }}
+                  demandeCreneauId={ligne.id}
                 />
               </div>
+              {conventionDe(ligne) && (
+                <div className="mt-2">
+                  <ConventionReservation convention={conventionDe(ligne)!} />
+                </div>
+              )}
             </div>
             <LigneAction id={ligne.id} />
           </div>
@@ -152,9 +182,15 @@ export default async function AdminDemandesPage({
                     heureDebut={formatterHeure(ligne.heureDebut)}
                     heureFin={formatterHeure(ligne.heureFin)}
                     contacts={contacts}
-                  modele={{ sujet: modele.sujet, corps: modele.corps }}
+                    modele={{ sujet: modele.sujet, corps: modele.corps }}
+                    demandeCreneauId={ligne.id}
                   />
                 </div>
+                {conventionDe(ligne) && (
+                  <div className="mt-2">
+                    <ConventionReservation convention={conventionDe(ligne)!} />
+                  </div>
+                )}
               </div>
               <LigneAnnulation id={ligne.id} />
             </div>

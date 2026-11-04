@@ -12,6 +12,7 @@ import {
   envoyerMailReservationModifiee,
   envoyerMailDemandeSalle,
 } from "@/lib/mail";
+import { noterDemandeMairie, suivreReservation } from "@/lib/conventionsServeur";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -79,6 +80,7 @@ export async function validerCreneau(
   } catch (erreur) {
     console.error("Échec d'envoi du mail de validation :", erreur);
   }
+  await suivreReservation(id);
 
   revalidatePath("/admin/demandes");
   return { succes: true };
@@ -112,6 +114,7 @@ export async function refuserCreneau(
   } catch (erreur) {
     console.error("Échec d'envoi du mail de refus :", erreur);
   }
+  await suivreReservation(id);
 
   revalidatePath("/admin/demandes");
   return { succes: true };
@@ -152,6 +155,7 @@ export async function annulerReservationValidee(
   } catch (erreur) {
     console.error("Échec d'envoi du mail d'annulation :", erreur);
   }
+  await suivreReservation(id);
 
   revalidatePath("/admin/demandes");
   revalidatePath("/planning");
@@ -236,6 +240,7 @@ export async function modifierReservationValidee(
       }
     }
   }
+  if (modifiee) await suivreReservation(id);
 
   revalidatePath("/planning");
   revalidatePath("/demandes");
@@ -250,6 +255,7 @@ export async function envoyerDemandeMail(params: {
   destinataires: { nom: string; email: string }[];
   sujet: string;
   corps: string;
+  demandeCreneauId?: string;
 }): Promise<EtatEnvoiMail> {
   await exigerAdmin();
 
@@ -265,6 +271,12 @@ export async function envoyerDemandeMail(params: {
   } catch (erreur) {
     console.error("Échec d'envoi de la demande de salle :", erreur);
     return { statut: "erreur", message: "L'envoi a échoué. Réessayez." };
+  }
+  // Salle à convention : la date de la demande à la mairie est notée pour le registre.
+  if (params.demandeCreneauId) {
+    await noterDemandeMairie(params.demandeCreneauId);
+    revalidatePath("/admin/demandes");
+    revalidatePath("/admin/conventions");
   }
 
   return { statut: "envoye" };
