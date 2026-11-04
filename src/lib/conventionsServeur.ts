@@ -1,7 +1,8 @@
 import { after } from "next/server";
 import { db } from "@/lib/db";
 import { ecrireRegistreConventions } from "@/lib/drive";
-import { aujourdHuiUTC, LIBELLES_RESERVATION, salleDuLieu } from "@/lib/conventions";
+import { aujourdHuiUTC, conventionsARappeler, JOURS_SANS_REPONSE, LIBELLES_RESERVATION, salleDuLieu } from "@/lib/conventions";
+import { envoyerAlerteDirection } from "@/lib/mail";
 import { minutesVersHeure } from "@/lib/agenda";
 
 const heure = (d: Date) => d.toISOString().slice(11, 16);
@@ -47,6 +48,16 @@ export async function noterDemandeMairie(demandeCreneauId: string) {
   }
 }
 
+// Même chose pour un événement de l'agenda (concert à La Verrière…).
+export async function noterDemandeMairieEvenement(evenementId: string) {
+  try {
+    const c = await assurerConventionEvenement(evenementId, { forcer: true, demandeMairieLe: aujourdHuiUTC() });
+    if (c) after(regenererRegistreSansErreur);
+  } catch (erreur) {
+    console.error("Date de demande à la mairie non notée :", erreur);
+  }
+}
+
 // Après une décision sur la réservation (validée, refusée, annulée, modifiée) : la fiche
 // convention suit, et le registre du Drive est réécrit une fois la réponse envoyée (sans
 // faire attendre la direction ni bloquer l'action en cas d'échec Drive).
@@ -85,15 +96,15 @@ function copieEvenement(
 
 // Fiche convention d'un événement de l'agenda : créée d'office si l'événement a lieu dans
 // une salle à convention, ou à la demande (forcer) pour un autre lieu ; null sinon.
-export async function assurerConventionEvenement(evenementId: string, { forcer = false } = {}) {
+export async function assurerConventionEvenement(evenementId: string, { forcer = false, demandeMairieLe }: { forcer?: boolean; demandeMairieLe?: Date } = {}) {
   const e = await db.evenementSaison.findUnique({ where: { id: evenementId }, include: { lieu: true, convention: true } });
   if (!e) return null;
   const salle = salleDuLieu(e.lieuPrecis, e.lieu?.nom ?? null, await sallesAConvention());
   if (!e.convention && !salle && !forcer) return null;
   return db.conventionSalle.upsert({
     where: { evenementSaisonId: evenementId },
-    create: { evenementSaisonId: evenementId, ...copieEvenement(e, salle) },
-    update: copieEvenement(e, salle),
+    create: { evenementSaisonId: evenementId, ...copieEvenement(e, salle), demandeMairieLe: demandeMairieLe ?? null },
+    update: { ...copieEvenement(e, salle), ...(demandeMairieLe && !e.convention?.demandeMairieLe ? { demandeMairieLe } : {}) },
   });
 }
 
@@ -156,4 +167,43 @@ export async function regenererRegistreSansErreur() {
   } catch (erreur) {
     console.error("Registre des conventions non mis à jour :", erreur);
   }
+}
+
+// Rappel quotidien (cf. /api/cron/rappels-conventions) : un seul mail à la direction qui
+// liste les scans à archiver avant l'événement et les mairies à relancer.
+export async function envoyerRappelsConventions(urlBase: string) {
+  const aujourdHui = aujourdHuiUTC();
+  const conventions = await db.conventionSalle.findMany({
+    where: { date: { gte: aujourdHui } },
+    include: { demandeCreneau: { select: { statut: true } }, evenementSaison: { select: { id: true } } },
+    orderBy: { date: "asc" },
+  });
+  const { sansScan, sansReponse } = conventionsARappeler(
+    conventions.map((c) => ({
+      ...c,
+      active: c.demandeCreneau ? c.demandeCreneau.statut === "EN_ATTENTE" || c.demandeCreneau.statut === "VALIDEE" : !!c.evenementSaison,
+    })),
+    aujourdHui
+  );
+  if (sansScan.length === 0 && sansReponse.length === 0) return { envoye: false };
+
+  const jour = (d: Date) => d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  const ligne = (c: (typeof sansScan)[number]) => `- ${jour(c.date)} : ${c.salle} (${c.commune}), ${c.prof.replace(/^Agenda : /, "")}`;
+  const demandeDu = (c: (typeof sansReponse)[number]) =>
+    `${ligne(c)} (demande du ${c.demandeMairieLe!.toLocaleDateString("fr-FR", { timeZone: "UTC" })})`;
+  const parties = [
+    sansScan.length > 0 && `Convention signée pas encore archivée, à moins de 3 semaines de l'événement :\n${sansScan.map(ligne).join("\n")}`,
+    sansReponse.length > 0 && `Mairie sans réponse depuis plus de ${JOURS_SANS_REPONSE} jours, à relancer :\n${sansReponse.map(demandeDu).join("\n")}`,
+  ].filter(Boolean);
+
+  await envoyerAlerteDirection({
+    sujet: `Conventions de salle : ${sansScan.length + sansReponse.length} point${sansScan.length + sansReponse.length > 1 ? "s" : ""} à suivre`,
+    titre: "Conventions de salle à suivre",
+    texte: parties.join("\n\n"),
+    url: `${urlBase}/admin/conventions`,
+    libelleBouton: "Ouvrir les conventions",
+  });
+  const ids = [...new Set([...sansScan, ...sansReponse].map((c) => c.id))];
+  await db.conventionSalle.updateMany({ where: { id: { in: ids } }, data: { rappelLe: new Date() } });
+  return { envoye: true, sansScan: sansScan.length, sansReponse: sansReponse.length };
 }

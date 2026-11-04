@@ -63,3 +63,36 @@ export function salleDuLieu<S extends { nom: string; commune: string }>(
   }
   return memeNom.length === 1 ? memeNom[0] : null;
 }
+
+// --- Rappels à la direction ---
+
+export const JOURS_AVANT_EVENEMENT = 21; // scan manquant : rappel dans les 3 semaines avant
+export const JOURS_SANS_REPONSE = 10; // mairie silencieuse : rappel pour relancer
+const JOURS_ENTRE_RAPPELS = 7;
+
+export interface ConventionASuivre {
+  id: string;
+  date: Date;
+  demandeMairieLe: Date | null;
+  reponseMairieLe: Date | null;
+  fichierUrl: string | null;
+  rappelLe: Date | null;
+  active: boolean; // réservation en attente ou validée, ou événement toujours à l'agenda
+}
+
+const plusJours = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
+
+// Les conventions à signaler aujourd'hui : scan pas encore archivé à moins de 3 semaines de
+// l'événement, ou mairie sans réponse 10 jours après la demande. Une même convention n'est
+// rappelée qu'une fois par semaine.
+export function conventionsARappeler<C extends ConventionASuivre>(liste: C[], aujourdHui: Date) {
+  const aSignaler = liste.filter(
+    (c) => c.active && c.date >= aujourdHui && (!c.rappelLe || c.rappelLe <= plusJours(aujourdHui, -JOURS_ENTRE_RAPPELS + 1))
+  );
+  return {
+    sansScan: aSignaler.filter((c) => !c.fichierUrl && c.date <= plusJours(aujourdHui, JOURS_AVANT_EVENEMENT)),
+    sansReponse: aSignaler.filter(
+      (c) => c.demandeMairieLe && !c.reponseMairieLe && !c.fichierUrl && c.demandeMairieLe <= plusJours(aujourdHui, -JOURS_SANS_REPONSE)
+    ),
+  };
+}

@@ -324,14 +324,8 @@ export async function envoyerAlerteDirection(params: { sujet: string; titre: str
     to: EMAIL_DIRECTION,
     from: process.env.EMAIL_FROM,
     subject: params.sujet,
-    text: `Bonjour,
-
-${params.texte}
-
-${params.url}
-
-EMI4M Réservation`,
-    html: htmlLienMotDePasse({ titre: params.titre, intro: h(params.texte), url: params.url, libelleBouton: params.libelleBouton }),
+    text: `Bonjour,\n\n${params.texte}\n\n${params.url}\n\nEMI4M Réservation`,
+    html: htmlLienMotDePasse({ titre: params.titre, intro: h(params.texte).replace(/\n/g, "<br>"), url: params.url, libelleBouton: params.libelleBouton }),
   });
 }
 

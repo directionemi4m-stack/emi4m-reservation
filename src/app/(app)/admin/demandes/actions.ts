@@ -12,7 +12,7 @@ import {
   envoyerMailReservationModifiee,
   envoyerMailDemandeSalle,
 } from "@/lib/mail";
-import { noterDemandeMairie, suivreReservation } from "@/lib/conventionsServeur";
+import { noterDemandeMairie, noterDemandeMairieEvenement, suivreReservation } from "@/lib/conventionsServeur";
 import { noterEchecMail } from "@/lib/echecsMail";
 
 export type EtatAction = { succes: boolean; message?: string };
@@ -262,6 +262,7 @@ export async function envoyerDemandeMail(params: {
   sujet: string;
   corps: string;
   demandeCreneauId?: string;
+  evenementSaisonId?: string;
 }): Promise<EtatEnvoiMail> {
   await exigerAdmin();
 
@@ -279,10 +280,12 @@ export async function envoyerDemandeMail(params: {
     return { statut: "erreur", message: "L'envoi a échoué. Réessayez." };
   }
   // Salle à convention : la date de la demande à la mairie est notée pour le registre.
-  if (params.demandeCreneauId) {
-    await noterDemandeMairie(params.demandeCreneauId);
+  if (params.demandeCreneauId) await noterDemandeMairie(params.demandeCreneauId);
+  if (params.evenementSaisonId) await noterDemandeMairieEvenement(params.evenementSaisonId);
+  if (params.demandeCreneauId || params.evenementSaisonId) {
     revalidatePath("/admin/demandes");
     revalidatePath("/admin/conventions");
+    revalidatePath("/saison");
   }
 
   return { statut: "envoye" };

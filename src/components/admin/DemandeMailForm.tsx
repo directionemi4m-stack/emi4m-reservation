@@ -22,6 +22,7 @@ export function DemandeMailForm({
   contacts,
   modele,
   demandeCreneauId,
+  evenementSaisonId,
 }: {
   salleNom: string;
   communeNom: string;
@@ -32,6 +33,7 @@ export function DemandeMailForm({
   contacts: Contact[];
   modele: ModeleMairie; // message type (cf. Paramètres › Contacts)
   demandeCreneauId?: string; // pour noter la date de demande des salles à convention
+  evenementSaisonId?: string; // idem, pour un événement de l'agenda de la saison
 }) {
   const [ouvert, setOuvert] = useState(false);
   const [envoye, setEnvoye] = useState(false);
@@ -73,7 +75,7 @@ export function DemandeMailForm({
   async function envoyer() {
     setEnCours(true);
     setErreur(null);
-    const resultat = await envoyerDemandeMail({ destinataires, sujet, corps, demandeCreneauId });
+    const resultat = await envoyerDemandeMail({ destinataires, sujet, corps, demandeCreneauId, evenementSaisonId });
     setEnCours(false);
     if (resultat.statut === "erreur") setErreur(resultat.message ?? "Échec de l'envoi.");
     else setEnvoye(true);

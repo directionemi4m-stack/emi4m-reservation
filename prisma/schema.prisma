@@ -240,6 +240,8 @@ model ConventionSalle {
   fichierDriveId    String?
   fichierUrl        String?
   nomFichier        String?
+  // Dernier rappel envoyé à la direction (scan manquant, mairie sans réponse) : un par semaine au plus.
+  rappelLe          DateTime?
   creeLe            DateTime         @default(now())
   majLe             DateTime         @updatedAt
 

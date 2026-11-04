@@ -8,6 +8,8 @@ import { anneeScolaireDebut, libelleAnneeScolaire } from "@/lib/fraisRecap";
 import { formaterMinutage, grouperParMois, libelleLieu, libelleTypeEvenement } from "@/lib/saison";
 import { salleDuLieu } from "@/lib/conventions";
 import { ConventionReservation } from "@/components/admin/ConventionReservation";
+import { DemandeMailForm } from "@/components/admin/DemandeMailForm";
+import { MODELE_MAIRIE_DEFAUT } from "@/lib/modeleMairie";
 
 const formatJour = (d: Date) =>
   d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -32,9 +34,16 @@ export default async function SaisonPage({
     db.salle.findMany({ where: { actif: true }, select: { nom: true }, distinct: ["nom"], orderBy: { nom: "asc" } }),
   ]);
   // Direction : la convention mairie des événements prévus dans une salle à convention.
-  const sallesConvention = estAdmin
-    ? (await db.salle.findMany({ where: { conventionRequise: true }, include: { commune: true } })).map((s) => ({ nom: s.nom, commune: s.commune.nom }))
-    : [];
+  const [sallesConvention, contacts, modeleEnregistre] = estAdmin
+    ? await Promise.all([
+        db.salle
+          .findMany({ where: { conventionRequise: true }, include: { commune: true } })
+          .then((l) => l.map((s) => ({ nom: s.nom, commune: s.commune.nom, communeId: s.communeId }))),
+        db.contact.findMany({ where: { actif: true }, orderBy: { nom: "asc" } }),
+        db.modeleMailMairie.findUnique({ where: { id: "singleton" } }),
+      ])
+    : [[], [], null];
+  const modele = modeleEnregistre ?? MODELE_MAIRIE_DEFAUT;
   const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
   const conventionDe = (e: (typeof evenements)[number]) => {
     if (!estAdmin) return null;
@@ -112,7 +121,27 @@ export default async function SaisonPage({
                 </div>
                 <p className="text-xs text-slate-500">{libelleLieu(e.lieu?.nom, e.lieuPrecis) || "Lieu à préciser"}</p>
                 {e.description && <p className="text-xs text-slate-600">{e.description}</p>}
-                {conventionDe(e) && <ConventionReservation convention={conventionDe(e)!} />}
+                {conventionDe(e) && (
+                  <div className="flex flex-col gap-2">
+                    {(() => {
+                      const salle = salleDuLieu(e.lieuPrecis, e.lieu?.nom ?? null, sallesConvention);
+                      return (
+                        <DemandeMailForm
+                          salleNom={salle?.nom ?? e.lieuPrecis ?? ""}
+                          communeNom={salle?.commune ?? e.lieu?.nom ?? ""}
+                          communeId={salle?.communeId ?? ""}
+                          dateFormatee={e.date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}
+                          heureDebut={e.heureDebutMinutes !== null ? minutesVersHeure(e.heureDebutMinutes) : "[heure de début]"}
+                          heureFin="[heure de fin]"
+                          contacts={contacts}
+                          modele={{ sujet: modele.sujet, corps: modele.corps }}
+                          evenementSaisonId={e.id}
+                        />
+                      );
+                    })()}
+                    <ConventionReservation convention={conventionDe(e)!} />
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                   {estHM ? (
                     <Link href={`/saison/${e.id}`} className="text-sm font-medium text-brand-accent hover:underline">

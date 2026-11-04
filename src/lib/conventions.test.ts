@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aujourdHuiUTC, lireDate, nomFichierConvention, saisonDe, salleDuLieu } from "./conventions";
+import { aujourdHuiUTC, lireDate, nomFichierConvention, saisonDe, salleDuLieu, conventionsARappeler } from "./conventions";
 
 describe("saisonDe", () => {
   it("compte la saison de septembre à août", () => {
@@ -50,5 +50,43 @@ describe("salleDuLieu", () => {
     expect(salleDuLieu("Salle des fêtes", null, salles)).toBeNull();
     expect(salleDuLieu("Le CAIRN", "Lans-en-Vercors", salles)).toBeNull();
     expect(salleDuLieu(null, "Méaudre", salles)).toBeNull();
+  });
+});
+
+describe("conventionsARappeler", () => {
+  const j = (s: string) => new Date(`${s}T00:00:00Z`);
+  const base = { demandeMairieLe: null, reponseMairieLe: null, fichierUrl: null, rappelLe: null, active: true };
+  const aujourdHui = j("2026-11-20");
+
+  it("signale un scan manquant dans les 3 semaines avant l'événement", () => {
+    const r = conventionsARappeler(
+      [
+        { ...base, id: "proche", date: j("2026-12-10") },
+        { ...base, id: "loin", date: j("2027-01-20") },
+        { ...base, id: "archivee", date: j("2026-12-01"), fichierUrl: "x" },
+        { ...base, id: "annulee", date: j("2026-12-01"), active: false },
+        { ...base, id: "passee", date: j("2026-11-19") },
+      ],
+      aujourdHui
+    );
+    expect(r.sansScan.map((c) => c.id)).toEqual(["proche"]);
+  });
+
+  it("signale une mairie sans réponse depuis 10 jours", () => {
+    const r = conventionsARappeler(
+      [
+        { ...base, id: "relancer", date: j("2027-03-01"), demandeMairieLe: j("2026-11-05") },
+        { ...base, id: "recente", date: j("2027-03-01"), demandeMairieLe: j("2026-11-15") },
+        { ...base, id: "repondue", date: j("2027-03-01"), demandeMairieLe: j("2026-11-01"), reponseMairieLe: j("2026-11-08") },
+      ],
+      aujourdHui
+    );
+    expect(r.sansReponse.map((c) => c.id)).toEqual(["relancer"]);
+  });
+
+  it("ne rappelle pas deux fois dans la même semaine", () => {
+    const c = { ...base, id: "a", date: j("2026-12-01") };
+    expect(conventionsARappeler([{ ...c, rappelLe: j("2026-11-17") }], aujourdHui).sansScan).toHaveLength(0);
+    expect(conventionsARappeler([{ ...c, rappelLe: j("2026-11-13") }], aujourdHui).sansScan).toHaveLength(1);
   });
 });
