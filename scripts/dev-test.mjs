@@ -13,5 +13,6 @@ for (const ligne of readFileSync(".env.test.local", "utf8").split(/\r?\n/)) {
   const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(ligne);
   if (m) env[m[1]] = m[2].replace(/^"(.*)"$/, "$1");
 }
-const enfant = spawn("npx", ["next", "dev", "-p", "3001"], { env, stdio: "inherit", shell: true });
+const port = /^\d+$/.test(env.PORT ?? "") ? env.PORT : "3001";
+const enfant = spawn("npx", ["next", "dev", "-p", port], { env, stdio: "inherit", shell: true });
 enfant.on("exit", (code) => process.exit(code ?? 0));

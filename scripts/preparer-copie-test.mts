@@ -8,13 +8,19 @@
 // 4. npm run dev:test → http://localhost:3001 (bandeau jaune « COPIE DE TEST »).
 //
 // Le script refuse de toucher la base de production. Sur la copie, il remplace toutes les
-// adresses mail (profs, mairies) par des adresses fictives, retire les abonnements aux
-// notifications et la connexion Google, puis crée deux comptes d'essai (direction et prof)
-// dont les mots de passe sont écrits dans .env.test.local (jamais versionné).
+// adresses mail (profs, mairies) par des adresses fictives, sauf celle du compte partagé de
+// la direction que l'appli reconnaît à son adresse (aucun mail ne part de la copie). Il
+// retire aussi les abonnements aux notifications et la connexion Google, puis crée deux
+// comptes d'essai (direction et prof) dont les mots de passe sont écrits dans
+// .env.test.local (jamais versionné).
 import { randomBytes } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import bcrypt from "bcryptjs";
 import { Client } from "pg";
+
+// Même valeur que MAIL_DIRECTION (src/lib/clesServeur.ts), recopiée ici pour que le script
+// n'ait pas à charger l'appli.
+const MAIL_DIRECTION = "direction.emi4m@gmail.com";
 
 const lireEnv = (fichier: string) =>
   Object.fromEntries(
@@ -45,7 +51,8 @@ try {
   await client.query("BEGIN");
   const { rowCount: profs } = await client.query(
     `UPDATE "User" SET email = 'compte-' || id || '@exemple.test', "emailPartage" = NULL
-     WHERE email NOT LIKE '%@exemple.test'`
+     WHERE email NOT LIKE '%@exemple.test' AND email <> $1`,
+    [MAIL_DIRECTION]
   );
   const { rowCount: contacts } = await client.query(
     `UPDATE "Contact" SET email = 'mairie-' || id || '@exemple.test' WHERE email NOT LIKE '%@exemple.test'`
