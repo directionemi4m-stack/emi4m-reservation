@@ -14,6 +14,8 @@ import { libelleJourCours, libelleJourSemaine } from "@/lib/joursSemaine";
 import { formaterDuree, heuresDecimales, minutesHebdo, minutesVersHeure, volumeHebdoMinutes } from "@/lib/agenda";
 import { formaterMinutage, grouperParMois, libelleLieu, libelleTypeEvenement } from "@/lib/saison";
 import { celluleTexte, libelleAnneeLocation, libelleCaution, libelleModePaiement, libelleSaison } from "@/lib/locations";
+import { ongletASuivre, ongletStatistiques, type Niveau, type Onglet } from "@/lib/statsPresences";
+import { marquesDeLaSaison } from "@/lib/statsPresencesServeur";
 
 const LIBELLES_STATUT: Record<StatutPresence, string> = {
   PRESENT: "Présent",
@@ -375,6 +377,84 @@ export async function synchroniserAbsencesProf() {
     valueInputOption: "RAW",
     requestBody: { values: [entete, ...lignes] },
   });
+}
+
+// --- Statistiques de présence (en tête du classeur « Feuilles de présence ») ---
+
+const TITRE_ONGLET_A_SUIVRE = "📊 Élèves à suivre";
+const TITRE_ONGLET_STATS = "📊 Statistiques";
+const COULEUR_NIVEAU: Record<Niveau, { red: number; green: number; blue: number }> = {
+  "Absences injustifiées": { red: 0.96, green: 0.8, blue: 0.8 },
+  "Souvent absent": { red: 0.99, green: 0.86, blue: 0.7 },
+  "Souvent excusé": { red: 1, green: 0.95, blue: 0.75 },
+};
+
+// Réécrit un onglet de statistiques (valeurs et mise en forme) et le place à `index`.
+async function ecrireOngletStats(
+  sheets: ReturnType<typeof google.sheets>,
+  idFeuille: string,
+  titre: string,
+  index: number,
+  onglet: Onglet
+) {
+  let sheetId = await idOngletExistant(sheets, idFeuille, titre);
+  if (sheetId === null) {
+    const { data } = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: idFeuille,
+      requestBody: { requests: [{ addSheet: { properties: { title: titre, index } } }] },
+    });
+    sheetId = data.replies?.[0]?.addSheet?.properties?.sheetId ?? null;
+    if (sheetId === null) return;
+  }
+  await sheets.spreadsheets.values.clear({ spreadsheetId: idFeuille, range: `'${titre}'` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: idFeuille,
+    range: `'${titre}'!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: onglet.lignes },
+  });
+  const ligne = (n: number) => ({ sheetId, startRowIndex: n, endRowIndex: n + 1, startColumnIndex: 0, endColumnIndex: 10 });
+  const blanc = { red: 1, green: 1, blue: 1 };
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: idFeuille,
+    requestBody: {
+      requests: [
+        { updateSheetProperties: { properties: { sheetId, index }, fields: "index" } },
+        // La mise en forme précédente est effacée : les lignes ont pu changer de place.
+        { repeatCell: { range: { sheetId }, cell: { userEnteredFormat: {} }, fields: "userEnteredFormat" } },
+        ...onglet.titres.map((n) => ({
+          repeatCell: { range: ligne(n), cell: { userEnteredFormat: { textFormat: { bold: true, fontSize: 14 } } }, fields: "userEnteredFormat.textFormat" },
+        })),
+        ...onglet.entetes.map((n) => ({
+          repeatCell: {
+            range: ligne(n),
+            cell: { userEnteredFormat: { backgroundColor: GRIS_ENTETE, textFormat: { bold: true, foregroundColor: blanc } } },
+            fields: "userEnteredFormat(backgroundColor,textFormat)",
+          },
+        })),
+        ...onglet.couleurs.map((c) => ({
+          repeatCell: {
+            range: ligne(c.ligne),
+            cell: { userEnteredFormat: { backgroundColor: COULEUR_NIVEAU[c.niveau] } },
+            fields: "userEnteredFormat.backgroundColor",
+          },
+        })),
+        { autoResizeDimensions: { dimensions: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: 10 } } },
+        { updateDimensionProperties: { range: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: 1 }, properties: { pixelSize: 220 }, fields: "pixelSize" } },
+      ],
+    },
+  });
+}
+
+// Les deux onglets de statistiques, réécrits après chaque appel et chaque soir.
+export async function synchroniserStatistiquesPresences() {
+  const client = creerClientPresences();
+  if (!client) return;
+  const { sheets, idFeuille } = client;
+  const { saison, marques } = await marquesDeLaSaison();
+  const majLe = new Date().toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Paris" });
+  await ecrireOngletStats(sheets, idFeuille, TITRE_ONGLET_A_SUIVRE, 0, ongletASuivre(marques, saison, majLe));
+  await ecrireOngletStats(sheets, idFeuille, TITRE_ONGLET_STATS, 1, ongletStatistiques(marques, saison, majLe));
 }
 
 // L'identité occupe toujours les lignes 1 à 14 (titre, 9 champs, blanc, 2 totaux,

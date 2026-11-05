@@ -8,7 +8,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SEUIL_ALERTE_ABSENCES } from "@/lib/presences";
 import { envoyerMailAlerteAbsences } from "@/lib/mail";
-import { synchroniserFeuillePresence, synchroniserAbsencesProf } from "@/lib/sheets";
+import { synchroniserFeuillePresence, synchroniserAbsencesProf, synchroniserStatistiquesPresences } from "@/lib/sheets";
+import { after } from "next/server";
 import type { StatutPresence, TypeAbsenceProf } from "@/generated/prisma/client";
 
 export type EtatAction = { succes: boolean; message?: string };
@@ -71,6 +72,8 @@ export async function enregistrerPointage(
   } catch (erreur) {
     console.error("Échec de synchronisation Google Sheets :", erreur);
   }
+  // Statistiques (élèves à suivre…) : recalculées après la réponse, sans faire attendre le prof.
+  after(() => synchroniserStatistiquesPresences().catch((e) => console.error("Statistiques de présence non mises à jour :", e)));
 
   // Seuil d'absences injustifiées, cumulées par élève sur ce cours.
   const alertes: Array<{ nom: string; total: number }> = [];
