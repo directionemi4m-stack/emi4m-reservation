@@ -6,6 +6,7 @@ export type CleEtapeAuto =
   | "agenda"
   | "vacances"
   | "cours"
+  | "listes"
   | "heures"
   | "locations"
   | "cles"
@@ -28,6 +29,7 @@ export const ETAPES_AUTO: Etape<CleEtapeAuto>[] = [
   { cle: "agenda", titre: "Saisir l'agenda de la saison", lien: "/saison", aide: "Concerts, auditions, heures musicales, examens…" },
   { cle: "vacances", titre: "Vacances scolaires", lien: "/admin/parametres/vacances", aide: "Synchronisées automatiquement chaque lundi (zone A)." },
   { cle: "cours", titre: "Les profs créent leurs cours (Présences)", lien: "/presences", aide: "Un cours par groupe ou élève, avec sa date de début." },
+  { cle: "listes", titre: "Contrôler les listes d'élèves", lien: "/admin/annuaire-eleves/controle", aide: "Chaque élève des listes d'appel retrouvé dans l'annuaire." },
   { cle: "heures", titre: "Heures hebdomadaires des contrats", lien: "/admin/parametres/profs", aide: "Pour comparer avec l'emploi du temps de chaque prof." },
   { cle: "locations", titre: "Locations d'instruments de la saison", lien: "/admin/locations", aide: "Reconduire ou créer les locations de l'année." },
   { cle: "cles", titre: "Registre des clés et badges", lien: "/admin/cles", aide: "Remises de clés de la nouvelle saison." },

@@ -6,6 +6,7 @@ import { libelleTypeEvenement } from "@/lib/saison";
 import { DRIVE_PROFS } from "@/lib/navigation";
 import { campagneOuverte, periodeCourante } from "@/lib/bulletinsCham";
 import { MAIL_DIRECTION, salariesDuRegistre } from "@/lib/clesServeur";
+import { seancesSansAppel } from "@/lib/appelsServeur";
 
 export interface EtatTuile {
   statut?: string;
@@ -68,6 +69,8 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     nbEleves,
     conventionsManquantes,
     echecsMail,
+    mesAppels,
+    appelsEnRetard,
   ] = await Promise.all([
     db.demandeCreneau.count({
       where: { statut: "VALIDEE", date: { gte: aujourdHui, lt: finSemaine }, demande: { profId: userId } },
@@ -126,6 +129,8 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
         })
       : Promise.resolve(0),
     estAdmin ? db.echecMail.count({ where: { vuLe: null } }) : Promise.resolve(0),
+    seancesSansAppel(aujourdHui, userId),
+    estAdmin ? seancesSansAppel(aujourdHui).then((l) => l.filter((s) => s.enRetard).length) : Promise.resolve(0),
   ]);
 
   const ficheManquante = CHAMPS_FICHE.filter((c) => !identite?.[c]).length;
@@ -147,7 +152,12 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
       pastille: demandesEnAttente || undefined,
     },
     "/presences": {
-      statut: prochaineSeance
+      pastille: (estAdmin ? appelsEnRetard : mesAppels.filter((s) => s.enRetard).length) || undefined,
+      statut: mesAppels.length
+        ? `${pluriel(mesAppels.length, "appel")} à faire`
+        : appelsEnRetard
+          ? `${pluriel(appelsEnRetard, "appel")} en retard (profs)`
+          : prochaineSeance
         ? `${prochaineSeance.classe.nom} · ${
             prochaineSeance.date.getTime() === aujourdHui.getTime() ? "aujourd'hui" : jourCourt(prochaineSeance.date)
           }`

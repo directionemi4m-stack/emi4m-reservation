@@ -111,7 +111,19 @@ export default async function HeureMusicalePage({
       />
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-brand-slate">Programme (ordre de passage)</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-brand-slate">Programme (ordre de passage)</h2>
+          {inscriptions.length > 0 && (
+            <span className="flex gap-3 text-xs">
+              <Link href={`/saison/${evenement.id}/programme`} className="font-medium text-brand-accent hover:underline">
+                Imprimer le programme
+              </Link>
+              <Link href={`/saison/${evenement.id}/programme?version=presentateur`} className="font-medium text-brand-accent hover:underline">
+                Feuille du présentateur
+              </Link>
+            </span>
+          )}
+        </div>
         {inscriptions.length === 0 && <p className="text-sm text-slate-500">Aucun élève inscrit pour l&apos;instant.</p>}
         {inscriptions.map((i, n) => (
           <div key={i.id} className="flex items-start justify-between gap-3 rounded-lg bg-white p-3 shadow-sm">

@@ -4,20 +4,30 @@ import { db } from "@/lib/db";
 import { SupprimerClasseBouton } from "@/components/presences/SupprimerClasseBouton";
 import { PresencesSousNav } from "@/components/presences/PresencesSousNav";
 import { libelleJourCours } from "@/lib/joursSemaine";
+import { aujourdHuiUTC, seancesSansAppel } from "@/lib/appelsServeur";
+import { AppelsAFaire } from "@/components/presences/AppelsAFaire";
 
 export default async function PresencesPage() {
   const session = await auth();
 
-  const classes = await db.classe.findMany({
-    where: { profId: session!.user.id, actif: true },
-    include: { eleves: true },
-    // L'enum JourSemaine se trie dans son ordre de déclaration (lundi → dimanche).
-    orderBy: [{ jourSemaine: "asc" }, { creeLe: "desc" }],
-  });
+  const estAdmin = session!.user.role === "ADMIN";
+  const aujourdHui = aujourdHuiUTC();
+  const [classes, mesAppels, tousLesAppels] = await Promise.all([
+    db.classe.findMany({
+      where: { profId: session!.user.id, actif: true },
+      include: { eleves: true },
+      // L'enum JourSemaine se trie dans son ordre de déclaration (lundi → dimanche).
+      orderBy: [{ jourSemaine: "asc" }, { creeLe: "desc" }],
+    }),
+    seancesSansAppel(aujourdHui, session!.user.id),
+    estAdmin ? seancesSansAppel(aujourdHui) : Promise.resolve([]),
+  ]);
 
   return (
     <div>
       <PresencesSousNav />
+      <AppelsAFaire seances={mesAppels} />
+      {estAdmin && <AppelsAFaire seances={tousLesAppels.filter((s) => s.enRetard)} tousLesProfs />}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-brand-slate">Mes cours</h1>
         <Link

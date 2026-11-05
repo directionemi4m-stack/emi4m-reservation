@@ -3,6 +3,7 @@ import { IconCircleCheckFilled, IconCircleDashed } from "@tabler/icons-react";
 import { db } from "@/lib/db";
 import { MAIL_DIRECTION, salariesDuRegistre } from "@/lib/clesServeur";
 import { verifierConnexionDrive } from "@/lib/drive";
+import { rapprochementListes } from "@/lib/annuaireServeur";
 import {
   debutPreparation,
   debutSaison,
@@ -42,6 +43,7 @@ export default async function RentreePage({ searchParams }: { searchParams: Prom
     drive,
     sauvegarde,
     faites,
+    listes,
   ] = await Promise.all([
     db.importAnnuaireEleves.findFirst({ where: { importeLe: { gte: preparation } }, orderBy: { importeLe: "desc" } }),
     db.evenementSaison.count({ where: { date: { gte: debut, lt: fin } } }),
@@ -63,7 +65,9 @@ export default async function RentreePage({ searchParams }: { searchParams: Prom
     verifierConnexionDrive(),
     db.etatSauvegarde.findUnique({ where: { id: "singleton" } }),
     db.etapeRentree.findMany({ where: { saison } }),
+    rapprochementListes(),
   ]);
+  const nonTrouves = listes.inscriptions.filter((i) => !i.fiche).length;
 
   const aRepublier = documents.filter((d) => d.publieLe < preparation).length;
   const signaturesManquantes = documents.reduce(
@@ -84,6 +88,15 @@ export default async function RentreePage({ searchParams }: { searchParams: Prom
     cours: {
       ok: nbCours > 0,
       detail: nbCours ? `${nbCours} cours créé${nbCours > 1 ? "s" : ""} pour la saison` : "Aucun cours pour la saison",
+    },
+    listes: {
+      ok: listes.annuaire.length > 0 && listes.inscriptions.length > 0 && nonTrouves === 0,
+      detail:
+        listes.annuaire.length === 0
+          ? "Importer d'abord l'annuaire"
+          : nonTrouves
+            ? `${pluriel(nonTrouves, "élève")} des listes pas trouvé${nonTrouves > 1 ? "s" : ""} dans l'annuaire`
+            : "Tous les élèves des listes sont dans l'annuaire",
     },
     heures: {
       ok: nbSalaries > 0 && nbHeures >= nbSalaries,

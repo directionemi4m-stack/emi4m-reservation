@@ -37,6 +37,10 @@ export default async function ImportAnnuaireElevesPage() {
             <Link href="/annuaire/eleves" className="text-brand-accent hover:underline">
               Voir l&apos;annuaire
             </Link>
+            {" · "}
+            <Link href="/admin/annuaire-eleves/controle" className="text-brand-accent hover:underline">
+              Contrôler les listes d&apos;élèves
+            </Link>
           </>
         ) : (
           "L'annuaire des élèves est encore vide."

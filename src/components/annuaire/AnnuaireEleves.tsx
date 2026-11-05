@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { IconCopy, IconMail, IconMapPin, IconPhone, IconSearch } from "@tabler/icons-react";
 import { filtrerEleves, valeursFiltre, type EleveExtrait } from "@/lib/annuaireEleves";
@@ -98,9 +99,9 @@ export function AnnuaireEleves({ eleves }: { eleves: EleveVue[] }) {
         {resultats.map((e) => (
           <li key={e.id} className="flex flex-col gap-1 px-4 py-3">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <p className="font-medium text-slate-800">
+              <Link href={`/annuaire/eleves/${e.id}`} className="font-medium text-slate-800 hover:text-brand-accent hover:underline">
                 {e.nom} {e.prenom}
-              </p>
+              </Link>
               {e.instruments.map((i) => (
                 <button
                   key={i}

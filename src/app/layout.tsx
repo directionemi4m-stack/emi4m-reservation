@@ -28,7 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="fr" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
         {estCopieDeTest() && (
-          <div className="sticky top-0 z-50 bg-amber-400 px-4 py-1 text-center text-xs font-semibold text-amber-950">
+          <div className="sticky top-0 z-50 bg-amber-400 px-4 py-1 print:hidden text-center text-xs font-semibold text-amber-950">
             COPIE DE TEST — données de test, aucun mail ni notification envoyés, Drive non modifié
           </div>
         )}

@@ -32,6 +32,7 @@ import {
   IconSignature,
   IconLicense,
   IconBackpack,
+  IconChartBar,
   IconUsers,
 } from "@tabler/icons-react";
 import type { CleIcone, CouleurTuile } from "@/lib/navigation";
@@ -71,6 +72,7 @@ const ICONES: Record<CleIcone, typeof IconHome> = {
   signature: IconSignature,
   convention: IconLicense,
   rentree: IconBackpack,
+  bilan: IconChartBar,
 };
 
 // Pastille ronde colorée derrière l'icône, comme sur Home Assistant.
