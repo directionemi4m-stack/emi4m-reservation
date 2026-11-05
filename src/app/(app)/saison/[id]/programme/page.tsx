@@ -4,11 +4,12 @@ import { db } from "@/lib/db";
 import { minutesVersHeure } from "@/lib/agenda";
 import { formaterMinutage, libelleLieu } from "@/lib/saison";
 import { BoutonImprimer } from "@/components/ui/BoutonImprimer";
+import { acceptePassages } from "@/lib/programmes";
 
 const formatDateLongue = (d: Date) =>
   d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
-// Le programme d'une heure musicale, mis en page pour l'impression (ou un PDF) : la version
+// Le programme d'un événement (heure musicale, concert, audition…), mis en page pour l'impression (ou un PDF) : la version
 // « public » (ordre de passage, élèves, œuvres) et la feuille du présentateur (avec durées,
 // heure de passage estimée, profs et matériel à installer).
 export default async function ProgrammePage({
@@ -23,9 +24,12 @@ export default async function ProgrammePage({
 
   const evenement = await db.evenementSaison.findUnique({
     where: { id },
-    include: { lieu: true, inscriptions: { orderBy: [{ ordre: "asc" }, { creeLe: "asc" }], include: { prof: true } } },
+    include: {
+      lieu: true,
+      inscriptions: { orderBy: [{ ordre: "asc" }, { creeLe: "asc" }], include: { prof: true, morceaux: { orderBy: { ordre: "asc" } } } },
+    },
   });
-  if (!evenement || evenement.type !== "HEURE_MUSICALE") notFound();
+  if (!evenement || !acceptePassages(evenement.type)) notFound();
 
   const inscriptions = evenement.inscriptions;
   const total = inscriptions.reduce((s, i) => s + i.minutageSecondes, 0);
@@ -89,7 +93,19 @@ export default async function ProgrammePage({
                     <span className="font-semibold text-slate-800">{i.eleveNom}</span>
                     <span className="text-slate-500"> · {i.instrument}</span>
                   </p>
-                  <p className="text-sm italic text-slate-700">{i.programme}</p>
+                  {i.morceaux.length > 0 ? (
+                    i.morceaux.map((m) => (
+                      <p key={m.id} className="text-sm text-slate-700">
+                        <span className="italic">{m.titre}</span> — {m.compositeur}
+                        {m.arrangeur && <span className="text-slate-500"> (arr. {m.arrangeur})</span>}
+                        {presentateur && i.morceaux.length > 1 && (
+                          <span className="text-xs text-slate-400"> · {formaterMinutage(m.dureeSecondes)}</span>
+                        )}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-sm italic text-slate-700">{i.programme}</p>
+                  )}
                   {presentateur && (
                     <p className="text-xs text-slate-500">
                       {[`Prof : ${i.prof.prenom} ${i.prof.nom}`, i.materiel && `Matériel : ${i.materiel}`, i.commentaire]

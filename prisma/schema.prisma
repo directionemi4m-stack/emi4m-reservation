@@ -797,14 +797,47 @@ model InscriptionHeureMusicale {
   prof             User            @relation(fields: [profId], references: [id])
   eleveNom         String
   instrument       String
-  programme        String // œuvre(s) et compositeur(s)
-  minutageSecondes Int
+  programme        String // résumé des œuvres (« Menuet en sol (J.S. Bach) ; … »), tiré des morceaux
+  minutageSecondes Int // total des durées des morceaux
   materiel         String?
   commentaire      String?
   ordre            Int // ordre de passage, réglable par la direction
   creeLe           DateTime        @default(now())
 
+  morceaux MorceauProgramme[]
+
   @@index([evenementId, ordre])
+}
+
+// Une œuvre jouée lors d'un passage (heure musicale, concert, audition…) : le détail
+// demandé par la SACEM pour le relevé des programmes.
+model MorceauProgramme {
+  id             String                   @id @default(cuid())
+  inscriptionId  String
+  inscription    InscriptionHeureMusicale @relation(fields: [inscriptionId], references: [id], onDelete: Cascade)
+  ordre          Int
+  titre          String
+  compositeur    String
+  arrangeur      String?
+  dureeSecondes  Int
+
+  @@index([inscriptionId, ordre])
+}
+
+// Coordonnées de l'école, reprises sur les documents officiels (relevé SACEM…).
+// Une seule ligne (id « singleton »), modifiable par la direction.
+model CoordonneesEcole {
+  id             String   @id @default("singleton")
+  nom            String
+  sigle          String
+  adresse        String // plusieurs lignes possibles
+  telephone      String?
+  email          String?
+  siteWeb        String?
+  siret          String?
+  numeroSacem    String? // numéro de client SACEM, s'il y en a un
+  representant   String? // « Prénom Nom, président(e) »
+  majLe          DateTime @updatedAt
 }
 
 // --- Locations d'instruments ---

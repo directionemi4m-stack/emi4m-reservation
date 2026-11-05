@@ -9,11 +9,14 @@ import { anneeScolaireDebut } from "@/lib/fraisRecap";
 import { formaterMinutage, libelleLieu, minutageEditable } from "@/lib/saison";
 import { deplacerInscription } from "../actions";
 import { nomAffiche, rapprocheurAnnuaire } from "@/lib/annuaireEleves";
+import { acceptePassages } from "@/lib/programmes";
 
 const formatDateLongue = (d: Date) =>
   d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
-export default async function HeureMusicalePage({
+// Programme et inscriptions d'un événement de la saison (heure musicale, concert,
+// audition…) : chaque prof y inscrit ses élèves avec les œuvres jouées.
+export default async function ProgrammeEvenementPage({
   params,
   searchParams,
 }: {
@@ -29,10 +32,13 @@ export default async function HeureMusicalePage({
     where: { id },
     include: {
       lieu: true,
-      inscriptions: { orderBy: [{ ordre: "asc" }, { creeLe: "asc" }], include: { prof: true } },
+      inscriptions: {
+        orderBy: [{ ordre: "asc" }, { creeLe: "asc" }],
+        include: { prof: true, morceaux: { orderBy: { ordre: "asc" } } },
+      },
     },
   });
-  if (!evenement || evenement.type !== "HEURE_MUSICALE") notFound();
+  if (!evenement || !acceptePassages(evenement.type)) notFound();
 
   const [eleves, instruments, annuaire] = await Promise.all([
     // Suggestions : les élèves des cours de Présences du prof connecté.
@@ -102,8 +108,12 @@ export default async function HeureMusicalePage({
             id: enModification.id,
             eleveNom: enModification.eleveNom,
             instrument: enModification.instrument,
-            programme: enModification.programme,
-            minutage: minutageEditable(enModification.minutageSecondes),
+            morceaux: enModification.morceaux.map((m) => ({
+              titre: m.titre,
+              compositeur: m.compositeur,
+              arrangeur: m.arrangeur ?? "",
+              duree: minutageEditable(m.dureeSecondes),
+            })),
             materiel: enModification.materiel ?? "",
             commentaire: enModification.commentaire ?? "",
           }
@@ -133,7 +143,19 @@ export default async function HeureMusicalePage({
                 <p className="text-sm font-medium text-slate-700">
                   {i.eleveNom} · {i.instrument} · {formaterMinutage(i.minutageSecondes)}
                 </p>
-                <p className="text-sm text-slate-600">{i.programme}</p>
+                {i.morceaux.length > 0 ? (
+                  <ul className="text-sm text-slate-600">
+                    {i.morceaux.map((m) => (
+                      <li key={m.id}>
+                        <span className="italic">{m.titre}</span> — {m.compositeur}
+                        {m.arrangeur && ` (arr. ${m.arrangeur})`}
+                        <span className="text-xs text-slate-400"> · {formaterMinutage(m.dureeSecondes)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-600">{i.programme}</p>
+                )}
                 <p className="text-xs text-slate-500">
                   {[i.materiel && `Matériel : ${i.materiel}`, i.commentaire, `Prof : ${i.prof.prenom} ${i.prof.nom}`]
                     .filter(Boolean)

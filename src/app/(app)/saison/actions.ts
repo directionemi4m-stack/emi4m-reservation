@@ -6,7 +6,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { heureVersMinutes } from "@/lib/agenda";
 import { anneeScolaireDebut } from "@/lib/fraisRecap";
-import { lireMinutage, TYPES_EVENEMENT_SAISON } from "@/lib/saison";
+import { TYPES_EVENEMENT_SAISON } from "@/lib/saison";
+import { acceptePassages, lireMorceaux, resumeProgramme } from "@/lib/programmes";
 import { supprimerOngletSaison, synchroniserAgendaSaison, synchroniserProgrammeHeureMusicale } from "@/lib/sheets";
 import type { TypeEvenementSaison } from "@/generated/prisma/client";
 import { regenererRegistreSansErreur, suivreEvenement } from "@/lib/conventionsServeur";
@@ -107,27 +108,32 @@ export async function ajouterInscription(_etatPrecedent: EtatAction, formData: F
 
   const evenementId = String(formData.get("evenementId") ?? "");
   const evenement = await db.evenementSaison.findUnique({ where: { id: evenementId } });
-  if (!evenement || evenement.type !== "HEURE_MUSICALE") {
-    return { succes: false, message: "Cette heure musicale n'existe plus." };
+  if (!evenement || !acceptePassages(evenement.type)) {
+    return { succes: false, message: "Cet événement n'existe plus." };
   }
 
   const eleveNom = champ(formData, "eleveNom");
   const instrument = champ(formData, "instrument");
-  const programme = champ(formData, "programme");
-  const minutageSecondes = lireMinutage(String(formData.get("minutage") ?? ""));
-  if (!eleveNom) return { succes: false, message: "Le nom de l'élève est requis." };
-  if (!instrument) return { succes: false, message: "L'instrument est requis." };
-  if (!programme) return { succes: false, message: "Le programme est requis." };
-  if (minutageSecondes === null) return { succes: false, message: "Minutage invalide (ex. 3'30)." };
+  if (!eleveNom) return { succes: false, message: "Le nom de l'élève (ou du groupe) est requis." };
+  if (!instrument) return { succes: false, message: "L'instrument (ou la formation) est requis." };
+  const lus = lireMorceaux({
+    titres: formData.getAll("morceauTitre").map(String),
+    compositeurs: formData.getAll("morceauCompositeur").map(String),
+    arrangeurs: formData.getAll("morceauArrangeur").map(String),
+    durees: formData.getAll("morceauDuree").map(String),
+  });
+  if ("erreur" in lus) return { succes: false, message: lus.erreur };
+  const { morceaux } = lus;
 
   const contenu = {
     eleveNom,
     instrument,
-    programme,
-    minutageSecondes,
+    programme: resumeProgramme(morceaux),
+    minutageSecondes: morceaux.reduce((s, m) => s + m.dureeSecondes, 0),
     materiel: champ(formData, "materiel"),
     commentaire: champ(formData, "commentaire"),
   };
+  const lignes = morceaux.map((m, n) => ({ ...m, ordre: n + 1 }));
 
   // Modification : seul le prof qui a inscrit l'élève (ou la direction) peut la faire ;
   // l'ordre de passage et l'auteur de l'inscription ne changent pas.
@@ -140,14 +146,23 @@ export async function ajouterInscription(_etatPrecedent: EtatAction, formData: F
     if (existante.profId !== session.user.id && session.user.role !== "ADMIN") {
       return { succes: false, message: "Vous ne pouvez modifier que vos propres inscriptions." };
     }
-    await db.inscriptionHeureMusicale.update({ where: { id }, data: contenu });
+    await db.$transaction([
+      db.morceauProgramme.deleteMany({ where: { inscriptionId: id } }),
+      db.inscriptionHeureMusicale.update({ where: { id }, data: { ...contenu, morceaux: { create: lignes } } }),
+    ]);
   } else {
     const dernier = await db.inscriptionHeureMusicale.findFirst({
       where: { evenementId },
       orderBy: { ordre: "desc" },
     });
     await db.inscriptionHeureMusicale.create({
-      data: { ...contenu, evenementId, profId: session.user.id, ordre: (dernier?.ordre ?? 0) + 1 },
+      data: {
+        ...contenu,
+        evenementId,
+        profId: session.user.id,
+        ordre: (dernier?.ordre ?? 0) + 1,
+        morceaux: { create: lignes },
+      },
     });
   }
 

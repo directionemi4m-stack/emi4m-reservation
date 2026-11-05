@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { acceptePassages } from "@/lib/programmes";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { EvenementForm } from "@/components/saison/EvenementForm";
@@ -143,13 +144,18 @@ export default async function SaisonPage({
                   </div>
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  {estHM ? (
+                  {acceptePassages(e.type) ? (
                     <Link href={`/saison/${e.id}`} className="text-sm font-medium text-brand-accent hover:underline">
-                      Programme et inscriptions ({e.inscriptions.length} élève{e.inscriptions.length > 1 ? "s" : ""} ·{" "}
-                      <span className={depasse ? "text-status-occupee" : ""}>
-                        {formaterMinutage(total)}
-                        {e.dureeMaxMinutes !== null && ` / ${formaterDuree(e.dureeMaxMinutes)}`}
-                      </span>
+                      Programme et inscriptions ({e.inscriptions.length} passage{e.inscriptions.length > 1 ? "s" : ""}
+                      {e.inscriptions.length > 0 && (
+                        <>
+                          {" · "}
+                          <span className={depasse ? "text-status-occupee" : ""}>
+                            {formaterMinutage(total)}
+                            {estHM && e.dureeMaxMinutes !== null && ` / ${formaterDuree(e.dureeMaxMinutes)}`}
+                          </span>
+                        </>
+                      )}
                       ) →
                     </Link>
                   ) : (
