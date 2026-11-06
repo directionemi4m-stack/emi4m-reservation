@@ -20,9 +20,21 @@ const marques = [
 ];
 
 describe("statistiques de présence", () => {
-  it("regroupe un élève sur tous ses cours", () => {
+  it("regroupe un élève sur tous ses cours, en gardant le détail par cours", () => {
     const max = statsParEleve(marques).find((s) => s.personne === "Max")!;
     expect(max).toMatchObject({ cours: ["FM1", "Piano"], seances: 12, present: 9, excuse: 3, absent: 0 });
+    // Excusé aux séances 1 et 3 (Piano) et 2 (FM1) : le cours le plus manqué vient en premier.
+    expect(max.parCours.map((c) => `${c.cours}:${c.excuse}/${c.seances}`)).toEqual(["Piano:2/6", "FM1:1/6"]);
+  });
+
+  it("montre une ligne par cours, avec le bilan de tous les cours", () => {
+    const onglet = ongletASuivre(marques, "2026-2027", "5 novembre 2026");
+    const lignesMax = onglet.lignes.filter((l) => l[1] === "Max");
+    expect(lignesMax.map((l) => [l[0], l[2], l[6]])).toEqual([
+      ["Souvent excusé", "Piano", 2],
+      ["Souvent excusé", "FM1", 1],
+    ]);
+    expect(lignesMax[0][10]).toBe("75 % de présence sur 12 séances (3 exc., 0 abs.)");
   });
 
   it("classe les élèves à suivre, du plus préoccupant au moins préoccupant", () => {
@@ -40,6 +52,6 @@ describe("statistiques de présence", () => {
     const onglet = ongletASuivre(marques, "2026-2027", "5 novembre 2026");
     expect(onglet.lignes[4][0]).toBe("À suivre");
     expect(onglet.lignes[5].slice(0, 2)).toEqual(["Absences injustifiées", "Léa"]);
-    expect(onglet.couleurs).toHaveLength(4);
+    expect(onglet.couleurs).toHaveLength(5); // Max a deux lignes (Piano, FM1)
   });
 });

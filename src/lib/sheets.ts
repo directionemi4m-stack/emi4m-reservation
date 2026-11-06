@@ -413,7 +413,8 @@ async function ecrireOngletStats(
     valueInputOption: "RAW",
     requestBody: { values: onglet.lignes },
   });
-  const ligne = (n: number) => ({ sheetId, startRowIndex: n, endRowIndex: n + 1, startColumnIndex: 0, endColumnIndex: 10 });
+  const nbColonnes = Math.max(...onglet.lignes.map((l) => l.length));
+  const ligne = (n: number) => ({ sheetId, startRowIndex: n, endRowIndex: n + 1, startColumnIndex: 0, endColumnIndex: nbColonnes });
   const blanc = { red: 1, green: 1, blue: 1 };
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: idFeuille,
@@ -439,7 +440,7 @@ async function ecrireOngletStats(
             fields: "userEnteredFormat.backgroundColor",
           },
         })),
-        { autoResizeDimensions: { dimensions: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: 10 } } },
+        { autoResizeDimensions: { dimensions: { sheetId, dimension: "COLUMNS", startIndex: 1, endIndex: nbColonnes } } },
         { updateDimensionProperties: { range: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: 1 }, properties: { pixelSize: 220 }, fields: "pixelSize" } },
       ],
     },

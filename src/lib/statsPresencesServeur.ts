@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { nomAffiche, rapprocheurAnnuaire } from "@/lib/annuaireEleves";
+import { cleNomEleve, nomAffiche, rapprocheurAnnuaire } from "@/lib/annuaireEleves";
 import { anneeScolaireDebut } from "@/lib/fraisRecap";
 import type { MarqueStat } from "@/lib/statsPresences";
 
@@ -32,7 +32,10 @@ export async function marquesDeLaSaison(maintenant = new Date()): Promise<{ sais
       let qui = fiches.get(m.eleve.id);
       if (!qui) {
         const r = retrouver(m.eleve.nom, classe.nom);
-        qui = r ? { personne: r.eleve.id, nom: nomAffiche(r.eleve) } : { personne: `liste-${m.eleve.id}`, nom: m.eleve.nom };
+        // Élève absent de l'annuaire : reconnu d'un cours à l'autre par son nom, sans les
+        // précisions entre parenthèses (« Lynn HAMEAU (piano eva) » = « Lynn HAMEAU »).
+        const nom = m.eleve.nom.replace(/\s*\([^)]*\)/g, "").trim() || m.eleve.nom;
+        qui = r ? { personne: r.eleve.id, nom: nomAffiche(r.eleve) } : { personne: `liste-${cleNomEleve(nom)}`, nom };
         fiches.set(m.eleve.id, qui);
       }
       return {
