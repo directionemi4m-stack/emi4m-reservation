@@ -1,7 +1,7 @@
 // Appels oubliés : une séance passée sans feuille d'appel ni absence du prof déclarée.
 // Module pur (sans base de données), testé dans appels.test.ts.
 
-// La plupart des profs font l'appel dans les 2 jours : on ne rappelle qu'à partir du 3e.
+// La plupart des profs font l'appel dans les 2 jours : une séance n'est « en retard » qu'à partir du 3e.
 export const JOURS_AVANT_RAPPEL = 3;
 // Au-delà, une séance oubliée n'est plus réclamée (début de l'appli, cours non tenu…).
 export const JOURS_FENETRE = 21;
@@ -19,7 +19,7 @@ export function appelAFaire(s: SeanceAppel, aujourdHui: Date): boolean {
   return !s.aUnAppel && age >= 1 && age <= JOURS_FENETRE;
 }
 
-// Appel à faire depuis au moins 3 jours : rappel au prof, et compté « en retard ».
+// Appel à faire depuis au moins 3 jours : compté « en retard » (pastille, vue de la direction).
 export function appelEnRetard(s: SeanceAppel, aujourdHui: Date): boolean {
   const age = Math.round((aujourdHui.getTime() - s.date.getTime()) / JOUR);
   return appelAFaire(s, aujourdHui) && age >= JOURS_AVANT_RAPPEL;
@@ -32,6 +32,3 @@ export function bornesAppels(aujourdHui: Date) {
     lt: aujourdHui,
   };
 }
-
-export const libelleSeance = (nomCours: string, date: Date) =>
-  `${nomCours} du ${date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}`;

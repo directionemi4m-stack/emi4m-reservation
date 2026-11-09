@@ -482,30 +482,6 @@ export async function envoyerMailRappelBulletins(params: {
   });
 }
 
-// Appels oubliés : séances passées depuis 3 jours sans feuille d'appel (une fois par séance).
-export async function envoyerMailRappelAppels(params: { prof: { prenom: string; email: string }; seances: string[]; url: string }) {
-  const { prof, seances, url } = params;
-  const transport = creerTransporteur();
-  const intro =
-    seances.length > 1 ? `Petit rappel : l'appel de ${seances.length} séances n'est pas encore fait :` : "Petit rappel : l'appel de cette séance n'est pas encore fait :";
-  const fin = "Si le cours n'a pas eu lieu, déclarez-le avec « Absence du prof » sur la séance.";
-  await transport.sendMail({
-    to: prof.email,
-    from: process.env.EMAIL_FROM,
-    subject: seances.length > 1 ? `Rappel : ${seances.length} appels à faire` : "Rappel : un appel à faire",
-    text: `Bonjour ${prof.prenom},\n\n${intro}\n${seances.map((s) => `- ${s}`).join("\n")}\n\n${fin}\n\n${url}\n\nDirection EMI4M`,
-    html: htmlLienMotDePasse({
-      titre: "Appel à faire",
-      intro: `Bonjour ${h(prof.prenom)},<br><br>${h(intro)}<ul style="margin:8px 0 0;padding-left:20px;">${seances
-        .map((s) => `<li>${h(s)}</li>`)
-        .join("")}</ul><br>${h(fin)}`,
-      url,
-      libelleBouton: "Faire l'appel",
-      mention: "",
-    }),
-  });
-}
-
 // Document à lire et signer : annonce à la publication (ou à une nouvelle version), puis
 // relance une semaine après pour ceux qui n'ont pas encore signé.
 export async function envoyerMailDocumentASigner(params: {

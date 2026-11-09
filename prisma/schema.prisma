@@ -326,7 +326,7 @@ model Seance {
   classeId String
   classe   Classe   @relation(fields: [classeId], references: [id], onDelete: Cascade)
   date     DateTime @db.Date
-  // Rappel « appel à faire » envoyé au prof (une seule fois par séance).
+  // Ancien rappel « appel à faire » envoyé au prof (rappels arrêtés le 9 nov. 2026, colonne gardée pour l'historique).
   rappelAppelLe DateTime?
 
   pointage    Pointage?

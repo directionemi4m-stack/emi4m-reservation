@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appelAFaire, appelEnRetard, libelleSeance } from "./appels";
+import { appelAFaire, appelEnRetard } from "./appels";
 
 const jour = (j: number) => new Date(Date.UTC(2026, 10, j));
 const auj = jour(25);
@@ -19,9 +19,5 @@ describe("appels oubliés", () => {
   it("ni aujourd'hui, ni une séance qui a son appel ou l'absence du prof", () => {
     expect(appelAFaire({ date: auj, aUnAppel: false }, auj)).toBe(false);
     expect(appelAFaire({ date: jour(20), aUnAppel: true }, auj)).toBe(false);
-  });
-
-  it("nomme la séance", () => {
-    expect(libelleSeance("Violon", jour(3))).toBe("Violon du mardi 3 novembre");
   });
 });

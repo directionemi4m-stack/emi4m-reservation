@@ -28,7 +28,7 @@ export function AppelsAFaire({ seances, tousLesProfs = false }: { seances: Appel
           : `Appel${seances.length > 1 ? "s" : ""} à faire (${seances.length})`}
       </h2>
       {tousLesProfs && (
-        <p className="mb-2 text-xs text-slate-500">Séances passées depuis 3 jours ou plus sans appel. Le prof reçoit un rappel (notification et mail) à 17 h.</p>
+        <p className="mb-2 text-xs text-slate-500">Séances passées depuis 3 jours ou plus sans appel. Le prof les voit aussi sur sa page Présences.</p>
       )}
       <div className="flex flex-col gap-2">
         {[...groupes].map(([prof, liste]) => (
