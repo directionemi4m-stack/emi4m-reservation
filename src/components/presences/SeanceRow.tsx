@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { modifierDateSeance, type EtatAction } from "@/app/(app)/presences/[classeId]/actions";
+import { modifierDateSeance, supprimerSeance, type EtatAction } from "@/app/(app)/presences/[classeId]/actions";
 import type { TypeAbsenceProf } from "@/generated/prisma/client";
 
 const etatInitial: EtatAction = { succes: true };
@@ -31,6 +31,7 @@ export function SeanceRow({
   numero,
   fait,
   ferie = false,
+  passee = false,
   prochaine,
   absence,
   exceptions = null,
@@ -41,6 +42,7 @@ export function SeanceRow({
   numero: number;
   fait: boolean;
   ferie?: boolean; // jour férié déclaré : pas de cours
+  passee?: boolean; // date passée
   prochaine: boolean;
   absence: Absence | null;
   // Ensembles : horaire et lieu propres à cette date (null : cours ordinaire, sans ces champs).
@@ -54,6 +56,7 @@ export function SeanceRow({
     if (resultat.succes) setModifier(false);
     return resultat;
   }, etatInitial);
+  const [etatSuppression, supprimer, enSuppression] = useActionState(supprimerSeance, etatInitial);
 
   return (
     <div
@@ -86,7 +89,9 @@ export function SeanceRow({
                   ? "✓ Appel fait"
                   : prochaine
                     ? "Prochaine séance"
-                    : "À venir"}
+                    : passee
+                      ? "Appel non fait"
+                      : "À venir"}
               {exceptions && (exceptions.horaire || exceptions.lieu) && (
                 <span className="ml-1 text-brand-accent">· {[exceptions.horaire, exceptions.lieu].filter(Boolean).join(", ")}</span>
               )}
@@ -100,6 +105,27 @@ export function SeanceRow({
           >
             📅
           </button>
+          {!fait && (
+            <form
+              action={supprimer}
+              onSubmit={(e) => {
+                const avertissement = absence ? " L'absence du prof déclarée pour cette séance sera aussi supprimée." : "";
+                if (!window.confirm(`Supprimer la séance du ${formatterDateLongue(date)} ?${avertissement}`)) e.preventDefault();
+              }}
+            >
+              <input type="hidden" name="classeId" value={classeId} />
+              <input type="hidden" name="seanceId" value={seanceId} />
+              <button
+                type="submit"
+                disabled={enSuppression}
+                className="rounded-md p-1.5 text-slate-400 hover:bg-status-occupee/10 hover:text-status-occupee disabled:opacity-50"
+                title="Supprimer cette séance"
+                aria-label={`Supprimer la séance du ${formatterDateLongue(date)}`}
+              >
+                🗑
+              </button>
+            </form>
+          )}
         </>
       ) : (
         <form action={action} className="flex flex-1 flex-wrap items-center gap-2">
@@ -144,6 +170,7 @@ export function SeanceRow({
         </form>
       )}
       {etat.message && <p className="text-xs text-status-occupee">{etat.message}</p>}
+      {etatSuppression.message && <p className="text-xs text-status-occupee">{etatSuppression.message}</p>}
     </div>
   );
 }

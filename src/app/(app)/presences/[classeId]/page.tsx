@@ -13,6 +13,12 @@ import { AjouterSeanceForm } from "@/components/presences/AjouterSeanceForm";
 import { SeanceRow } from "@/components/presences/SeanceRow";
 import { ModifierCoursForm } from "@/components/presences/ModifierCoursForm";
 
+// Aujourd'hui à minuit UTC (lu à chaque requête : la page est dynamique).
+const debutDuJour = () => {
+  const m = new Date();
+  return new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth(), m.getUTCDate()));
+};
+
 export default async function ClassePage({
   params,
 }: {
@@ -148,6 +154,7 @@ export default async function ClassePage({
             numero={i + 1}
             fait={!!seance.pointage}
             ferie={estFerie(feries, seance.date)}
+            passee={seance.date.getTime() < debutDuJour().getTime()}
             prochaine={seance.id === idProchaine}
             exceptions={classe.agendaLibre ? { horaire: seance.horaire, lieu: seance.lieu } : null}
             absence={

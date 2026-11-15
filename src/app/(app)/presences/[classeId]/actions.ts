@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { synchroniserFeuillePresence } from "@/lib/sheets";
+import { synchroniserAbsencesProf, synchroniserFeuillePresence } from "@/lib/sheets";
 import { differenceAgenda } from "@/lib/agendaEnsemble";
 
 export type EtatAction = { succes: boolean; message?: string };
@@ -158,4 +158,33 @@ export async function enregistrerAgenda(_etatPrecedent: EtatAction, formData: Fo
         ? `Agenda enregistré : ${pl(ajouts.length, "date")} ajoutée${ajouts.length > 1 ? "s" : ""}, ${pl(retraits.length, "date")} retirée${retraits.length > 1 ? "s" : ""}.`
         : "Agenda enregistré, aucun changement.",
   };
+}
+
+// Supprime une séance (cours annulé, date en trop…). Une séance dont l'appel est fait est
+// gardée, pour ne jamais perdre l'historique des présences.
+export async function supprimerSeance(_etatPrecedent: EtatAction, formData: FormData): Promise<EtatAction> {
+  const classeId = String(formData.get("classeId"));
+  const seanceId = String(formData.get("seanceId"));
+  const { classe } = await chargerClasseAutorisee(classeId);
+  if (!classe) return { succes: false, message: "Cours introuvable." };
+
+  const seance = await db.seance.findFirst({
+    where: { id: seanceId, classeId },
+    select: { pointage: { select: { id: true } }, absenceProf: { select: { id: true } } },
+  });
+  if (!seance) return { succes: false, message: "Séance introuvable." };
+  if (seance.pointage) return { succes: false, message: "L'appel de cette séance est fait : elle ne peut pas être supprimée." };
+
+  await db.seance.delete({ where: { id: seanceId } });
+  revalidatePath(`/presences/${classeId}`);
+  revalidatePath(`/presences/${classeId}/agenda`);
+  revalidatePath("/presences");
+  if (seance.absenceProf) {
+    try {
+      await synchroniserAbsencesProf();
+    } catch (erreur) {
+      console.error("Échec de synchronisation Google Sheets (absences) :", erreur);
+    }
+  }
+  return { succes: true };
 }
