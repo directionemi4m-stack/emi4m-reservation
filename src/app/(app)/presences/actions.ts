@@ -80,8 +80,10 @@ export async function creerClasse(
     nom = /^fm/i.test(niveau.nom) ? niveau.nom : `FM ${niveau.nom}`;
   }
 
+  // Ensemble à agenda libre : aucune séance générée, le prof coche ses dates ensuite.
+  const agendaLibre = formData.get("agendaLibre") === "on";
   const vacances = await db.periodeVacances.findMany();
-  const dates = genererDatesSeances(dateDebut, vacances);
+  const dates = agendaLibre ? [] : genererDatesSeances(dateDebut, vacances);
 
   const classe = await db.classe.create({
     data: {
@@ -94,12 +96,13 @@ export async function creerClasse(
       lieuId: type === "FM" ? lieuId : null,
       niveauFMId: type === "FM" ? niveauFMId : null,
       dateDebut,
+      agendaLibre,
       seances: { create: dates.map((date) => ({ date })) },
     },
   });
 
   revalidatePath("/presences");
-  redirect(`/presences/${classe.id}`);
+  redirect(agendaLibre ? `/presences/${classe.id}/agenda` : `/presences/${classe.id}`);
 }
 
 // Modifie la discipline et/ou le jour/horaire d'un cours déjà créé (élèves, séances et
@@ -157,8 +160,21 @@ export async function modifierCoursDetails(
 
   const disciplineChangee = nom !== classeAvant.nom || type !== classeAvant.type;
   const jourChange = jour !== classeAvant.jour || jourSemaine !== classeAvant.jourSemaine;
-  if (!disciplineChangee && !jourChange) {
+  const agendaLibre = formData.get("agendaLibre") === "on";
+  const agendaChange = agendaLibre !== classeAvant.agendaLibre;
+  if (!disciplineChangee && !jourChange && !agendaChange) {
     return { succes: true, message: "Aucune modification." };
+  }
+
+  // Passage en agenda à la carte : les séances à venir générées chaque semaine sont retirées
+  // (sauf appel fait ou absence déclarée) ; le prof coche ensuite ses vraies dates.
+  let retirees = 0;
+  if (agendaChange && agendaLibre) {
+    const maintenant = new Date();
+    const aujourdHui = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth(), maintenant.getUTCDate()));
+    ({ count: retirees } = await db.seance.deleteMany({
+      where: { classeId: id, date: { gte: aujourdHui }, pointage: { is: null }, absenceProf: { is: null } },
+    }));
   }
 
   // Ne touche jamais aux séances déjà créées : changer le jour de la semaine ici ne
@@ -173,10 +189,14 @@ export async function modifierCoursDetails(
       jourSemaine,
       lieuId: type === "FM" ? lieuId : null,
       niveauFMId: type === "FM" ? niveauFMId : null,
+      agendaLibre,
     },
   });
 
   revalidatePath(`/presences/${id}`);
+  if (agendaChange && agendaLibre) {
+    redirect(`/presences/${id}/agenda?retirees=${retirees}`);
+  }
   revalidatePath("/presences");
 
   try {

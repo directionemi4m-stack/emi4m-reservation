@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const ONGLETS = [
   { href: "/presences", label: "Mes cours" },
+  { href: "/presences/ensembles", label: "Ensembles" },
   { href: "/presences/historique", label: "Historique" },
   { href: "/presences/export", label: "Export" },
 ];

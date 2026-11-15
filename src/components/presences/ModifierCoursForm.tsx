@@ -31,6 +31,7 @@ export function ModifierCoursForm({
   disciplineActuelleId,
   niveauFMActuelId,
   lieuActuelId,
+  agendaLibreActuel = false,
   disciplines,
   niveaux,
   lieux,
@@ -41,12 +42,14 @@ export function ModifierCoursForm({
   disciplineActuelleId: string | null;
   niveauFMActuelId: string | null;
   lieuActuelId: string | null;
+  agendaLibreActuel?: boolean;
   disciplines: Discipline[];
   niveaux: Niveau[];
   lieux: Lieu[];
 }) {
   const [ouvert, setOuvert] = useState(false);
   const [disciplineId, setDisciplineId] = useState(disciplineActuelleId ?? "");
+  const [agendaLibre, setAgendaLibre] = useState(agendaLibreActuel);
   const [etat, soumettre, enCours] = useSoumission(modifierCoursDetails, etatInitial);
 
   const discipline = useMemo(
@@ -62,7 +65,7 @@ export function ModifierCoursForm({
         onClick={() => setOuvert(true)}
         className="text-xs font-medium text-brand-accent hover:underline"
       >
-        Modifier la discipline ou le jour
+        Modifier le cours (discipline, jour, agenda à la carte)
       </button>
     );
   }
@@ -149,8 +152,24 @@ export function ModifierCoursForm({
         </label>
       </div>
 
-      <p className="text-xs text-slate-400">
-        Les élèves, séances et présences déjà enregistrées restent inchangés.
+      <label className="flex items-start gap-2 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          name="agendaLibre"
+          checked={agendaLibre}
+          onChange={(e) => setAgendaLibre(e.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-brand-accent"
+        />
+        <span>
+          <strong>Ensemble : agenda à la carte</strong>
+          <span className="block text-xs text-slate-500">Pas de séance chaque semaine : vous cochez vos dates sur le calendrier de l&apos;année.</span>
+        </span>
+      </label>
+
+      <p className={`text-xs ${agendaLibre && !agendaLibreActuel ? "text-status-attente" : "text-slate-400"}`}>
+        {agendaLibre && !agendaLibreActuel
+          ? "Les séances à venir créées chaque semaine seront retirées (celles dont l'appel est fait restent), puis le calendrier s'ouvrira pour cocher vos dates."
+          : "Les élèves, séances et présences déjà enregistrées restent inchangés."}
       </p>
 
       {etat.message && (

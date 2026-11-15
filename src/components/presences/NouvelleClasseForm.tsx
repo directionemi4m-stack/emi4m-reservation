@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import { creerClasse, type EtatAction } from "@/app/(app)/presences/actions";
 import { JOURS_SEMAINE_OPTIONS } from "@/lib/joursSemaine";
+import { estDisciplineEnsemble } from "@/lib/agendaEnsemble";
 
 const EMOJIS = ["🎺", "🎻", "🎹", "🥁", "🎸", "🎷", "🪈", "🎤", "🪕", "🎼"];
 
@@ -64,6 +65,8 @@ export function NouvelleClasseForm({
   const [dateDebut, setDateDebut] = useState(aujourdHui);
   const [jourSemaine, setJourSemaine] = useState("");
   const [commencerPlusTard, setCommencerPlusTard] = useState(false);
+  // Ensemble : proposé coché pour la chorale, les orchestres, les ensembles et ateliers.
+  const [agendaChoisi, setAgendaChoisi] = useState<boolean | null>(null);
   // Le jour de la semaine pilote désormais la génération des dates : la date saisie
   // n'a plus besoin d'être elle-même ce jour-là, on affiche la 1ère séance réelle
   // calculée pour que ce soit vérifiable avant de valider.
@@ -74,6 +77,7 @@ export function NouvelleClasseForm({
     [disciplines, disciplineId]
   );
   const estFM = discipline?.type === "FM";
+  const agendaLibre = agendaChoisi ?? (discipline ? estDisciplineEnsemble(discipline.nom) : false);
 
   return (
     <form action={action} className="flex flex-col gap-4 rounded-lg bg-white p-6 shadow-sm">
@@ -197,7 +201,23 @@ export function NouvelleClasseForm({
           </button>
         </>
       )}
-      {premiereSeance && (
+      <label className="flex items-start gap-2 rounded-md bg-slate-50 p-3 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          name="agendaLibre"
+          checked={agendaLibre}
+          onChange={(e) => setAgendaChoisi(e.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-brand-accent"
+        />
+        <span>
+          <strong>Ensemble : agenda à la carte</strong>
+          <span className="block text-xs text-slate-500">
+            Chorale, orchestre, atelier… : pas de séance chaque semaine, vous cochez vos dates de l&apos;année sur un calendrier.
+          </span>
+        </span>
+      </label>
+
+      {premiereSeance && !agendaLibre && (
         <span className="text-xs font-normal text-brand-accent">
           → 1ère séance :{" "}
           {premiereSeance.toLocaleDateString("fr-FR", {
@@ -209,8 +229,9 @@ export function NouvelleClasseForm({
         </span>
       )}
       <p className="text-xs text-slate-400">
-        30 séances générées automatiquement (un par semaine, même jour), vacances scolaires
-        (zone A) exclues.
+        {agendaLibre
+          ? "Après la création, le calendrier de l'année s'ouvre pour cocher vos dates."
+          : "30 séances générées automatiquement (une par semaine, même jour), vacances scolaires (zone A) exclues."}
       </p>
 
       {etat.message && <p className="text-sm text-status-occupee">{etat.message}</p>}

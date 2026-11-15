@@ -301,6 +301,9 @@ model Classe {
   niveauFM    NiveauFM?     @relation(fields: [niveauFMId], references: [id])
   dateDebut   DateTime      @db.Date
   actif       Boolean       @default(true)
+  // Ensemble (chorale, orchestre…) : pas de séance chaque semaine, le prof coche ses dates
+  // dans l'agenda de l'année (cf. /presences/[classeId]/agenda).
+  agendaLibre Boolean       @default(false)
   creeLe      DateTime      @default(now())
 
   eleves       Eleve[]
@@ -328,6 +331,9 @@ model Seance {
   date          DateTime  @db.Date
   // Ancien rappel « appel à faire » envoyé au prof (rappels arrêtés le 9 nov. 2026, colonne gardée pour l'historique).
   rappelAppelLe DateTime?
+  // Exception à l'horaire et au lieu habituels du cours (ex. répétition générale le samedi).
+  horaire       String?
+  lieu          String?
 
   pointage    Pointage?
   absenceProf AbsenceProf?

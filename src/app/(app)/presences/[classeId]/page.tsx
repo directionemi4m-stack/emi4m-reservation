@@ -89,6 +89,7 @@ export default async function ClassePage({
             disciplineActuelleId={disciplineActuelle?.id ?? null}
             niveauFMActuelId={classe.niveauFMId}
             lieuActuelId={classe.lieuId}
+            agendaLibreActuel={classe.agendaLibre}
             disciplines={disciplines}
             niveaux={niveaux}
             lieux={lieux}
@@ -119,7 +120,25 @@ export default async function ClassePage({
       </div>
 
       <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-brand-slate">{classe.seances.length} séances</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-brand-slate">
+            {classe.seances.length} séance{classe.seances.length > 1 ? "s" : ""}
+            {classe.agendaLibre && <span className="ml-2 font-normal text-slate-500">· ensemble, agenda à la carte</span>}
+          </h2>
+          {classe.agendaLibre && (
+            <Link
+              href={`/presences/${classe.id}/agenda`}
+              className="rounded-md bg-brand-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-accent/90"
+            >
+              📅 Agenda de l&apos;année
+            </Link>
+          )}
+        </div>
+        {classe.agendaLibre && classe.seances.length === 0 && (
+          <p className="rounded-lg bg-white p-3 text-sm text-slate-500 shadow-sm">
+            Aucune date pour l&apos;instant : ouvrez l&apos;agenda de l&apos;année pour cocher les dates de l&apos;ensemble.
+          </p>
+        )}
         {classe.seances.map((seance, i) => (
           <SeanceRow
             key={seance.id}
@@ -130,6 +149,7 @@ export default async function ClassePage({
             fait={!!seance.pointage}
             ferie={estFerie(feries, seance.date)}
             prochaine={seance.id === idProchaine}
+            exceptions={classe.agendaLibre ? { horaire: seance.horaire, lieu: seance.lieu } : null}
             absence={
               seance.absenceProf
                 ? {
