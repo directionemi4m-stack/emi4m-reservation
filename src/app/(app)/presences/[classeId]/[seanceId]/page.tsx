@@ -40,6 +40,9 @@ export default async function SeancePage({
       }
     : null;
 
+  const ferie = await db.jourFerie.findUnique({ where: { date: seance.date }, select: { declarePar: true } });
+  const dateLibelle = seance.date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+
   // Annuaire des élèves : le téléphone de la famille s'affiche à côté d'un élève marqué absent.
   const retrouver = rapprocheurAnnuaire(
     await db.eleveAnnuaire.findMany({ select: { nom: true, prenom: true, instruments: true, telephones: true } })
@@ -72,6 +75,8 @@ export default async function SeancePage({
         eleves={eleves}
         marquesExistantes={marquesExistantes}
         absenceExistante={absenceExistante}
+        ferie={ferie}
+        dateLibelle={dateLibelle}
       />
     </div>
   );

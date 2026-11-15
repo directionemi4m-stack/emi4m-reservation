@@ -322,10 +322,10 @@ model Eleve {
 }
 
 model Seance {
-  id       String   @id @default(cuid())
-  classeId String
-  classe   Classe   @relation(fields: [classeId], references: [id], onDelete: Cascade)
-  date     DateTime @db.Date
+  id            String    @id @default(cuid())
+  classeId      String
+  classe        Classe    @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  date          DateTime  @db.Date
   // Ancien rappel « appel à faire » envoyé au prof (rappels arrêtés le 9 nov. 2026, colonne gardée pour l'historique).
   rappelAppelLe DateTime?
 
@@ -812,14 +812,14 @@ model InscriptionHeureMusicale {
 // Une œuvre jouée lors d'un passage (heure musicale, concert, audition…) : le détail
 // demandé par la SACEM pour le relevé des programmes.
 model MorceauProgramme {
-  id             String                   @id @default(cuid())
-  inscriptionId  String
-  inscription    InscriptionHeureMusicale @relation(fields: [inscriptionId], references: [id], onDelete: Cascade)
-  ordre          Int
-  titre          String
-  compositeur    String
-  arrangeur      String?
-  dureeSecondes  Int
+  id            String                   @id @default(cuid())
+  inscriptionId String
+  inscription   InscriptionHeureMusicale @relation(fields: [inscriptionId], references: [id], onDelete: Cascade)
+  ordre         Int
+  titre         String
+  compositeur   String
+  arrangeur     String?
+  dureeSecondes Int
 
   @@index([inscriptionId, ordre])
 }
@@ -827,17 +827,17 @@ model MorceauProgramme {
 // Coordonnées de l'école, reprises sur les documents officiels (relevé SACEM…).
 // Une seule ligne (id « singleton »), modifiable par la direction.
 model CoordonneesEcole {
-  id             String   @id @default("singleton")
-  nom            String
-  sigle          String
-  adresse        String // plusieurs lignes possibles
-  telephone      String?
-  email          String?
-  siteWeb        String?
-  siret          String?
-  numeroSacem    String? // numéro de client SACEM, s'il y en a un
-  representant   String? // « Prénom Nom, président(e) »
-  majLe          DateTime @updatedAt
+  id           String   @id @default("singleton")
+  nom          String
+  sigle        String
+  adresse      String // plusieurs lignes possibles
+  telephone    String?
+  email        String?
+  siteWeb      String?
+  siret        String?
+  numeroSacem  String? // numéro de client SACEM, s'il y en a un
+  representant String? // « Prénom Nom, président(e) »
+  majLe        DateTime @updatedAt
 }
 
 // --- Locations d'instruments ---
@@ -1142,4 +1142,12 @@ model EtapeRentree {
   faiteLe DateTime @default(now())
 
   @@id([saison, cle])
+}
+
+// Jour férié (11 novembre, lundi de Pâques…) déclaré d'un clic depuis une séance : aucune
+// séance de ce jour-là n'est réclamée comme « appel à faire », pour tous les cours.
+model JourFerie {
+  date       DateTime @id @db.Date
+  declarePar String // « Prénom Nom » de qui l'a déclaré
+  declareLe  DateTime @default(now())
 }

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { seanceLaPlusProche } from "@/lib/presences";
+import { estFerie, joursFeries } from "@/lib/joursFeries";
 import { infoSansJour, libelleJourCours } from "@/lib/joursSemaine";
 import { AjouterEleveForm } from "@/components/presences/AjouterEleveForm";
 import { TelephonesEleve } from "@/components/presences/TelephonesEleve";
@@ -46,7 +47,8 @@ export default async function ClassePage({
       ? disciplines.find((d) => d.type === "FM")
       : disciplines.find((d) => d.type === "INSTRUMENT" && d.nom === classe.nom);
 
-  const idProchaine = seanceLaPlusProche(classe.seances);
+  const feries = await joursFeries();
+  const idProchaine = seanceLaPlusProche(classe.seances.filter((x) => !estFerie(feries, x.date)));
   const sousTitre =
     classe.type === "FM"
       ? [classe.niveauFM?.nom, classe.lieu?.nom, libelleJourCours(classe)].filter(Boolean).join(" · ")
@@ -126,6 +128,7 @@ export default async function ClassePage({
             date={seance.date}
             numero={i + 1}
             fait={!!seance.pointage}
+            ferie={estFerie(feries, seance.date)}
             prochaine={seance.id === idProchaine}
             absence={
               seance.absenceProf

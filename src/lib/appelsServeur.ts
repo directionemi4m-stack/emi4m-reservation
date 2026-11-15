@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { appelAFaire, appelEnRetard, bornesAppels } from "@/lib/appels";
+import { estFerie, joursFeries } from "@/lib/joursFeries";
 
 export function aujourdHuiUTC(maintenant = new Date()) {
   return new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth(), maintenant.getUTCDate()));
@@ -21,8 +22,10 @@ export async function seancesSansAppel(aujourdHui: Date, profId?: string) {
     },
     orderBy: { date: "asc" },
   });
-  // Une séance d'avant le début du cours ne compte pas (cours créé en cours d'année).
+  const feries = await joursFeries(bornesAppels(aujourdHui));
+  // Une séance d'avant le début du cours ne compte pas (cours créé en cours d'année), ni
+  // une séance tombant un jour férié.
   return seances
-    .filter((s) => s.date >= s.classe.dateDebut && appelAFaire({ date: s.date, aUnAppel: false }, aujourdHui))
+    .filter((s) => s.date >= s.classe.dateDebut && !estFerie(feries, s.date) && appelAFaire({ date: s.date, aUnAppel: false }, aujourdHui))
     .map((s) => ({ ...s, enRetard: appelEnRetard({ date: s.date, aUnAppel: false }, aujourdHui) }));
 }

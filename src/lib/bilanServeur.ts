@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { cleNomEleve } from "@/lib/annuaireEleves";
+import { joursFeries } from "@/lib/joursFeries";
 import { debutSaison, finSaison } from "@/lib/rentree";
 import { libelleTypeEvenement } from "@/lib/saison";
 import { communeOfficielle, formaterPourcentage, pourcentage, repartition, type SectionBilan } from "@/lib/bilan";
@@ -19,6 +20,7 @@ export async function calculerBilan(saison: number, maintenant = new Date()) {
     db.seance.findMany({
       where: { date: { gte: debut, lt: jusquA } },
       select: {
+        date: true,
         classeId: true,
         classe: { select: { type: true, profId: true, _count: { select: { eleves: { where: { actif: true } } } } } },
         pointage: { select: { marques: { select: { statut: true } } } },
@@ -42,7 +44,9 @@ export async function calculerBilan(saison: number, maintenant = new Date()) {
   const cours = new Map<string, (typeof seances)[number]["classe"]>();
   for (const s of seances) cours.set(s.classeId, s.classe);
   const listeCours = [...cours.values()];
+  const feries = await joursFeries({ gte: debut, lt: jusquA });
   const tenues = seances.filter((s) => s.pointage).length;
+  const ferieesSansAppel = seances.filter((s) => !s.pointage && !s.absenceProf && feries.has(s.date.getTime())).length;
   const absencesProf = seances.flatMap((s) => (s.absenceProf ? [s.absenceProf.type] : []));
   const marques = seances.flatMap((s) => s.pointage?.marques ?? []);
   const nb = (statut: string) => marques.filter((m) => m.statut === statut).length;
@@ -84,7 +88,8 @@ export async function calculerBilan(saison: number, maintenant = new Date()) {
         { libelle: "Élèves dans les listes d'appel (un par cours suivi)", nombre: listeCours.reduce((n, c) => n + c._count.eleves, 0) },
         { libelle: "Séances tenues (appel fait)", nombre: tenues },
         { libelle: "Séances annulées (absence du prof)", nombre: absencesProf.length },
-        { libelle: "Séances sans appel", nombre: seances.length - tenues - absencesProf.length },
+        { libelle: "Séances non tenues (jour férié)", nombre: ferieesSansAppel },
+        { libelle: "Séances sans appel", nombre: seances.length - tenues - absencesProf.length - ferieesSansAppel },
       ],
       tableaux: [
         {

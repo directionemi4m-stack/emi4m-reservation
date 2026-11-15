@@ -177,3 +177,32 @@ export async function retirerAbsenceProf(formData: FormData) {
     console.error("Échec de synchronisation Google Sheets (absences) :", erreur);
   }
 }
+
+// Jour férié : déclaré depuis n'importe quelle séance de ce jour-là, il vaut pour tous les
+// cours (aucune séance de ce jour n'est plus réclamée comme appel à faire).
+export async function basculerJourFerie(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) return;
+
+  const classeId = String(formData.get("classeId"));
+  const seanceId = String(formData.get("seanceId"));
+  const classe = await autoriserSeance(classeId, seanceId, session);
+  if (!classe) return;
+  const seance = await db.seance.findUnique({ where: { id: seanceId }, select: { date: true } });
+  if (!seance) return;
+
+  if (formData.get("ferie") === "true") {
+    const moi = await db.user.findUnique({ where: { id: session.user.id }, select: { prenom: true, nom: true } });
+    await db.jourFerie.upsert({
+      where: { date: seance.date },
+      create: { date: seance.date, declarePar: moi ? `${moi.prenom} ${moi.nom}` : "" },
+      update: {},
+    });
+  } else {
+    await db.jourFerie.deleteMany({ where: { date: seance.date } });
+  }
+
+  revalidatePath("/presences", "layout");
+  revalidatePath("/accueil");
+  redirect(`/presences/${classeId}`);
+}

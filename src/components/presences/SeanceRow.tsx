@@ -30,6 +30,7 @@ export function SeanceRow({
   date,
   numero,
   fait,
+  ferie = false,
   prochaine,
   absence,
 }: {
@@ -38,6 +39,7 @@ export function SeanceRow({
   date: Date;
   numero: number;
   fait: boolean;
+  ferie?: boolean; // jour férié déclaré : pas de cours
   prochaine: boolean;
   absence: Absence | null;
 }) {
@@ -47,7 +49,9 @@ export function SeanceRow({
   return (
     <div
       className={`flex items-center gap-3 rounded-lg p-3 ${
-        absence
+        ferie && !fait
+          ? "bg-slate-100"
+          : absence
           ? absence.type === "ARRET_MALADIE"
             ? "bg-status-occupee/10"
             : "bg-status-attente/10"
@@ -65,7 +69,9 @@ export function SeanceRow({
           <Link href={`/presences/${classeId}/${seanceId}`} className="flex-1">
             <p className="text-sm font-medium text-slate-700">{formatterDateLongue(date)}</p>
             <p className="text-xs text-slate-500">
-              {absence
+              {ferie && !fait
+                ? "🎌 Jour férié"
+                : absence
                 ? libelleAbsence(absence)
                 : fait
                   ? "✓ Appel fait"

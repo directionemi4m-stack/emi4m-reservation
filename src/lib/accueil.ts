@@ -7,6 +7,7 @@ import { DRIVE_PROFS } from "@/lib/navigation";
 import { campagneOuverte, periodeCourante } from "@/lib/bulletinsCham";
 import { MAIL_DIRECTION, salariesDuRegistre } from "@/lib/clesServeur";
 import { seancesSansAppel } from "@/lib/appelsServeur";
+import { joursFeries } from "@/lib/joursFeries";
 
 export interface EtatTuile {
   statut?: string;
@@ -42,6 +43,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
   const debutMois = new Date(Date.UTC(aujourdHui.getUTCFullYear(), aujourdHui.getUTCMonth(), 1));
   const finMois = new Date(Date.UTC(aujourdHui.getUTCFullYear(), aujourdHui.getUTCMonth() + 1, 1));
   const periodeBulletins = periodeCourante(aujourdHui);
+  const feries = await joursFeries({ gte: aujourdHui, lt: ajouterJours(aujourdHui, 120) });
 
   const [
     reservations,
@@ -77,7 +79,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     }),
     db.demandeCreneau.count({ where: { statut: "EN_ATTENTE", demande: { profId: userId } } }),
     db.seance.findFirst({
-      where: { date: { gte: aujourdHui }, classe: { profId: userId, actif: true } },
+      where: { date: { gte: aujourdHui, notIn: [...feries].map((t) => new Date(t)) }, classe: { profId: userId, actif: true } },
       orderBy: { date: "asc" },
       include: { classe: { select: { nom: true } } },
     }),
