@@ -24,8 +24,8 @@ export default async function AttestationPage({ params, searchParams }: { params
   if (modifier && !a.signeLe) {
     const lieux = await db.lieuPresence.findMany({ where: { actif: true }, orderBy: { nom: "asc" } });
     return (
-      <div className="mx-auto flex max-w-3xl flex-col gap-4">
-        <h1 className="text-xl font-semibold text-brand-slate">Modifier l&apos;attestation {a.numero}</h1>
+      <div className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold text-brand-slate">Modifier l&apos;attestation {a.numero}</h2>
         <AttestationForm
           lieux={lieux.map((l) => l.nom)}
           valeurs={{
@@ -56,13 +56,13 @@ export default async function AttestationPage({ params, searchParams }: { params
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link href="/admin/achats/occasion" className="text-sm text-brand-accent hover:underline">
             ‹ Achats d&apos;occasion
           </Link>
-          <h1 className="mt-1 text-xl font-semibold text-brand-slate">Attestation {a.numero}</h1>
+          <h2 className="mt-1 text-lg font-semibold text-brand-slate">Attestation {a.numero}</h2>
           <p className="text-sm text-slate-600">
             {a.vendeurNom} · {dateLongue(a.date)}
           </p>
@@ -107,7 +107,7 @@ export default async function AttestationPage({ params, searchParams }: { params
             {a.pieceDriveFileId && <span className="text-slate-500">Pièce d&apos;identité archivée</span>}
             {a.facture && (
               <Link href="/admin/achats" className="text-brand-accent hover:underline">
-                Dans les achats : {a.facture.nomFichier}
+                Dans les factures d&apos;achat : {a.facture.nomFichier}
               </Link>
             )}
             {a.facture?.articles.map((x) => (

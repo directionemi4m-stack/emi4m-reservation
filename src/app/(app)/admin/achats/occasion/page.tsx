@@ -8,13 +8,10 @@ const dateCourte = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", 
 export default async function AchatsOccasionPage() {
   const attestations = await db.attestationAchat.findMany({ orderBy: [{ annee: "desc" }, { numero: "desc" }], include: { lignes: true } });
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <div>
-        <Link href="/admin/achats" className="text-sm text-brand-accent hover:underline">
-          ‹ Achats et factures
-        </Link>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold text-brand-slate">Achats d&apos;occasion à un particulier</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-brand-slate">Achats d&apos;occasion à un particulier</h2>
           <Link href="/admin/achats/occasion/nouveau" className="rounded-md bg-brand-accent px-4 py-2 text-sm font-semibold text-white hover:bg-brand-accent/90">
             + Nouvelle attestation
           </Link>

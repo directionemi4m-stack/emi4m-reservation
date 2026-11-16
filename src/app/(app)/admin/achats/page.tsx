@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { db } from "@/lib/db";
 import { AjoutFacture } from "@/components/achats/AjoutFacture";
 import { ListeFactures } from "@/components/achats/ListeFactures";
@@ -20,25 +19,11 @@ export default async function AchatsPage() {
   const fournisseurs = [...new Set(factures.map((f) => f.fournisseur))].sort((a, b) => a.localeCompare(b, "fr"));
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-5">
-      <div>
-        <h1 className="text-xl font-semibold text-brand-slate">Achats et factures</h1>
-        <p className="text-sm text-slate-500">
-          Ajoutez le PDF scanné ou photographiez la facture, nommez le fichier (« année-mois-jour_entreprise » est
-          pré-rempli, modifiable) et archivez-le dans le Drive.
-        </p>
-      </div>
-
-      <Link
-        href="/admin/achats/occasion"
-        className="flex items-center justify-between gap-2 rounded-lg border border-brand-accent/30 bg-white p-3 text-sm text-slate-700 shadow-sm hover:border-brand-accent"
-      >
-        <span>
-          <strong className="text-brand-slate">Achat d&apos;occasion à un particulier</strong>
-          <span className="block text-xs text-slate-500">Attestation de vente pré-remplie, à faire signer puis archivée avec l&apos;achat.</span>
-        </span>
-        <span className="text-brand-accent">›</span>
-      </Link>
+    <div className="flex flex-col gap-5">
+      <p className="text-sm text-slate-500">
+        Ajoutez le PDF scanné ou photographiez la facture, nommez le fichier (« année-mois-jour_entreprise » est pré-rempli,
+        modifiable) et archivez-le dans le Drive. Un achat d&apos;occasion à un particulier se fait dans l&apos;onglet « Occasion ».
+      </p>
 
       <section className="flex flex-col gap-2 rounded-lg bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-brand-slate">Nouvelle facture</h2>

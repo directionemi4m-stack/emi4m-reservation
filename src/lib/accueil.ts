@@ -215,7 +215,14 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     "/admin/parametres/profs": { statut: invitations ? pluriel(invitations, "invitation") : "Comptes à jour" },
     "/admin/locations": { statut: locationsNonPayees ? `${locationsNonPayees} non payée${locationsNonPayees > 1 ? "s" : ""}` : "Tout est payé" },
     "/admin/inventaire": { statut: `${biensInventaire} bien${biensInventaire > 1 ? "s" : ""}` },
-    "/admin/achats": { statut: facturesDuMois ? `${facturesDuMois} facture${facturesDuMois > 1 ? "s" : ""} ce mois` : "Archiver une facture" },
+    "/admin/achats": {
+      statut: devisRecusUrgents
+        ? `${devisRecusUrgents} devis fournisseur${devisRecusUrgents > 1 ? "s" : ""} à signer`
+        : facturesDuMois
+          ? `${facturesDuMois} facture${facturesDuMois > 1 ? "s" : ""} ce mois`
+          : "Archiver une facture",
+      pastille: devisRecusUrgents || undefined,
+    },
     "/admin/cles": {
       statut: (() => {
         const n = (clesEnCirculation?._sum.clesAutransMeaudre ?? 0) + (clesEnCirculation?._sum.badgeLans ?? 0) + (clesEnCirculation?._sum.clesVillard ?? 0);
@@ -234,12 +241,10 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
         ? `${pluriel(facturesEnRetard, "facture")} en retard`
         : devisARelancer
           ? `${pluriel(devisARelancer, "devis")} à relancer`.replace("deviss", "devis")
-          : devisRecusUrgents
-            ? `${pluriel(devisRecusUrgents, "devis")} fournisseur à signer`.replace("deviss", "devis")
-            : facturesImpayees.length
+          : facturesImpayees.length
               ? `${pluriel(facturesImpayees.length, "facture")} à encaisser`
               : "Faire un devis",
-      pastille: facturesEnRetard + devisARelancer + devisRecusUrgents || undefined,
+      pastille: facturesEnRetard + devisARelancer || undefined,
     },
     "/admin/parametres": { statut: "Salles, trajets…" },
   };

@@ -98,7 +98,7 @@ export const SECTIONS: SectionNav[] = [
       { href: "/admin/locations", label: "Locations", icone: "location", couleur: "ambre" },
       { href: "/admin/inventaire", label: "Inventaire", icone: "inventaire", couleur: "neutre" },
       { href: "/admin/achats", label: "Achats", icone: "achats", couleur: "ambre" },
-      { href: "/admin/devis", label: "Devis et factures", icone: "devis", couleur: "ambre" },
+      { href: "/admin/devis", label: "Facturation", icone: "devis", couleur: "ambre" },
       { href: "/admin/cles", label: "Clés et badges", icone: "cles", couleur: "neutre" },
       { href: "/admin/documents", label: "Signatures", icone: "signature", couleur: "neutre" },
       { href: "/admin/conventions", label: "Conventions", icone: "convention", couleur: "bleu" },

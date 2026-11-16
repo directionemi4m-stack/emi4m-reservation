@@ -12,12 +12,12 @@ export default async function NouvelleAttestationPage() {
   const commune = /\d{5}\s+(.+)$/m.exec(coordonnees.adresse)?.[1]?.trim() ?? "";
   const jour = aujourdHui();
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+    <div className="flex flex-col gap-4">
       <div>
         <Link href="/admin/achats/occasion" className="text-sm text-brand-accent hover:underline">
           ‹ Achats d&apos;occasion
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-brand-slate">Nouvelle attestation de vente</h1>
+        <h2 className="mt-1 text-lg font-semibold text-brand-slate">Nouvelle attestation de vente</h2>
       </div>
       <AttestationForm
         lieux={lieux.map((l) => l.nom)}

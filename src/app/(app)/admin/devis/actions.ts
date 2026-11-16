@@ -41,6 +41,7 @@ const creerLignes = (lignes: Ligne[]) => lignes.map((l, i) => ({ ...l, ordre: i 
 
 function revalider() {
   revalidatePath("/admin/devis", "layout");
+  revalidatePath("/admin/achats", "layout");
   revalidatePath("/accueil");
 }
 
