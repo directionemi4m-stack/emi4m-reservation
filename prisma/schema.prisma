@@ -833,17 +833,23 @@ model MorceauProgramme {
 // Coordonnées de l'école, reprises sur les documents officiels (relevé SACEM…).
 // Une seule ligne (id « singleton »), modifiable par la direction.
 model CoordonneesEcole {
-  id           String   @id @default("singleton")
-  nom          String
-  sigle        String
-  adresse      String // plusieurs lignes possibles
-  telephone    String?
-  email        String?
-  siteWeb      String?
-  siret        String?
-  numeroSacem  String? // numéro de client SACEM, s'il y en a un
-  representant String? // « Prénom Nom, président(e) »
-  majLe        DateTime @updatedAt
+  id                 String   @id @default("singleton")
+  nom                String
+  sigle              String
+  adresse            String // plusieurs lignes possibles
+  telephone          String?
+  email              String?
+  siteWeb            String?
+  siret              String?
+  numeroSacem        String? // numéro de client SACEM, s'il y en a un
+  representant       String? // « Prénom Nom, président(e) »
+  // Devis et factures émis.
+  mentionTva         String? // « TVA non applicable… »
+  conditionsPaiement String? // reprises par défaut sur chaque devis et facture
+  mentionsFacture    String? // pénalités de retard, indemnité de recouvrement…
+  iban               String?
+  bic                String?
+  majLe              DateTime @updatedAt
 }
 
 // --- Locations d'instruments ---
@@ -987,6 +993,7 @@ model Facture {
   url             String
   ajouteLe        DateTime            @default(now())
   articles        ArticleInventaire[]
+  devisRecu       DevisRecu?
 
   @@index([date])
   @@index([fournisseur])
@@ -1156,4 +1163,131 @@ model JourFerie {
   date       DateTime @id @db.Date
   declarePar String // « Prénom Nom » de qui l'a déclaré
   declareLe  DateTime @default(now())
+}
+
+// --- Devis et factures ---
+
+enum StatutDevisRecu {
+  EN_ATTENTE
+  SIGNE
+  ABANDONNE
+}
+
+// Devis reçu d'un fournisseur : archivé dans le Drive (« Devis reçus / 2026 / En attente »),
+// puis signé ou abandonné ; relié à la facture d'achat quand elle arrive.
+model DevisRecu {
+  id               String          @id @default(cuid())
+  date             DateTime        @db.Date
+  fournisseur      String
+  objet            String?
+  montantCentimes  Int?
+  valableJusquAu   DateTime?       @db.Date
+  statut           StatutDevisRecu @default(EN_ATTENTE)
+  motifAbandon     String?
+  decideLe         DateTime?
+  nomFichier       String
+  driveFileId      String
+  url              String
+  signeDriveFileId String?
+  signeUrl         String?
+  factureId        String?         @unique
+  facture          Facture?        @relation(fields: [factureId], references: [id], onDelete: SetNull)
+  ajouteLe         DateTime        @default(now())
+
+  @@index([statut])
+}
+
+enum StatutDevisEmis {
+  BROUILLON
+  ENVOYE
+  ACCEPTE
+  REFUSE
+}
+
+// Devis fait par l'EMI4M (intervention, concert…) : numéroté D-2026-001, PDF à l'en-tête
+// de l'école, envoyé, puis accepté ou refusé ; une fois accepté, il donne la facture.
+model DevisEmis {
+  id               String          @id @default(cuid())
+  numero           String          @unique
+  annee            Int
+  dateDevis        DateTime        @db.Date
+  valableJusquAu   DateTime        @db.Date
+  clientNom        String
+  clientAdresse    String?
+  clientEmail      String?
+  objet            String
+  datePrestation   String? // texte libre : « mardi 12 janvier 2027 », « de janvier à mars »
+  conditions       String?
+  notes            String? // internes, jamais imprimées
+  statut           StatutDevisEmis @default(BROUILLON)
+  envoyeLe         DateTime?
+  decideLe         DateTime?
+  motifRefus       String?
+  pdfDriveFileId   String?
+  pdfUrl           String?
+  signeDriveFileId String?
+  signeUrl         String?
+  creeLe           DateTime        @default(now())
+  majLe            DateTime        @updatedAt
+
+  lignes   LigneDocument[]
+  factures FactureEmise[]
+
+  @@index([annee])
+}
+
+// Facture émise par l'EMI4M, numérotée sans trou (F-2026-001) : non modifiable une fois
+// émise ; seule la dernière de l'année peut être supprimée.
+model FactureEmise {
+  id             String     @id @default(cuid())
+  numero         String     @unique
+  annee          Int
+  devisId        String?
+  devis          DevisEmis? @relation(fields: [devisId], references: [id], onDelete: SetNull)
+  dateFacture    DateTime   @db.Date
+  echeance       DateTime   @db.Date
+  clientNom      String
+  clientAdresse  String?
+  clientEmail    String?
+  objet          String
+  datePrestation String?
+  conditions     String?
+  payeeLe        DateTime?  @db.Date
+  envoyeeLe      DateTime?
+  pdfDriveFileId String?
+  pdfUrl         String?
+  creeLe         DateTime   @default(now())
+
+  lignes LigneDocument[]
+
+  @@index([annee])
+}
+
+// Une ligne d'un devis ou d'une facture.
+model LigneDocument {
+  id                   String        @id @default(cuid())
+  devisId              String?
+  devis                DevisEmis?    @relation(fields: [devisId], references: [id], onDelete: Cascade)
+  factureId            String?
+  facture              FactureEmise? @relation(fields: [factureId], references: [id], onDelete: Cascade)
+  ordre                Int
+  designation          String
+  quantite             Float
+  unite                String?
+  prixUnitaireCentimes Int
+
+  @@index([devisId])
+  @@index([factureId])
+}
+
+// Prestation type proposée dans les devis (« Intervention en milieu scolaire », « Concert »…),
+// modifiable par la direction.
+model RubriquePrestation {
+  id                   String  @id @default(cuid())
+  libelle              String
+  description          String?
+  unite                String? // « heure », « séance », « forfait »…
+  prixUnitaireCentimes Int?
+  ordre                Int     @default(0)
+  actif                Boolean @default(true)
 }

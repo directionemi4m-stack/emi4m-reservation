@@ -29,9 +29,15 @@ export async function enregistrerCoordonnees(_etat: EtatAction, formData: FormDa
     siret,
     numeroSacem: texte(formData, "numeroSacem", 40),
     representant: texte(formData, "representant", 200),
+    mentionTva: texte(formData, "mentionTva", 200),
+    conditionsPaiement: texte(formData, "conditionsPaiement", 500),
+    mentionsFacture: texte(formData, "mentionsFacture", 800),
+    iban: texte(formData, "iban", 40),
+    bic: texte(formData, "bic", 20),
   };
   await db.coordonneesEcole.upsert({ where: { id: "singleton" }, create: donnees, update: donnees });
   revalidatePath("/admin/parametres/ecole");
   revalidatePath("/admin/sacem");
+  revalidatePath("/admin/devis", "layout");
   return { succes: true, message: "Coordonnées enregistrées." };
 }

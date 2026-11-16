@@ -553,3 +553,18 @@ export async function envoyerMailBulletinFamille(params: {
   });
   if (resultat.rejected.filter(Boolean).length > 0) throw new Error(`Adresse refusée : ${email}`);
 }
+
+// Devis ou facture envoyé au client avec le PDF en pièce jointe ; le texte est celui relu
+// (et modifié si besoin) par la direction, la réponse revient à l'adresse de la direction.
+export async function envoyerMailDocument(params: { a: string; sujet: string; message: string; pdf: Uint8Array; nomFichier: string }) {
+  const transport = creerTransporteur();
+  await transport.sendMail({
+    to: params.a,
+    from: process.env.EMAIL_FROM,
+    replyTo: EMAIL_DIRECTION,
+    subject: params.sujet,
+    text: params.message,
+    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#2C3E50;">${h(params.message).replace(/\n/g, "<br>")}</div>`,
+    attachments: [{ filename: params.nomFichier, content: Buffer.from(params.pdf), contentType: "application/pdf" }],
+  });
+}

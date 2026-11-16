@@ -58,6 +58,11 @@ export interface Coordonnees {
   siret: string | null;
   numeroSacem: string | null;
   representant: string | null;
+  mentionTva: string | null;
+  conditionsPaiement: string | null;
+  mentionsFacture: string | null;
+  iban: string | null;
+  bic: string | null;
 }
 
 // Valeurs proposées tant que la direction n'a rien enregistré (cf. Paramètres › Coordonnées).
@@ -71,4 +76,10 @@ export const COORDONNEES_DEFAUT: Coordonnees = {
   siret: null,
   numeroSacem: null,
   representant: null,
+  mentionTva: "TVA non applicable",
+  conditionsPaiement: "Paiement à 30 jours à réception de la facture, par virement ou par chèque à l'ordre de l'EMI4M.",
+  mentionsFacture:
+    "En cas de retard de paiement : pénalités au taux d'intérêt légal et indemnité forfaitaire de 40 € pour frais de recouvrement (art. L441-10 et D441-5 du Code de commerce).",
+  iban: null,
+  bic: null,
 };

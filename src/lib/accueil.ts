@@ -73,6 +73,9 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     echecsMail,
     mesAppels,
     appelsEnRetard,
+    devisEmisEnvoyes,
+    facturesImpayees,
+    devisRecusEnAttente,
   ] = await Promise.all([
     db.demandeCreneau.count({
       where: { statut: "VALIDEE", date: { gte: aujourdHui, lt: finSemaine }, demande: { profId: userId } },
@@ -133,7 +136,17 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     estAdmin ? db.echecMail.count({ where: { vuLe: null } }) : Promise.resolve(0),
     seancesSansAppel(aujourdHui, userId),
     estAdmin ? seancesSansAppel(aujourdHui).then((l) => l.filter((s) => s.enRetard).length) : Promise.resolve(0),
+    estAdmin ? db.devisEmis.findMany({ where: { statut: "ENVOYE" }, select: { envoyeLe: true, valableJusquAu: true } }) : Promise.resolve([]),
+    estAdmin ? db.factureEmise.findMany({ where: { payeeLe: null }, select: { echeance: true } }) : Promise.resolve([]),
+    estAdmin ? db.devisRecu.findMany({ where: { statut: "EN_ATTENTE", valableJusquAu: { not: null } }, select: { valableJusquAu: true } }) : Promise.resolve([]),
   ]);
+  // Devis et factures : devis à relancer (15 jours sans réponse) ou expirés, factures en
+  // retard, devis fournisseurs dont la validité finit dans la semaine.
+  const devisARelancer = devisEmisEnvoyes.filter(
+    (d) => d.valableJusquAu < aujourdHui || (d.envoyeLe && aujourdHui.getTime() - d.envoyeLe.getTime() >= 15 * 86400000)
+  ).length;
+  const facturesEnRetard = facturesImpayees.filter((f) => f.echeance < aujourdHui).length;
+  const devisRecusUrgents = devisRecusEnAttente.filter((d) => d.valableJusquAu!.getTime() - aujourdHui.getTime() <= 7 * 86400000).length;
 
   const ficheManquante = CHAMPS_FICHE.filter((c) => !identite?.[c]).length;
   const minutesActivite = activites.reduce((s, a) => s + dureeEnMinutes(a.duree), 0);
@@ -215,6 +228,18 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     "/admin/conventions": {
       statut: conventionsManquantes ? `${pluriel(conventionsManquantes, "convention")} à archiver` : "Tout est archivé",
       pastille: conventionsManquantes || undefined,
+    },
+    "/admin/devis": {
+      statut: facturesEnRetard
+        ? `${pluriel(facturesEnRetard, "facture")} en retard`
+        : devisARelancer
+          ? `${pluriel(devisARelancer, "devis")} à relancer`.replace("deviss", "devis")
+          : devisRecusUrgents
+            ? `${pluriel(devisRecusUrgents, "devis")} fournisseur à signer`.replace("deviss", "devis")
+            : facturesImpayees.length
+              ? `${pluriel(facturesImpayees.length, "facture")} à encaisser`
+              : "Faire un devis",
+      pastille: facturesEnRetard + devisARelancer + devisRecusUrgents || undefined,
     },
     "/admin/parametres": { statut: "Salles, trajets…" },
   };

@@ -770,3 +770,60 @@ export async function deposerSauvegarde(params: { nomFichier: string; contenu: B
   }
   return { id: data.id!, url: data.webViewLink ?? "" };
 }
+
+// --- Devis et factures ---
+
+export type DossierDevis = "Devis reçus" | "Devis émis" | "Factures émises";
+
+// « Devis émis / 2026 / D-2026-001 Mairie de Lans.pdf » ; un sous-dossier facultatif
+// (« Devis reçus / 2026 / En attente »). Un fichier déjà déposé est remplacé sur place.
+export async function deposerDocumentDevis(params: {
+  dossier: DossierDevis;
+  annee: number;
+  sousDossier?: string;
+  nomFichier: string;
+  pdf: Buffer | Uint8Array;
+  fichierExistantId?: string | null;
+}): Promise<{ id: string; url: string } | null> {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive } = client;
+  const media = () => ({ mimeType: "application/pdf", body: Readable.from(Buffer.from(params.pdf)) });
+  if (params.fichierExistantId) {
+    try {
+      const { data } = await drive.files.update({
+        fileId: params.fichierExistantId,
+        requestBody: { name: params.nomFichier },
+        media: media(),
+        fields: "id, webViewLink, trashed",
+      });
+      if (!data.trashed) return { id: data.id!, url: data.webViewLink ?? "" };
+    } catch (erreur) {
+      console.error("Document introuvable dans le Drive, nouveau dépôt :", erreur);
+    }
+  }
+  const parent = await dossierDevisId(drive, params.dossier, params.annee, params.sousDossier);
+  const { data } = await drive.files.create({
+    requestBody: { name: params.nomFichier, parents: [parent] },
+    media: media(),
+    fields: "id, webViewLink",
+  });
+  return { id: data.id!, url: data.webViewLink ?? "" };
+}
+
+async function dossierDevisId(drive: ReturnType<typeof google.drive>, dossier: DossierDevis, annee: number, sousDossier?: string) {
+  const racine = await dossierRacineParNom(drive, dossier);
+  const dossierAnnee = await dossierProfId(drive, racine, String(annee));
+  return sousDossier ? dossierProfId(drive, dossierAnnee, sousDossier) : dossierAnnee;
+}
+
+// Range un document dans un autre sous-dossier (devis reçu passé « En attente » → « Signés »).
+export async function rangerDocumentDevis(params: { fileId: string; dossier: DossierDevis; annee: number; sousDossier: string }) {
+  const client = await creerClientDrive();
+  if (!client) return;
+  const { drive } = client;
+  const cible = await dossierDevisId(drive, params.dossier, params.annee, params.sousDossier);
+  const { data } = await drive.files.get({ fileId: params.fileId, fields: "parents" });
+  const anciens = (data.parents ?? []).filter((p) => p !== cible).join(",");
+  await drive.files.update({ fileId: params.fileId, addParents: cible, removeParents: anciens || undefined, fields: "id" });
+}

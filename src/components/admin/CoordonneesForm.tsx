@@ -16,6 +16,13 @@ export function CoordonneesForm({ coordonnees }: { coordonnees: Coordonnees }) {
       {aide && <span className="font-normal text-slate-400">{aide}</span>}
     </label>
   );
+  const texteLong = (nom: keyof Coordonnees, libelle: string, aide: string) => (
+    <label className="flex flex-col gap-1 text-xs font-medium text-slate-600 sm:col-span-2">
+      {libelle}
+      <textarea name={nom} rows={2} defaultValue={coordonnees[nom] ?? ""} className={champClass} />
+      <span className="font-normal text-slate-400">{aide}</span>
+    </label>
+  );
   return (
     <form action={action} className="grid gap-3 rounded-lg bg-white p-4 shadow-sm sm:grid-cols-2">
       {champ("nom", "Nom de l'école", undefined, true)}
@@ -30,6 +37,12 @@ export function CoordonneesForm({ coordonnees }: { coordonnees: Coordonnees }) {
       {champ("siteWeb", "Site internet")}
       {champ("siret", "SIRET", "14 chiffres")}
       {champ("numeroSacem", "Numéro de client SACEM", "Figure sur vos courriers ou factures SACEM")}
+      <h2 className="mt-2 text-sm font-semibold text-brand-slate sm:col-span-2">Devis et factures</h2>
+      {champ("mentionTva", "Mention TVA", "Ex. « TVA non applicable », avec l'article que votre comptable vous donne", true)}
+      {texteLong("conditionsPaiement", "Conditions de paiement", "Reprises par défaut sur chaque devis et facture")}
+      {texteLong("mentionsFacture", "Mentions en bas des factures", "Pénalités de retard, indemnité de recouvrement…")}
+      {champ("iban", "IBAN", "Imprimé sur les factures pour le paiement par virement")}
+      {champ("bic", "BIC")}
       <div className="flex items-center gap-3 sm:col-span-2">
         <button
           type="submit"

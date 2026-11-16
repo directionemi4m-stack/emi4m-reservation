@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { cleNomEleve } from "@/lib/annuaireEleves";
 import { joursFeries } from "@/lib/joursFeries";
+import { totalDocument } from "@/lib/devis";
 import { debutSaison, finSaison } from "@/lib/rentree";
 import { libelleTypeEvenement } from "@/lib/saison";
 import { communeOfficielle, formaterPourcentage, pourcentage, repartition, type SectionBilan } from "@/lib/bilan";
@@ -14,7 +15,7 @@ export async function calculerBilan(saison: number, maintenant = new Date()) {
   const jusquA = maintenant < fin ? maintenant : fin;
   const periode = { gte: debut, lt: fin };
 
-  const [annuaire, dernierImport, seances, evenements, reservations, conventions, locations, trajets] = await Promise.all([
+  const [annuaire, dernierImport, seances, evenements, reservations, conventions, locations, trajets, devisEmis, facturesEmises] = await Promise.all([
     db.eleveAnnuaire.findMany({ select: { instruments: true, commune: true } }),
     db.importAnnuaireEleves.findFirst({ orderBy: { importeLe: "desc" }, select: { importeLe: true } }),
     db.seance.findMany({
@@ -38,6 +39,8 @@ export async function calculerBilan(saison: number, maintenant = new Date()) {
     db.conventionSalle.count({ where: { date: periode, fichierUrl: { not: null } } }),
     db.locationInstrument.findMany({ where: { anneeDebut: saison }, select: { instrument: true, paye: true } }),
     db.trajet.findMany({ where: { supprimeLe: null, date: periode }, select: { km: true, prix: true } }),
+    db.devisEmis.findMany({ where: { dateDevis: periode, statut: { not: "BROUILLON" } }, include: { lignes: true } }),
+    db.factureEmise.findMany({ where: { dateFacture: periode }, include: { lignes: true } }),
   ]);
 
   // Cours : ceux qui ont eu au moins une séance dans la saison.
@@ -132,6 +135,18 @@ export async function calculerBilan(saison: number, maintenant = new Date()) {
         { libelle: "Locations payées", nombre: locations.filter((l) => l.paye).length },
       ],
       tableaux: [{ titre: "Locations par instrument", colonne: "Instrument", lignes: repartition(locations.map((l) => l.instrument)) }],
+    },
+    {
+      titre: "Devis et factures",
+      chiffres: [
+        { libelle: "Devis envoyés", nombre: devisEmis.length },
+        { libelle: "Devis acceptés", nombre: devisEmis.filter((d) => d.statut === "ACCEPTE").length },
+        { libelle: "Montant des devis acceptés (€)", nombre: Math.round(devisEmis.filter((d) => d.statut === "ACCEPTE").reduce((s, d) => s + totalDocument(d.lignes), 0) / 100) },
+        { libelle: "Factures émises", nombre: facturesEmises.length },
+        { libelle: "Montant facturé (€)", nombre: Math.round(facturesEmises.reduce((s, f) => s + totalDocument(f.lignes), 0) / 100) },
+        { libelle: "Montant encaissé (€)", nombre: Math.round(facturesEmises.filter((f) => f.payeeLe).reduce((s, f) => s + totalDocument(f.lignes), 0) / 100) },
+      ],
+      tableaux: [{ titre: "Devis acceptés par client", colonne: "Client", lignes: repartition(devisEmis.filter((d) => d.statut === "ACCEPTE").map((d) => d.clientNom)) }],
     },
     {
       titre: "Déplacements des profs",
