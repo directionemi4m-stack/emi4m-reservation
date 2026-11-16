@@ -10,6 +10,7 @@ import { formaterMinutage, libelleLieu, minutageEditable } from "@/lib/saison";
 import { deplacerInscription } from "../actions";
 import { nomAffiche, rapprocheurAnnuaire } from "@/lib/annuaireEleves";
 import { acceptePassages } from "@/lib/programmes";
+import { PlansConcert } from "@/components/plans/PlansConcert";
 
 const formatDateLongue = (d: Date) =>
   d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -202,6 +203,14 @@ export default async function ProgrammeEvenementPage({
           </div>
         ))}
       </section>
+
+      {evenement.type !== "EXAMEN" && (
+        <PlansConcert
+          evenementId={evenement.id}
+          sceneId={evenement.sceneId}
+          inscriptions={inscriptions.map((i) => ({ id: i.id, eleveNom: i.eleveNom, instrument: i.instrument }))}
+        />
+      )}
 
       {materiel.length > 0 && (
         <section className="flex flex-col gap-1 rounded-lg bg-white p-4 shadow-sm">

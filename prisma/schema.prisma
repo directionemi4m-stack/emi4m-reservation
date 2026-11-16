@@ -113,6 +113,7 @@ model User {
   documentsSignes   SignatureDocument[] @relation("DocumentsSignes")
   contrats          ContratProf[]       @relation("ContratsProf")
   idees             Idee[]              @relation("IdeesAuteur")
+  plansScene        PlanScene[]         @relation("PlansSceneAuteur")
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -268,6 +269,7 @@ model LieuPresence {
   creneauxAgenda     CreneauAgenda[]
   evenements         EvenementSaison[]
   articlesInventaire ArticleInventaire[]
+  scenes             SceneConcert[]
 }
 
 model NiveauFM {
@@ -309,6 +311,7 @@ model Classe {
   creeLe      DateTime      @default(now())
 
   eleves       Eleve[]
+  plansScene   PlanScene[]
   seances      Seance[]
   pointages    Pointage[]
   absencesProf AbsenceProf[]
@@ -792,6 +795,10 @@ model EvenementSaison {
 
   inscriptions InscriptionHeureMusicale[]
   convention   ConventionSalle?
+  // Plans de scène : la scène du concert (dimensions reprises par chaque nouveau passage).
+  sceneId      String?
+  scene        SceneConcert?              @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  plans        PlanScene[]
 
   @@index([date])
 }
@@ -813,6 +820,7 @@ model InscriptionHeureMusicale {
   creeLe           DateTime        @default(now())
 
   morceaux MorceauProgramme[]
+  plans    PlanScene[]
 
   @@index([evenementId, ordre])
 }
@@ -1454,4 +1462,83 @@ model Idee {
 
   @@index([statut])
   @@index([auteurId])
+}
+
+// --- Plans de scène ---
+
+enum CategorieElementScene {
+  MUSICIEN // un musicien avec son instrument (place assise ou debout comprise)
+  MOBILIER // chaise, pupitre, tabouret, table…
+  MATERIEL // piano, percussions, amplis, micros, retours, praticables…
+  DECOR // éléments fixes d'une scène : pilier, escalier, zone inutilisable…
+}
+
+enum FormeElementScene {
+  RECT
+  ROND
+}
+
+// Catalogue des éléments qu'on pose sur une scène, avec leur encombrement au sol (en cm,
+// largeur × profondeur, l'avant étant tourné vers le public). Un musicien compte sa chaise
+// et son pupitre (pour la liste du matériel à installer).
+model ElementScene {
+  id           String                @id @default(cuid())
+  nom          String                @unique
+  categorie    CategorieElementScene
+  largeurCm    Int
+  profondeurCm Int
+  forme        FormeElementScene     @default(RECT)
+  couleur      String                @default("#64748b")
+  abrege       String? // affiché dans la forme : « Vlc », « Cl »…
+  chaise       Boolean               @default(false)
+  pupitre      Boolean               @default(false)
+  motsCles     String? // instruments de l'annuaire reconnus : « violoncelle, cello »
+  ordre        Int                   @default(0)
+  actif        Boolean               @default(true)
+}
+
+// Une scène (ou salle) où l'on joue : ses dimensions et ses éléments fixes (JSON, même
+// format que les éléments d'un plan).
+model SceneConcert {
+  id           String            @id @default(cuid())
+  nom          String            @unique
+  lieuId       String?
+  lieu         LieuPresence?     @relation(fields: [lieuId], references: [id], onDelete: SetNull)
+  largeurCm    Int
+  profondeurCm Int
+  elements     Json              @default("[]")
+  notes        String?
+  actif        Boolean           @default(true)
+  majLe        DateTime          @updatedAt
+  evenements   EvenementSaison[]
+  plans        PlanScene[]
+}
+
+// Un plan de scène : un passage d'un concert, ou une formation type d'un ensemble (modèle).
+// Dimensions et éléments copiés de la scène à la création, puis libres.
+model PlanScene {
+  id            String                    @id @default(cuid())
+  titre         String
+  sceneId       String?
+  scene         SceneConcert?             @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  largeurCm     Int
+  profondeurCm  Int
+  elements      Json                      @default("[]")
+  notes         String?
+  evenementId   String?
+  evenement     EvenementSaison?          @relation(fields: [evenementId], references: [id], onDelete: Cascade)
+  inscriptionId String?
+  inscription   InscriptionHeureMusicale? @relation(fields: [inscriptionId], references: [id], onDelete: SetNull)
+  ordre         Int                       @default(0)
+  classeId      String? // ensemble concerné
+  classe        Classe?                   @relation(fields: [classeId], references: [id], onDelete: SetNull)
+  modele        Boolean                   @default(false) // formation type, réutilisable
+  auteurId      String?
+  auteur        User?                     @relation("PlansSceneAuteur", fields: [auteurId], references: [id], onDelete: SetNull)
+  creeLe        DateTime                  @default(now())
+  majLe         DateTime                  @updatedAt
+
+  @@index([evenementId, ordre])
+  @@index([inscriptionId])
+  @@index([classeId])
 }

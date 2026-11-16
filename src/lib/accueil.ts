@@ -241,6 +241,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     "/contrats": mesContratsASigner
       ? { statut: `${pluriel(mesContratsASigner, "document")} à signer`, pastille: mesContratsASigner }
       : { statut: mesContrats ? pluriel(mesContrats, "document") : "Aucun document" },
+    "/plans-de-scene": { statut: "Concerts et ensembles" },
     "/idees": { statut: mesIdees ? `${pluriel(mesIdees, "idée")} envoyée${mesIdees > 1 ? "s" : ""}` : "Proposer une idée" },
     "/admin/idees": ideesNouvelles ? { statut: `${ideesNouvelles} nouvelle${ideesNouvelles > 1 ? "s idées" : " idée"}`, pastille: ideesNouvelles } : { statut: "Rien de nouveau" },
     "/admin/contrats": { statut: contratsEnCours ? `${contratsEnCours} en cours de signature` : "Déposer un contrat" },

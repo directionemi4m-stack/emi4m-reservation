@@ -40,6 +40,7 @@ export type CleIcone =
   | "cles"
   | "contrat"
   | "idee"
+  | "scene"
   | "signature"
   | "convention"
   | "rentree"
@@ -86,6 +87,7 @@ export const SECTIONS: SectionNav[] = [
     titre: "L'école",
     liens: [
       { href: "/saison", label: "Saison", icone: "saison", couleur: "neutre" },
+      { href: "/plans-de-scene", label: "Plans de scène", icone: "scene", couleur: "neutre" },
       { href: "/cham", label: "CHAM", icone: "ecole", couleur: "neutre" },
       { href: "/bulletins-cham", label: "Bulletins CHAM", icone: "bulletin", couleur: "vert" },
       { href: "/annuaire", label: "Annuaire", icone: "annuaire", couleur: "neutre" },
