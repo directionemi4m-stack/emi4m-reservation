@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { ajouterJours, ECHEANCE_JOURS, lireCentimes, lireLignes, nomFichierDocument, prochainNumero, VALIDITE_JOURS, type Ligne } from "@/lib/devis";
 import { devinerFacture, nomFichierFacture, normaliserNomFichier } from "@/lib/factures";
 import { photosEnPdf } from "@/lib/photoEnPdf";
-import { deposerDocumentDevis, estJetonRevoqueOuExpire, mettreALaCorbeilleDrive, rangerDocumentDevis } from "@/lib/drive";
+import { deposerDocumentDevis, estJetonRevoqueOuExpire, mettreALaCorbeilleDrive, rangerDocumentDevis, renommerFichierDrive } from "@/lib/drive";
 import { archiverPdfDevis, archiverPdfFacture, pdfFacture } from "@/lib/devisServeur";
 import { envoyerMailDocument } from "@/lib/mail";
 
@@ -495,4 +495,43 @@ export async function supprimerDevisRecu(fd: FormData) {
   }
   await db.devisRecu.delete({ where: { id: d.id } });
   revalider();
+}
+
+// Correction d'un devis reçu (montant, objet, validité…) ; si le fournisseur ou la date
+// changent, le fichier est renommé dans le Drive.
+export async function modifierDevisRecu(_etat: EtatAction, fd: FormData): Promise<EtatAction> {
+  await exigerAdmin();
+  const d = await db.devisRecu.findUnique({ where: { id: champ(fd, "id", 40) } });
+  if (!d) return { succes: false, message: "Ce devis n'existe plus." };
+  const fournisseur = champ(fd, "fournisseur", 80);
+  if (!fournisseur) return { succes: false, message: "Le fournisseur est requis." };
+  const date = dateOu(fd, "date", d.date);
+  const montantBrut = champ(fd, "montant", 20);
+  const montantCentimes = montantBrut ? lireCentimes(montantBrut) : null;
+  if (montantBrut && montantCentimes === null) return { succes: false, message: "Montant invalide (ex. 1 250,00)." };
+  const validite = champ(fd, "valableJusquAu", 10);
+
+  const nomFichier = normaliserNomFichier(nomFichierFacture(date.toISOString().slice(0, 10), `${fournisseur} (devis)`));
+  if (nomFichier !== d.nomFichier) {
+    try {
+      await renommerFichierDrive(d.driveFileId, nomFichier);
+      if (d.signeDriveFileId) await renommerFichierDrive(d.signeDriveFileId, nomFichier.replace(/\.pdf$/i, " - signé.pdf"));
+    } catch (erreur) {
+      console.error("Renommage du devis dans le Drive impossible :", erreur);
+      return { succes: false, message: "Le fichier n'a pas pu être renommé dans le Drive." };
+    }
+  }
+  await db.devisRecu.update({
+    where: { id: d.id },
+    data: {
+      fournisseur,
+      date,
+      montantCentimes,
+      objet: optionnel(fd, "objet", 200),
+      valableJusquAu: DATE_ISO.test(validite) ? versDate(validite) : null,
+      nomFichier,
+    },
+  });
+  revalider();
+  return { succes: true, message: "Devis modifié." };
 }

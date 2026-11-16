@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { euros } from "@/lib/devis";
 import { AjoutDevisRecu } from "@/components/devis/AjoutDevisRecu";
 import { ActionsDevisRecu } from "@/components/devis/ActionsDevisRecu";
+import { ModifierDevisRecu } from "@/components/devis/ModifierDevisRecu";
 import { BadgeEtat } from "@/components/devis/BadgeEtat";
 import { lierFactureDevisRecu, supprimerDevisRecu } from "../actions";
 
@@ -69,6 +70,16 @@ export default async function DevisRecusPage() {
                         {d.facture && <BadgeEtat etat="FACTURE" libelle="Facturé" />}
                       </div>
                     </div>
+                    <ModifierDevisRecu
+                      devis={{
+                        id: d.id,
+                        fournisseur: d.fournisseur,
+                        date: d.date.toISOString().slice(0, 10),
+                        montant: d.montantCentimes != null ? (d.montantCentimes / 100).toFixed(2).replace(".", ",") : "",
+                        objet: d.objet ?? "",
+                        valableJusquAu: d.valableJusquAu?.toISOString().slice(0, 10) ?? "",
+                      }}
+                    />
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <ActionsDevisRecu id={d.id} statut={d.statut} />
                       <div className="flex flex-wrap items-center gap-3 text-xs">
