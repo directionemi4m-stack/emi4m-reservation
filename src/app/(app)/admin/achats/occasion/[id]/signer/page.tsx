@@ -34,6 +34,9 @@ export default async function SignerAttestationPage({ params }: { params: Promis
           N° {a.numero} du {jma(a.date)}
           {a.faitA && `, à ${a.faitA}`}
         </p>
+        <a href="#signatures" className="mt-2 block rounded-md bg-brand-accent/10 p-2 text-sm font-medium text-brand-accent">
+          ✍️ Donnez le téléphone au vendeur : il relit ci-dessous, puis signe au doigt en bas de la page ↓
+        </a>
       </div>
 
       {a.signeSurPlaceLe && (
@@ -100,6 +103,7 @@ export default async function SignerAttestationPage({ params }: { params: Promis
         </div>
       </section>
 
+      <div id="signatures" className="scroll-mt-4" />
       <SignatureSurPlace
         id={a.id}
         vendeur={a.vendeurNom}

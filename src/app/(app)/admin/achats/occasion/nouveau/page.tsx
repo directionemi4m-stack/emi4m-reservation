@@ -18,6 +18,10 @@ export default async function NouvelleAttestationPage() {
           ‹ Achats d&apos;occasion
         </Link>
         <h2 className="mt-1 text-lg font-semibold text-brand-slate">Nouvelle attestation de vente</h2>
+        <p className="text-sm text-slate-500">
+          1. Remplissez l&apos;attestation · 2. « Enregistrer et faire signer » : le vendeur signe au doigt sur ce téléphone, puis vous · 3. Il
+          reçoit sa copie par mail, la vôtre est archivée.
+        </p>
       </div>
       <AttestationForm
         lieux={lieux.map((l) => l.nom)}

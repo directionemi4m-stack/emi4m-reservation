@@ -78,13 +78,14 @@ export async function enregistrerAttestation(_etat: EtatAction, fd: FormData): P
       db.attestationAchat.update({ where: { id }, data: { ...donnees, lignes: { create: lignes } } }),
     ]);
     revalider();
-    redirect(`/admin/achats/occasion/${id}`);
+    redirect(`/admin/achats/occasion/${id}${fd.get("ensuite") === "signer" ? "/signer" : ""}`);
   }
   const annee = jour.getUTCFullYear();
   const existants = (await db.attestationAchat.findMany({ where: { annee }, select: { numero: true } })).map((x) => x.numero);
   const cree = await db.attestationAchat.create({ data: { ...donnees, annee, numero: prochainNumeroAchat(annee, existants), lignes: { create: lignes } } });
   revalider();
-  redirect(`/admin/achats/occasion/${cree.id}`);
+  // « Enregistrer et faire signer » : on passe tout de suite à l'écran de signature au doigt.
+  redirect(`/admin/achats/occasion/${cree.id}${fd.get("ensuite") === "signer" ? "/signer" : ""}`);
 }
 
 export async function supprimerAttestation(fd: FormData) {

@@ -180,8 +180,17 @@ export function AttestationForm({ valeurs, lieux }: { valeurs: ValeursAttestatio
       </section>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={enCours} className="rounded-md bg-brand-accent px-4 py-2 text-sm font-semibold text-white hover:bg-brand-accent/90 disabled:opacity-60">
-          {enCours ? "Enregistrement…" : "Enregistrer l'attestation"}
+        <button
+          type="submit"
+          name="ensuite"
+          value="signer"
+          disabled={enCours}
+          className="rounded-md bg-brand-accent px-5 py-3 text-base font-semibold text-white hover:bg-brand-accent/90 disabled:opacity-60"
+        >
+          {enCours ? "Enregistrement…" : "✍️ Enregistrer et faire signer"}
+        </button>
+        <button type="submit" name="ensuite" value="" disabled={enCours} className="text-sm text-slate-600 underline">
+          Enregistrer sans signer
         </button>
         <Link href={valeurs.id ? `/admin/achats/occasion/${valeurs.id}` : "/admin/achats/occasion"} className="text-sm text-slate-500 hover:underline">
           Annuler
