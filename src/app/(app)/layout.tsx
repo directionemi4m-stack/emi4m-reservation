@@ -16,7 +16,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // À l'impression (programme, bilan…), seule la page sort : menus et barres sont masqués.
     <div className="flex min-h-screen bg-slate-50 print:bg-white">
       <div className="contents print:hidden">
-        <MenuLateral estAdmin={session.user.role === "ADMIN"} deconnexion={deconnexion} />
+        {/* En « connecté en tant que », le menu est celui du prof : on voit ce qu'il voit. */}
+        <MenuLateral estAdmin={session.user.role === "ADMIN" && !session.user.impersonation} deconnexion={deconnexion} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="contents print:hidden">

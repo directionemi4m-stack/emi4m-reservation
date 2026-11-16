@@ -7,7 +7,7 @@ import { GrilleTuiles, Tuile } from "@/components/navigation/Tuile";
 export default async function AccueilPage() {
   const session = await auth();
   const userId = session!.user.id;
-  const estAdmin = session!.user.role === "ADMIN";
+  const estAdmin = session!.user.role === "ADMIN" && !session!.user.impersonation;
 
   const [moi, etats] = await Promise.all([
     db.user.findUnique({ where: { id: userId }, select: { prenom: true } }),

@@ -8,7 +8,7 @@ import { ActiverNotifications } from "@/components/notifications/ActiverNotifica
 // d'accueil les montre déjà).
 export default async function MenuPage() {
   const session = await auth();
-  const estAdmin = session!.user.role === "ADMIN";
+  const estAdmin = session!.user.role === "ADMIN" && !session!.user.impersonation;
 
   async function deconnexion() {
     "use server";
