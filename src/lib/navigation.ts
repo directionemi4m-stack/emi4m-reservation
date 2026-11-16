@@ -38,6 +38,7 @@ export type CleIcone =
   | "inventaire"
   | "achats"
   | "cles"
+  | "contrat"
   | "signature"
   | "convention"
   | "rentree"
@@ -77,6 +78,7 @@ export const SECTIONS: SectionNav[] = [
       { href: "/frais", label: "Frais km", icone: "voiture", couleur: "ambre" },
       { href: "/activite-accessoire", label: "Activité acc.", icone: "musique", couleur: "ambre" },
       { href: "/frais/identite", label: "Ma fiche", icone: "fiche", couleur: "ambre" },
+      { href: "/contrats", label: "Mes contrats", icone: "contrat", couleur: "neutre" },
     ],
   },
   {
@@ -101,6 +103,7 @@ export const SECTIONS: SectionNav[] = [
       { href: "/admin/devis", label: "Facturation", icone: "devis", couleur: "ambre" },
       { href: "/admin/cles", label: "Clés et badges", icone: "cles", couleur: "neutre" },
       { href: "/admin/documents", label: "Signatures", icone: "signature", couleur: "neutre" },
+      { href: "/admin/contrats", label: "Contrats profs", icone: "contrat", couleur: "neutre" },
       { href: "/admin/conventions", label: "Conventions", icone: "convention", couleur: "bleu" },
       { href: "/admin/parametres/profs", label: "Profs", icone: "profs", couleur: "neutre" },
       { href: "/admin/parametres", label: "Paramètres", icone: "parametres", couleur: "neutre" },

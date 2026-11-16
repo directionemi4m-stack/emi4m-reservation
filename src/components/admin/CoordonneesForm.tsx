@@ -37,6 +37,14 @@ export function CoordonneesForm({ coordonnees }: { coordonnees: Coordonnees }) {
       {champ("siteWeb", "Site internet")}
       {champ("siret", "SIRET", "14 chiffres")}
       {champ("numeroSacem", "Numéro de client SACEM", "Figure sur vos courriers ou factures SACEM")}
+      <h2 className="mt-2 text-sm font-semibold text-brand-slate sm:col-span-2">Présidence</h2>
+      <p className="-mt-2 text-xs text-slate-500 sm:col-span-2">
+        Signe les contrats et avenants des profs, à distance, avec un lien reçu par mail. Si vous changez de présidence, les documents en
+        attente partent à la nouvelle présidence et l&apos;ancien lien ne marche plus.
+      </p>
+      {champ("presidenceNom", "Prénom et nom", "Ex. « Marie Dupont »")}
+      {champ("presidenceQualite", "Fonction", "Ex. « Présidente »")}
+      {champ("presidenceEmail", "Mail de la présidence", "Le lien de signature y est envoyé", true)}
       <h2 className="mt-2 text-sm font-semibold text-brand-slate sm:col-span-2">Facturation (devis et factures aux clients)</h2>
       {champ("mentionTva", "Mention TVA", "Ex. « TVA non applicable », avec l'article que votre comptable vous donne", true)}
       {texteLong("conditionsPaiement", "Conditions de paiement", "Reprises par défaut sur chaque devis et facture")}

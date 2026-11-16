@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { urlBase } from "@/lib/url";
+import { attendPresidence, envoyerLienPresidence } from "@/lib/contratsServeur";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -34,10 +36,29 @@ export async function enregistrerCoordonnees(_etat: EtatAction, formData: FormDa
     mentionsFacture: texte(formData, "mentionsFacture", 800),
     iban: texte(formData, "iban", 40),
     bic: texte(formData, "bic", 20),
+    presidenceNom: texte(formData, "presidenceNom", 120),
+    presidenceQualite: texte(formData, "presidenceQualite", 80),
+    presidenceEmail: texte(formData, "presidenceEmail", 200)?.toLowerCase() ?? null,
   };
+  if (donnees.presidenceEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donnees.presidenceEmail)) {
+    return { succes: false, message: "Le mail de la présidence n'est pas valide." };
+  }
+  const avant = await db.coordonneesEcole.findUnique({ where: { id: "singleton" }, select: { presidenceNom: true, presidenceEmail: true } });
   await db.coordonneesEcole.upsert({ where: { id: "singleton" }, create: donnees, update: donnees });
+
+  // Changement de présidence : l'ancien lien de signature ne vaut plus, et les documents en
+  // attente partent tout de suite à la nouvelle présidence.
+  let suite = "";
+  if ((avant?.presidenceEmail ?? null) !== donnees.presidenceEmail || (avant?.presidenceNom ?? null) !== donnees.presidenceNom) {
+    await db.lienPresidence.deleteMany({});
+    if (donnees.presidenceEmail && donnees.presidenceNom && (await db.contratProf.count({ where: attendPresidence })) > 0) {
+      const erreur = await envoyerLienPresidence(await urlBase());
+      suite = erreur ? ` ${erreur}` : " Les contrats en attente ont été envoyés à la nouvelle présidence.";
+    }
+    revalidatePath("/admin/contrats");
+  }
   revalidatePath("/admin/parametres/ecole");
   revalidatePath("/admin/sacem");
   revalidatePath("/admin/devis", "layout");
-  return { succes: true, message: "Coordonnées enregistrées." };
+  return { succes: true, message: `Coordonnées enregistrées.${suite}` };
 }

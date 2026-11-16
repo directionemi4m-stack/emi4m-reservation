@@ -111,6 +111,7 @@ model User {
   clesRemises       RemiseCles[]        @relation("ClesRemisesPar")
   clesRecues        RemiseCles[]        @relation("ClesRecuesPar")
   documentsSignes   SignatureDocument[] @relation("DocumentsSignes")
+  contrats          ContratProf[]       @relation("ContratsProf")
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -843,6 +844,10 @@ model CoordonneesEcole {
   siret              String?
   numeroSacem        String? // numéro de client SACEM, s'il y en a un
   representant       String? // « Prénom Nom, président(e) »
+  // Présidence : signe les contrats et avenants des profs, à distance (lien par mail).
+  presidenceNom      String?
+  presidenceQualite  String? // « Présidente », « Président », « Co-président »…
+  presidenceEmail    String?
   // Devis et factures émis.
   mentionTva         String? // « TVA non applicable… »
   conditionsPaiement String? // reprises par défaut sur chaque devis et facture
@@ -1363,4 +1368,56 @@ model LigneAttestationAchat {
   numeroSerie   String?
   etat          String?
   prixCentimes  Int
+}
+
+// --- Contrats et avenants des profs ---
+
+enum TypeContratProf {
+  CONTRAT
+  AVENANT
+}
+
+// Contrat ou avenant d'un prof pour une année scolaire. Le PDF déposé par la direction est
+// d'abord signé par la présidence (à distance), puis par le prof dans l'appli ; chacun
+// paraphe chaque page. La copie signée est générée à partir de l'original et des images.
+// « papier » : document déjà signé à la main, simplement archivé.
+model ContratProf {
+  id                  String          @id @default(cuid())
+  profId              String
+  prof                User            @relation("ContratsProf", fields: [profId], references: [id], onDelete: Cascade)
+  anneeDebut          Int // 2026 pour 2026-2027
+  type                TypeContratProf
+  titre               String
+  pdf                 Bytes
+  nomFichier          String
+  empreinte           String // SHA-256 de l'original, reprise sur la page des signatures
+  papier              Boolean         @default(false)
+  creeLe              DateTime        @default(now())
+  envoyeLe            DateTime? // transmis à la présidence pour signature
+  presidenceNom       String?
+  presidenceQualite   String?
+  presidenceEmail     String?
+  presidenceParaphe   Bytes?
+  presidenceSignature Bytes?
+  presidenceSigneLe   DateTime?
+  profParaphe         Bytes?
+  profSignature       Bytes?
+  profSigneLe         DateTime?
+  driveFileId         String?
+  driveUrl            String?
+  copieEnvoyeeLe      DateTime?
+
+  @@index([profId, anneeDebut])
+  @@index([anneeDebut])
+}
+
+// Lien de signature envoyé par mail à la présidence (sans compte dans l'appli). Le jeton est
+// haché ; il ne vaut que pour l'adresse de la présidence en cours : changer la présidence
+// dans les paramètres invalide les anciens liens.
+model LienPresidence {
+  id     String   @id @default(cuid())
+  jeton  String   @unique
+  email  String
+  expire DateTime
+  creeLe DateTime @default(now())
 }

@@ -827,3 +827,42 @@ export async function rangerDocumentDevis(params: { fileId: string; dossier: Dos
   const anciens = (data.parents ?? []).filter((p) => p !== cible).join(",");
   await drive.files.update({ fileId: params.fileId, addParents: cible, removeParents: anciens || undefined, fields: "id" });
 }
+
+// --- Contrats et avenants des profs ---
+
+// « Contrats des profs / 2026-2027 / RIVAL Jeanne / 2026-2027 Contrat - … signé.pdf », dans
+// le Drive de la direction (non partagé). Un fichier déjà déposé est remplacé sur place.
+export async function deposerContrat(params: {
+  saison: string;
+  dossierProf: string;
+  nomFichier: string;
+  pdf: Uint8Array;
+  fichierExistantId?: string | null;
+}): Promise<{ id: string; url: string } | null> {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive } = client;
+  const media = () => ({ mimeType: "application/pdf", body: Readable.from(Buffer.from(params.pdf)) });
+  if (params.fichierExistantId) {
+    try {
+      const { data } = await drive.files.update({
+        fileId: params.fichierExistantId,
+        requestBody: { name: params.nomFichier },
+        media: media(),
+        fields: "id, webViewLink, trashed",
+      });
+      if (!data.trashed) return { id: data.id!, url: data.webViewLink ?? "" };
+    } catch (erreur) {
+      console.error("Contrat introuvable dans le Drive, nouveau dépôt :", erreur);
+    }
+  }
+  const racine = await dossierRacineParNom(drive, "Contrats des profs");
+  const saison = await dossierProfId(drive, racine, params.saison);
+  const dossier = await dossierProfId(drive, saison, params.dossierProf);
+  const { data } = await drive.files.create({
+    requestBody: { name: params.nomFichier, parents: [dossier] },
+    media: media(),
+    fields: "id, webViewLink",
+  });
+  return { id: data.id!, url: data.webViewLink ?? "" };
+}

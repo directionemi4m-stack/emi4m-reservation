@@ -568,3 +568,56 @@ export async function envoyerMailDocument(params: { a: string; sujet: string; me
     attachments: [{ filename: params.nomFichier, content: Buffer.from(params.pdf), contentType: "application/pdf" }],
   });
 }
+
+// Contrats et avenants des profs : lien de signature envoyé à la présidence (sans compte dans
+// l'appli), valable pour tous les documents en attente.
+export async function envoyerMailPresidenceContrats(params: { email: string; nom: string; nombre: number; url: string; jours: number }) {
+  const { email, nom, nombre, url, jours } = params;
+  const transport = creerTransporteur();
+  const quoi = nombre > 1 ? `${nombre} contrats ou avenants de profs sont à signer` : "Un contrat ou avenant de prof est à signer";
+  const consigne = `Ouvrez le lien sur votre téléphone ou votre ordinateur : vous pouvez lire chaque document, puis parapher et signer avec le doigt ou la souris. Le lien est valable ${jours} jours.`;
+  await transport.sendMail({
+    to: email,
+    from: process.env.EMAIL_FROM,
+    replyTo: EMAIL_DIRECTION,
+    subject: `EMI4M — ${quoi}`,
+    text: `Bonjour ${nom},\n\n${quoi} pour l'EMI4M.\n\n${consigne}\n\n${url}\n\nLa direction de l'EMI4M`,
+    html: htmlLienMotDePasse({
+      titre: "Contrats à signer",
+      intro: `Bonjour ${h(nom)},<br><br>${h(quoi)} pour l'EMI4M.<br><br>${h(consigne)}`,
+      url,
+      libelleBouton: "Lire et signer",
+      mention: "Ce lien est personnel : ne le transférez pas.",
+    }),
+  });
+}
+
+// Contrat signé par la présidence : envoyé au prof (PDF joint) pour qu'il le signe à son tour
+// dans l'appli.
+export async function envoyerMailContratAuProf(params: {
+  prof: { prenom: string; email: string };
+  titre: string;
+  url: string;
+  pdf: Uint8Array;
+  nomFichier: string;
+}) {
+  const { prof, titre, url, pdf, nomFichier } = params;
+  const transport = creerTransporteur();
+  const consigne = "Il est joint à ce mail, déjà signé par la présidence. Pour le signer à votre tour, ouvrez la page « Mes contrats » de l'appli : relisez-le, paraphez et signez avec le doigt. Vous recevrez ensuite votre exemplaire signé par les deux.";
+  const resultat = await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    replyTo: EMAIL_DIRECTION,
+    subject: `À signer — ${titre}`,
+    text: `Bonjour ${prof.prenom},\n\nVotre document « ${titre} » est prêt.\n\n${consigne}\n\n${url}\n\nLa direction de l'EMI4M`,
+    html: htmlLienMotDePasse({
+      titre: "Votre contrat à signer",
+      intro: `Bonjour ${h(prof.prenom)},<br><br>Votre document « ${h(titre)} » est prêt.<br><br>${h(consigne)}`,
+      url,
+      libelleBouton: "Signer dans l'appli",
+      mention: "",
+    }),
+    attachments: [{ filename: nomFichier, content: Buffer.from(pdf), contentType: "application/pdf" }],
+  });
+  if (resultat.rejected.filter(Boolean).length > 0) throw new Error(`Adresse refusée : ${prof.email}`);
+}

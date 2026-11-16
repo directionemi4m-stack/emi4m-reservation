@@ -63,6 +63,9 @@ export interface Coordonnees {
   mentionsFacture: string | null;
   iban: string | null;
   bic: string | null;
+  presidenceNom: string | null;
+  presidenceQualite: string | null;
+  presidenceEmail: string | null;
 }
 
 // Valeurs proposées tant que la direction n'a rien enregistré (cf. Paramètres › Coordonnées).
@@ -82,4 +85,7 @@ export const COORDONNEES_DEFAUT: Coordonnees = {
     "En cas de retard de paiement : pénalités au taux d'intérêt légal et indemnité forfaitaire de 40 € pour frais de recouvrement (art. L441-10 et D441-5 du Code de commerce).",
   iban: null,
   bic: null,
+  presidenceNom: null,
+  presidenceQualite: null,
+  presidenceEmail: null,
 };

@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { lireLignesAchat, prochainNumeroAchat } from "@/lib/attestationAchat";
 import { enregistrerSignature, envoyerCopieVendeur, nomFichierAttestation, pdfAttestation } from "@/lib/attestationAchatServeur";
 import { lireSignature } from "@/lib/bulletinsCham";
-import { photosEnPdf } from "@/lib/photoEnPdf";
+import { scanEnPdf } from "@/lib/scanEnPdf";
 import { deposerDocumentDevis, estJetonRevoqueOuExpire } from "@/lib/drive";
 import type { DestinationAchat, ModePaiementAchat } from "@/generated/prisma/client";
 
@@ -97,19 +97,7 @@ export async function supprimerAttestation(fd: FormData) {
   redirect("/admin/achats/occasion");
 }
 
-const TAILLE_MAX = 10 * 1024 * 1024;
-const estPdf = (o: Uint8Array) => Buffer.from(o.subarray(0, 5)).toString() === "%PDF-";
-const estJpeg = (o: Uint8Array) => o[0] === 0xff && o[1] === 0xd8 && o[2] === 0xff;
-async function enPdf(fd: FormData, nom: string): Promise<Buffer | null | { erreur: string }> {
-  const fichiers = await Promise.all(
-    fd.getAll(nom).filter((f): f is File => f instanceof File && f.size > 0).map(async (f) => new Uint8Array(await f.arrayBuffer()))
-  );
-  if (fichiers.length === 0) return null;
-  if (fichiers.reduce((s, f) => s + f.length, 0) > TAILLE_MAX) return { erreur: "Fichiers trop lourds (10 Mo au total)." };
-  if (fichiers.length === 1 && estPdf(fichiers[0])) return Buffer.from(fichiers[0]);
-  if (fichiers.every(estJpeg)) return Buffer.from(await photosEnPdf(fichiers));
-  return { erreur: "Envoyez un PDF, ou des photos." };
-}
+const enPdf = scanEnPdf;
 
 // Attestation signée par les deux parties : archivée dans le Drive (« Achats d'occasion /
 // année »), avec la copie de la pièce d'identité du vendeur ; ajoutée aux factures d'achat
