@@ -1337,6 +1337,10 @@ model AttestationAchat {
   signeDriveFileId  String?
   signeUrl          String?
   pieceDriveFileId  String? // copie de la pièce d'identité du vendeur (direction seulement)
+  // Signature sur place, au doigt sur le téléphone de la direction.
+  signatureVendeur  Bytes?
+  signatureAcheteur Bytes?
+  signeSurPlaceLe   DateTime?
   factureId         String?            @unique
   facture           Facture?           @relation(fields: [factureId], references: [id], onDelete: SetNull)
   creeLe            DateTime           @default(now())

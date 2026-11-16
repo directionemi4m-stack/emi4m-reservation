@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { lireLignesAchat, prochainNumeroAchat } from "@/lib/attestationAchat";
-import { enregistrerSignature, nomFichierAttestation } from "@/lib/attestationAchatServeur";
+import { enregistrerSignature, nomFichierAttestation, pdfAttestation } from "@/lib/attestationAchatServeur";
+import { lireSignature } from "@/lib/bulletinsCham";
 import { photosEnPdf } from "@/lib/photoEnPdf";
 import { deposerDocumentDevis, estJetonRevoqueOuExpire } from "@/lib/drive";
 import type { DestinationAchat, ModePaiementAchat } from "@/generated/prisma/client";
@@ -153,4 +154,65 @@ export async function archiverAttestationSignee(_etat: EtatAction, fd: FormData)
   await enregistrerSignature(a.id, depot, depotPiece, fd.get("inventaire") === "on");
   revalider();
   return { succes: true, message: "Attestation signée archivée dans le Drive et ajoutée aux achats." };
+}
+
+// Signature sur place, au doigt sur le téléphone : le vendeur puis la direction signent ;
+// l'attestation signée est générée, archivée dans le Drive et ajoutée aux achats.
+export async function signerSurPlace(_etat: EtatAction, fd: FormData): Promise<EtatAction> {
+  const session = await auth();
+  if (session?.user.role !== "ADMIN") throw new Error("Accès réservé à la direction.");
+  const a = await db.attestationAchat.findUnique({ where: { id: champ(fd, "id", 40) } });
+  if (!a) return { succes: false, message: "Cette attestation n'existe plus." };
+  if (fd.get("luEtApprouve") !== "on") return { succes: false, message: "Le vendeur doit cocher « Lu et approuvé, bon pour vente »." };
+  const vendeur = lireSignature(String(fd.get("signatureVendeur") ?? ""));
+  if (!vendeur) return { succes: false, message: "La signature du vendeur est requise." };
+  const acheteur = lireSignature(String(fd.get("signatureAcheteur") ?? ""));
+  if (!acheteur) return { succes: false, message: "Votre signature pour l'EMI4M est requise." };
+  const piece = await enPdf(fd, "piece");
+  if (piece && "erreur" in piece) return { succes: false, message: `Pièce d'identité : ${piece.erreur}` };
+
+  const maintenant = new Date();
+  await db.attestationAchat.update({
+    where: { id: a.id },
+    data: { signatureVendeur: Uint8Array.from(vendeur), signatureAcheteur: Uint8Array.from(acheteur), signeSurPlaceLe: maintenant },
+  });
+  // La signature de la direction est gardée pour la prochaine fois (comme pour les bulletins et les clés).
+  await db.signatureBulletin.upsert({
+    where: { userId: session.user.id },
+    create: { userId: session.user.id, image: Uint8Array.from(acheteur) },
+    update: { image: Uint8Array.from(acheteur) },
+  });
+
+  const fichier = await pdfAttestation(a.id);
+  if (!fichier) return { succes: false, message: "Attestation introuvable." };
+  try {
+    const depot = await deposerDocumentDevis({
+      dossier: "Achats d'occasion",
+      annee: a.annee,
+      nomFichier: nomFichierAttestation(a.numero, a.vendeurNom, " - signée"),
+      pdf: fichier.pdf,
+      fichierExistantId: a.signeDriveFileId,
+    });
+    if (!depot) return { succes: false, message: "Signatures enregistrées, mais le Drive est indisponible : réessayez l'archivage plus tard." };
+    const depotPiece = piece
+      ? await deposerDocumentDevis({
+          dossier: "Achats d'occasion",
+          annee: a.annee,
+          nomFichier: nomFichierAttestation(a.numero, a.vendeurNom, " - pièce d'identité"),
+          pdf: piece,
+          fichierExistantId: a.pieceDriveFileId,
+        })
+      : null;
+    await enregistrerSignature(a.id, depot, depotPiece, fd.get("inventaire") === "on");
+  } catch (erreur) {
+    console.error("Archivage de l'attestation signée impossible :", erreur);
+    return {
+      succes: false,
+      message: estJetonRevoqueOuExpire(erreur)
+        ? "Signatures enregistrées, mais la connexion à Google Drive a expiré : reconnectez-la dans Paramètres puis réessayez."
+        : "Signatures enregistrées, mais l'envoi vers le Drive a échoué. Réessayez.",
+    };
+  }
+  revalider();
+  return { succes: true, message: "Attestation signée par les deux parties, archivée dans le Drive et ajoutée aux achats." };
 }

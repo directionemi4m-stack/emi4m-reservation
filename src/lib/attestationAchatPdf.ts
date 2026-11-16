@@ -28,6 +28,8 @@ export interface AttestationAImprimer {
   paiement: { mode: "VIREMENT" | "CHEQUE" | "ESPECES" | null; reference: string | null; banque: string | null; date: Date | null };
   dateRemise: Date | null;
   suivi: { demandePar: string | null; motif: string | null; affectation: string | null; destination: "ECOLE" | "LOCATION" | null; numeroInventaire: string | null };
+  // Signée sur place, au doigt sur le téléphone : les deux signatures et le moment.
+  signatures?: { vendeur: Uint8Array; acheteur: Uint8Array; le: Date } | null;
 }
 
 const jma = (d: Date | null) => (d ? d.toLocaleDateString("fr-FR", { timeZone: "UTC" }) : "..... / ..... / ..........");
@@ -218,6 +220,21 @@ export async function genererAttestationAchat(a: AttestationAImprimer, c: Coordo
   o.t("Mention « Lu et approuvé, bon pour vente »", M, y, 8, i, GRIS);
   const nq = "Nom, qualité, signature et cachet";
   o.t(nq, L - M - i.widthOfTextAtSize(nq, 8), y, 8, i, GRIS);
+  if (a.signatures) {
+    const dessiner = async (png: Uint8Array, x: number, droite: boolean) => {
+      const image = await pdf.embedPng(copieIndependante(png));
+      const echelle = Math.min(170 / image.width, 55 / image.height);
+      const w = image.width * echelle;
+      p1.drawImage(image, { x: droite ? x - w : x, y: y - 70, width: w, height: image.height * echelle });
+    };
+    o.t("Lu et approuvé, bon pour vente", M, y - 13, 9, i);
+    await dessiner(a.signatures.vendeur, M, false);
+    const qui = [a.representant, a.qualite].filter(Boolean).join(", ");
+    if (qui) o.t(qui, L - M - n.widthOfTextAtSize(nettoyer(qui, n), 9), y - 13, 9);
+    await dessiner(a.signatures.acheteur, L - M, true);
+    const le = a.signatures.le.toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Paris" });
+    o.t(`Signée électroniquement par les deux parties le ${le}, sur place, dans l'appli ${c.sigle}.`, M, y - 82, 7.5, i, GRIS);
+  }
   o.t("Pièce à joindre : copie de la pièce d'identité du vendeur (conservée uniquement comme justificatif comptable de l'achat).", M, 58, 7.5, i, GRIS);
   o.piedDePage();
 

@@ -28,6 +28,10 @@ export async function pdfAttestation(id: string): Promise<{ pdf: Uint8Array; nom
       paiement: { mode: a.modePaiement, reference: a.referencePaiement, banque: a.banque, date: a.datePaiement },
       dateRemise: a.dateRemise,
       suivi: { demandePar: a.demandePar, motif: a.motif, affectation: a.affectation, destination: a.destination, numeroInventaire: inventaire },
+      signatures:
+        a.signatureVendeur && a.signatureAcheteur && a.signeSurPlaceLe
+          ? { vendeur: a.signatureVendeur, acheteur: a.signatureAcheteur, le: a.signeSurPlaceLe }
+          : null,
     },
     await lireCoordonnees()
   );

@@ -72,8 +72,13 @@ export default async function AttestationPage({ params, searchParams }: { params
 
       <section className="flex flex-col gap-3 rounded-lg bg-white p-4 shadow-sm">
         <div className="flex flex-wrap gap-2">
+          {!a.signeLe && (
+            <Link href={`/admin/achats/occasion/${a.id}/signer`} className="rounded-md bg-brand-accent px-4 py-2 text-sm font-semibold text-white hover:bg-brand-accent/90">
+              ✍️ Faire signer sur ce téléphone
+            </Link>
+          )}
           <a href={`/api/attestations/${a.id}`} target="_blank" rel="noopener" className={bouton}>
-            <IconFileTypePdf size={16} aria-hidden /> Attestation pré-remplie à imprimer
+            <IconFileTypePdf size={16} aria-hidden /> {a.signeSurPlaceLe ? "Attestation signée (PDF)" : "Version papier à imprimer"}
           </a>
           {!a.signeLe && (
             <>
@@ -90,13 +95,15 @@ export default async function AttestationPage({ params, searchParams }: { params
           )}
         </div>
         <p className="text-xs text-slate-500">
-          Imprimez en deux exemplaires, faites signer le vendeur (« Lu et approuvé, bon pour vente ») et signez pour l&apos;EMI4M ; la page 2
-          (fiche interne) est pour la comptabilité.
+          Le plus simple : faites signer le vendeur au doigt sur ce téléphone, puis signez pour l&apos;EMI4M ; l&apos;attestation signée est
+          archivée toute seule. Sinon, imprimez la version papier en deux exemplaires et déposez le scan signé ci-dessous.
         </p>
       </section>
 
       <section className="flex flex-col gap-3 rounded-lg bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-brand-slate">{a.signeLe ? `Signée et archivée le ${dateLongue(a.signeLe)}` : "Une fois signée"}</h2>
+        <h2 className="text-sm font-semibold text-brand-slate">
+          {a.signeLe ? `Signée et archivée le ${dateLongue(a.signeLe)}${a.signeSurPlaceLe ? " (signée sur le téléphone)" : ""}` : "Version papier : une fois signée"}
+        </h2>
         {a.signeLe && (
           <div className="flex flex-wrap gap-3 text-sm">
             {a.signeUrl && (
