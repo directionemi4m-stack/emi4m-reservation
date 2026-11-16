@@ -15,9 +15,9 @@ const dateLongue = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", 
 const prix = (c: number) => (c / 100).toFixed(2).replace(".", ",").replace(",00", "");
 const bouton = "inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50";
 
-export default async function AttestationPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ modifier?: string }> }) {
+export default async function AttestationPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ modifier?: string; archivage?: string }> }) {
   const { id } = await params;
-  const { modifier } = await searchParams;
+  const { modifier, archivage } = await searchParams;
   const a = await chargerAttestation(id);
   if (!a) notFound();
   const total = a.lignes.reduce((s, l) => s + l.prixCentimes, 0);
@@ -71,6 +71,13 @@ export default async function AttestationPage({ params, searchParams }: { params
         <p className="text-2xl font-semibold tabular-nums text-brand-slate">{euros(total)}</p>
       </div>
 
+      {archivage === "echec" && !a.signeLe && (
+        <p className="rounded-md bg-status-occupee/10 p-3 text-sm text-slate-700">
+          L&apos;attestation est enregistrée, mais l&apos;envoi vers le Drive a échoué : déposez à nouveau le PDF ou les photos ci-dessous
+          (si le problème persiste, reconnectez Google Drive dans Paramètres).
+        </p>
+      )}
+
       <section className="flex flex-col gap-3 rounded-lg bg-white p-4 shadow-sm">
         <div className="flex flex-wrap gap-2">
           {!a.signeLe && (
@@ -78,9 +85,11 @@ export default async function AttestationPage({ params, searchParams }: { params
               ✍️ Faire signer sur ce téléphone
             </Link>
           )}
-          <a href={`/api/attestations/${a.id}`} target="_blank" rel="noopener" className={bouton}>
-            <IconFileTypePdf size={16} aria-hidden /> {a.signeSurPlaceLe ? "Attestation signée (PDF)" : "Version papier à imprimer"}
-          </a>
+          {(!a.signeLe || a.signeSurPlaceLe) && (
+            <a href={`/api/attestations/${a.id}`} target="_blank" rel="noopener" className={bouton}>
+              <IconFileTypePdf size={16} aria-hidden /> {a.signeSurPlaceLe ? "Attestation signée (PDF)" : "Version papier à imprimer"}
+            </a>
+          )}
           {!a.signeLe && (
             <>
               <Link href={`/admin/achats/occasion/${a.id}?modifier=1`} className={bouton}>

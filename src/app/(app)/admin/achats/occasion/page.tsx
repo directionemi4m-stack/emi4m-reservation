@@ -12,13 +12,19 @@ export default async function AchatsOccasionPage() {
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-brand-slate">Achats d&apos;occasion à un particulier</h2>
-          <Link href="/admin/achats/occasion/nouveau" className="rounded-md bg-brand-accent px-4 py-2 text-sm font-semibold text-white hover:bg-brand-accent/90">
-            + Nouvelle attestation
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/achats/occasion/papier" className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              📄 J&apos;ai une attestation papier
+            </Link>
+            <Link href="/admin/achats/occasion/nouveau" className="rounded-md bg-brand-accent px-4 py-2 text-sm font-semibold text-white hover:bg-brand-accent/90">
+              + Nouvelle attestation
+            </Link>
+          </div>
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          Remplissez l&apos;attestation, imprimez-la pré-remplie et faites-la signer par le vendeur, puis déposez le scan signé : il est
-          archivé dans le Drive (« Achats d&apos;occasion »), ajouté aux achats et, si vous le voulez, à l&apos;inventaire.
+          Remplissez l&apos;attestation et faites-la signer au doigt sur le téléphone. Si elle a été faite sur papier, photographiez-la ou
+          déposez son PDF : elle est archivée dans le Drive (« Achats d&apos;occasion »), ajoutée aux achats et, si vous le voulez, à
+          l&apos;inventaire.
         </p>
       </div>
       <ul className="flex flex-col divide-y divide-slate-100 rounded-lg bg-white shadow-sm">

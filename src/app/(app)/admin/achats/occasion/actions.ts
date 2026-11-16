@@ -157,6 +157,67 @@ export async function archiverAttestationSignee(_etat: EtatAction, fd: FormData)
   return { succes: true, message: "Attestation signée archivée dans le Drive et ajoutée aux achats." };
 }
 
+// Attestation déjà faite et signée sur papier : saisie minimale (vendeur, date, matériel),
+// puis le PDF ou les photos sont archivés dans le Drive comme une attestation signée.
+export async function importerAttestationPapier(_etat: EtatAction, fd: FormData): Promise<EtatAction> {
+  await exigerAdmin();
+  const vendeurNom = champ(fd, "vendeurNom", 120);
+  if (!vendeurNom) return { succes: false, message: "Le nom du vendeur est requis." };
+  const lus = lireLignesAchat({
+    designations: fd.getAll("lDesignation").map(String),
+    marques: fd.getAll("lMarque").map(String),
+    series: fd.getAll("lSerie").map(String),
+    etats: [],
+    prix: fd.getAll("lPrix").map(String),
+  });
+  if ("erreur" in lus) return { succes: false, message: lus.erreur };
+  const signee = await enPdf(fd, "fichiers");
+  if (!signee) return { succes: false, message: "Ajoutez le PDF ou les photos de l'attestation papier." };
+  if ("erreur" in signee) return { succes: false, message: signee.erreur };
+  const piece = await enPdf(fd, "piece");
+  if (piece && "erreur" in piece) return { succes: false, message: `Pièce d'identité : ${piece.erreur}` };
+
+  const jour = date(fd, "date") ?? new Date(`${new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" })}T00:00:00.000Z`);
+  const mode = champ(fd, "modePaiement", 10);
+  const annee = jour.getUTCFullYear();
+  const existants = (await db.attestationAchat.findMany({ where: { annee }, select: { numero: true } })).map((x) => x.numero);
+  const a = await db.attestationAchat.create({
+    data: {
+      annee,
+      numero: prochainNumeroAchat(annee, existants),
+      date: jour,
+      vendeurNom,
+      modePaiement: MODES.includes(mode) ? (mode as ModePaiementAchat) : null,
+      datePaiement: jour,
+      dateRemise: jour,
+      lignes: { create: lus.lignes.map((l, i) => ({ ...l, ordre: i + 1 })) },
+    },
+  });
+
+  // Le Drive peut être indisponible : l'attestation reste enregistrée et le dépôt se refait
+  // depuis sa page.
+  let archivee = false;
+  try {
+    const depot = await deposerDocumentDevis({
+      dossier: "Achats d'occasion",
+      annee,
+      nomFichier: nomFichierAttestation(a.numero, vendeurNom, " - signée"),
+      pdf: signee,
+    });
+    if (depot) {
+      const depotPiece = piece
+        ? await deposerDocumentDevis({ dossier: "Achats d'occasion", annee, nomFichier: nomFichierAttestation(a.numero, vendeurNom, " - pièce d'identité"), pdf: piece })
+        : null;
+      await enregistrerSignature(a.id, depot, depotPiece, fd.get("inventaire") === "on");
+      archivee = true;
+    }
+  } catch (erreur) {
+    console.error("Archivage de l'attestation papier impossible :", erreur);
+  }
+  revalider();
+  redirect(`/admin/achats/occasion/${a.id}${archivee ? "" : "?archivage=echec"}`);
+}
+
 // Signature sur place, au doigt sur le téléphone : le vendeur puis la direction signent ;
 // l'attestation signée est générée, archivée dans le Drive et ajoutée aux achats.
 export async function signerSurPlace(_etat: EtatAction, fd: FormData): Promise<EtatAction> {
