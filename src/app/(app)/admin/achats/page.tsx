@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { AjoutFacture } from "@/components/achats/AjoutFacture";
 import { ListeFactures } from "@/components/achats/ListeFactures";
@@ -27,6 +28,17 @@ export default async function AchatsPage() {
           pré-rempli, modifiable) et archivez-le dans le Drive.
         </p>
       </div>
+
+      <Link
+        href="/admin/achats/occasion"
+        className="flex items-center justify-between gap-2 rounded-lg border border-brand-accent/30 bg-white p-3 text-sm text-slate-700 shadow-sm hover:border-brand-accent"
+      >
+        <span>
+          <strong className="text-brand-slate">Achat d&apos;occasion à un particulier</strong>
+          <span className="block text-xs text-slate-500">Attestation de vente pré-remplie, à faire signer puis archivée avec l&apos;achat.</span>
+        </span>
+        <span className="text-brand-accent">›</span>
+      </Link>
 
       <section className="flex flex-col gap-2 rounded-lg bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-brand-slate">Nouvelle facture</h2>

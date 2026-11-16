@@ -983,17 +983,18 @@ model PhotoInventaire {
 // Facture d'achat, archivée en PDF dans le Drive (« Factures / 2026 / 2026-10-28_Thomann.pdf »).
 // Elle peut être rattachée à un ou plusieurs biens de l'inventaire, pour la traçabilité.
 model Facture {
-  id              String              @id @default(cuid())
-  date            DateTime            @db.Date
-  fournisseur     String
-  montantCentimes Int?
-  objet           String?
-  nomFichier      String
-  driveFileId     String
-  url             String
-  ajouteLe        DateTime            @default(now())
-  articles        ArticleInventaire[]
-  devisRecu       DevisRecu?
+  id               String              @id @default(cuid())
+  date             DateTime            @db.Date
+  fournisseur      String
+  montantCentimes  Int?
+  objet            String?
+  nomFichier       String
+  driveFileId      String
+  url              String
+  ajouteLe         DateTime            @default(now())
+  articles         ArticleInventaire[]
+  devisRecu        DevisRecu?
+  attestationAchat AttestationAchat?
 
   @@index([date])
   @@index([fournisseur])
@@ -1290,4 +1291,69 @@ model RubriquePrestation {
   prixUnitaireCentimes Int?
   ordre                Int     @default(0)
   actif                Boolean @default(true)
+}
+
+// --- Achats de matériel d'occasion à un particulier ---
+
+enum ModePaiementAchat {
+  VIREMENT
+  CHEQUE
+  ESPECES
+}
+
+enum DestinationAchat {
+  ECOLE
+  LOCATION
+}
+
+// Attestation de vente d'un particulier à l'EMI4M (matériel d'occasion), numérotée
+// ACH-2026-001 : éditée à signer, puis archivée signée dans le Drive et ajoutée aux achats.
+model AttestationAchat {
+  id                String             @id @default(cuid())
+  numero            String             @unique
+  annee             Int
+  date              DateTime           @db.Date
+  vendeurNom        String
+  vendeurAdresse    String?
+  vendeurTelephone  String?
+  vendeurEmail      String?
+  vendeurPiece      String? // type et n° de la pièce d'identité
+  representant      String?
+  qualite           String?
+  faitA             String?
+  modePaiement      ModePaiementAchat?
+  referencePaiement String? // référence du virement ou n° du chèque
+  banque            String?
+  datePaiement      DateTime?          @db.Date
+  dateRemise        DateTime?          @db.Date
+  // Fiche interne de suivi.
+  demandePar        String?
+  motif             String?
+  destination       DestinationAchat?
+  affectation       String?
+  pdfDriveFileId    String?
+  pdfUrl            String?
+  signeLe           DateTime?
+  signeDriveFileId  String?
+  signeUrl          String?
+  pieceDriveFileId  String? // copie de la pièce d'identité du vendeur (direction seulement)
+  factureId         String?            @unique
+  facture           Facture?           @relation(fields: [factureId], references: [id], onDelete: SetNull)
+  creeLe            DateTime           @default(now())
+
+  lignes LigneAttestationAchat[]
+
+  @@index([annee])
+}
+
+model LigneAttestationAchat {
+  id            String           @id @default(cuid())
+  attestationId String
+  attestation   AttestationAchat @relation(fields: [attestationId], references: [id], onDelete: Cascade)
+  ordre         Int
+  designation   String
+  marqueModele  String?
+  numeroSerie   String?
+  etat          String?
+  prixCentimes  Int
 }
