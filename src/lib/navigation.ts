@@ -39,6 +39,7 @@ export type CleIcone =
   | "achats"
   | "cles"
   | "contrat"
+  | "idee"
   | "signature"
   | "convention"
   | "rentree"
@@ -89,6 +90,7 @@ export const SECTIONS: SectionNav[] = [
       { href: "/bulletins-cham", label: "Bulletins CHAM", icone: "bulletin", couleur: "vert" },
       { href: "/annuaire", label: "Annuaire", icone: "annuaire", couleur: "neutre" },
       { href: "/securite", label: "Sécurité", icone: "securite", couleur: "neutre" },
+      { href: "/idees", label: "Boîte à idées", icone: "idee", couleur: "ambre" },
       { href: DRIVE_PROFS, label: "Drive des profs", icone: "drive", couleur: "neutre", externe: true },
     ],
   },
@@ -104,6 +106,7 @@ export const SECTIONS: SectionNav[] = [
       { href: "/admin/cles", label: "Clés et badges", icone: "cles", couleur: "neutre" },
       { href: "/admin/documents", label: "Signatures", icone: "signature", couleur: "neutre" },
       { href: "/admin/contrats", label: "Contrats profs", icone: "contrat", couleur: "neutre" },
+      { href: "/admin/idees", label: "Idées des profs", icone: "idee", couleur: "ambre" },
       { href: "/admin/conventions", label: "Conventions", icone: "convention", couleur: "bleu" },
       { href: "/admin/parametres/profs", label: "Profs", icone: "profs", couleur: "neutre" },
       { href: "/admin/parametres", label: "Paramètres", icone: "parametres", couleur: "neutre" },

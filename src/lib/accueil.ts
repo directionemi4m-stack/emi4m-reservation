@@ -161,10 +161,12 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
   const campagne = campagneOuverte(aujourdHui, periodeBulletins.anneeDebut, periodeBulletins.trimestre);
 
   // Contrats et avenants : à signer par le prof ; côté direction, ceux en cours de signature.
-  const [mesContratsASigner, mesContrats, contratsEnCours] = await Promise.all([
+  const [mesContratsASigner, mesContrats, contratsEnCours, mesIdees, ideesNouvelles] = await Promise.all([
     db.contratProf.count({ where: { profId: userId, papier: false, presidenceSigneLe: { not: null }, profSigneLe: null } }),
     db.contratProf.count({ where: { profId: userId, OR: [{ papier: true }, { presidenceSigneLe: { not: null } }] } }),
     estAdmin ? db.contratProf.count({ where: { papier: false, profSigneLe: null } }) : Promise.resolve(0),
+    db.idee.count({ where: { auteurId: userId } }),
+    estAdmin ? db.idee.count({ where: { statut: "NOUVELLE" } }) : Promise.resolve(0),
   ]);
 
   return {
@@ -239,6 +241,8 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     "/contrats": mesContratsASigner
       ? { statut: `${pluriel(mesContratsASigner, "document")} à signer`, pastille: mesContratsASigner }
       : { statut: mesContrats ? pluriel(mesContrats, "document") : "Aucun document" },
+    "/idees": { statut: mesIdees ? `${pluriel(mesIdees, "idée")} envoyée${mesIdees > 1 ? "s" : ""}` : "Proposer une idée" },
+    "/admin/idees": ideesNouvelles ? { statut: `${ideesNouvelles} nouvelle${ideesNouvelles > 1 ? "s idées" : " idée"}`, pastille: ideesNouvelles } : { statut: "Rien de nouveau" },
     "/admin/contrats": { statut: contratsEnCours ? `${contratsEnCours} en cours de signature` : "Déposer un contrat" },
     "/admin/documents": {
       statut: documentsActifs.length === 0 ? "Publier un document" : signaturesManquantes ? `${pluriel(signaturesManquantes, "signature")} en attente` : "Tout est signé",

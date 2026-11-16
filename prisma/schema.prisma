@@ -112,6 +112,7 @@ model User {
   clesRecues        RemiseCles[]        @relation("ClesRecuesPar")
   documentsSignes   SignatureDocument[] @relation("DocumentsSignes")
   contrats          ContratProf[]       @relation("ContratsProf")
+  idees             Idee[]              @relation("IdeesAuteur")
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -1420,4 +1421,37 @@ model LienPresidence {
   email  String
   expire DateTime
   creeLe DateTime @default(now())
+}
+
+// --- Boîte à idées ---
+
+enum TypeIdee {
+  ECOLE // idée pour l'école
+  APPLI // amélioration de l'appli
+}
+
+enum StatutIdee {
+  NOUVELLE
+  A_L_ETUDE
+  RETENUE
+  REALISEE
+  NON_RETENUE
+}
+
+// Idée ou demande d'amélioration envoyée par un prof. Anonyme : aucun auteur n'est gardé.
+model Idee {
+  id        String     @id @default(cuid())
+  type      TypeIdee
+  titre     String
+  texte     String
+  auteurId  String?
+  auteur    User?      @relation("IdeesAuteur", fields: [auteurId], references: [id], onDelete: SetNull)
+  creeLe    DateTime   @default(now())
+  statut    StatutIdee @default(NOUVELLE)
+  reponse   String?
+  reponduLe DateTime?
+  majLe     DateTime   @updatedAt
+
+  @@index([statut])
+  @@index([auteurId])
 }

@@ -621,3 +621,24 @@ export async function envoyerMailContratAuProf(params: {
   });
   if (resultat.rejected.filter(Boolean).length > 0) throw new Error(`Adresse refusée : ${prof.email}`);
 }
+
+// Boîte à idées : la direction a répondu ou fait avancer l'idée d'un prof.
+export async function envoyerMailSuiteIdee(params: { prof: { prenom: string; email: string }; titre: string; statut: string; reponse: string | null; url: string }) {
+  const { prof, titre, statut, reponse, url } = params;
+  const transport = creerTransporteur();
+  const intro = `Votre idée « ${titre} » est maintenant : ${statut}.`;
+  await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    replyTo: EMAIL_DIRECTION,
+    subject: `Boîte à idées — ${titre} : ${statut}`,
+    text: `Bonjour ${prof.prenom},\n\n${intro}${reponse ? `\n\nRéponse de la direction :\n${reponse}` : ""}\n\n${url}\n\nLa direction de l'EMI4M`,
+    html: htmlLienMotDePasse({
+      titre: "Boîte à idées",
+      intro: `Bonjour ${h(prof.prenom)},<br><br>${h(intro)}${reponse ? `<br><br><strong>Réponse de la direction :</strong><br>${h(reponse).replace(/\n/g, "<br>")}` : ""}`,
+      url,
+      libelleBouton: "Voir mes idées",
+      mention: "",
+    }),
+  });
+}
