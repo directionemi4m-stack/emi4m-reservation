@@ -12,12 +12,14 @@ import { reduirePhoto } from "@/lib/imageNavigateur";
 export function SignatureSurPlace({
   id,
   vendeur,
+  vendeurEmail,
   representant,
   maSignature,
   dejaInventaire,
 }: {
   id: string;
   vendeur: string;
+  vendeurEmail: string;
   representant: string;
   maSignature: string | null;
   dejaInventaire: boolean;
@@ -89,6 +91,22 @@ export function SignatureSurPlace({
             Ajouter le matériel à l&apos;inventaire
           </label>
         )}
+      </section>
+
+      <section className="flex flex-col gap-2 rounded-lg bg-white p-4 shadow-sm">
+        <label className="flex items-center gap-2 text-sm font-medium text-slate-800">
+          <input type="checkbox" name="envoyerCopie" defaultChecked className="h-4 w-4 accent-brand-accent" />
+          Envoyer son exemplaire signé au vendeur par mail
+        </label>
+        <input
+          name="emailCopie"
+          type="email"
+          defaultValue={vendeurEmail}
+          placeholder="Adresse mail du vendeur"
+          aria-label="Adresse mail du vendeur"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+        />
+        <p className="text-xs text-slate-500">Rien à imprimer : le vendeur reçoit le PDF signé, et vous gardez le vôtre dans le Drive.</p>
       </section>
 
       <div className="flex flex-wrap items-center gap-3">

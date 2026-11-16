@@ -1341,6 +1341,9 @@ model AttestationAchat {
   signatureVendeur  Bytes?
   signatureAcheteur Bytes?
   signeSurPlaceLe   DateTime?
+  // Exemplaire du vendeur envoyé par mail (PDF signé en pièce jointe).
+  copieEnvoyeeLe    DateTime?
+  copieEnvoyeeA     String?
   factureId         String?            @unique
   facture           Facture?           @relation(fields: [factureId], references: [id], onDelete: SetNull)
   creeLe            DateTime           @default(now())

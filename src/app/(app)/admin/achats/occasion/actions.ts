@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { lireLignesAchat, prochainNumeroAchat } from "@/lib/attestationAchat";
-import { enregistrerSignature, nomFichierAttestation, pdfAttestation } from "@/lib/attestationAchatServeur";
+import { enregistrerSignature, envoyerCopieVendeur, nomFichierAttestation, pdfAttestation } from "@/lib/attestationAchatServeur";
 import { lireSignature } from "@/lib/bulletinsCham";
 import { photosEnPdf } from "@/lib/photoEnPdf";
 import { deposerDocumentDevis, estJetonRevoqueOuExpire } from "@/lib/drive";
@@ -183,6 +183,13 @@ export async function signerSurPlace(_etat: EtatAction, fd: FormData): Promise<E
     update: { image: Uint8Array.from(acheteur) },
   });
 
+  // Exemplaire du vendeur par mail, si demandé : rien à imprimer (même si le Drive est en panne).
+  let copie = "";
+  if (fd.get("envoyerCopie") === "on") {
+    const erreur = await envoyerCopieVendeur(a.id, champ(fd, "emailCopie", 200));
+    copie = erreur ? ` Copie au vendeur non envoyée : ${erreur}` : " Une copie a été envoyée au vendeur par mail.";
+  }
+
   const fichier = await pdfAttestation(a.id);
   if (!fichier) return { succes: false, message: "Attestation introuvable." };
   try {
@@ -193,7 +200,7 @@ export async function signerSurPlace(_etat: EtatAction, fd: FormData): Promise<E
       pdf: fichier.pdf,
       fichierExistantId: a.signeDriveFileId,
     });
-    if (!depot) return { succes: false, message: "Signatures enregistrées, mais le Drive est indisponible : réessayez l'archivage plus tard." };
+    if (!depot) return { succes: false, message: `Signatures enregistrées, mais le Drive est indisponible : réessayez l'archivage plus tard.${copie}` };
     const depotPiece = piece
       ? await deposerDocumentDevis({
           dossier: "Achats d'occasion",
@@ -209,10 +216,20 @@ export async function signerSurPlace(_etat: EtatAction, fd: FormData): Promise<E
     return {
       succes: false,
       message: estJetonRevoqueOuExpire(erreur)
-        ? "Signatures enregistrées, mais la connexion à Google Drive a expiré : reconnectez-la dans Paramètres puis réessayez."
-        : "Signatures enregistrées, mais l'envoi vers le Drive a échoué. Réessayez.",
+        ? `Signatures enregistrées, mais la connexion à Google Drive a expiré : reconnectez-la dans Paramètres puis réessayez.${copie}`
+        : `Signatures enregistrées, mais l'envoi vers le Drive a échoué. Réessayez.${copie}`,
     };
   }
   revalider();
-  return { succes: true, message: "Attestation signée par les deux parties, archivée dans le Drive et ajoutée aux achats." };
+  return { succes: true, message: `Attestation signée par les deux parties, archivée dans le Drive et ajoutée aux achats.${copie}` };
+}
+
+// Envoi (ou renvoi) de l'exemplaire du vendeur depuis la page de l'attestation.
+export async function envoyerCopie(_etat: EtatAction, fd: FormData): Promise<EtatAction> {
+  await exigerAdmin();
+  const a = champ(fd, "a", 200);
+  const erreur = await envoyerCopieVendeur(champ(fd, "id", 40), a);
+  if (erreur) return { succes: false, message: erreur };
+  revalider();
+  return { succes: true, message: `Copie envoyée à ${a}.` };
 }

@@ -103,6 +103,7 @@ export default async function SignerAttestationPage({ params }: { params: Promis
       <SignatureSurPlace
         id={a.id}
         vendeur={a.vendeurNom}
+        vendeurEmail={a.vendeurEmail ?? ""}
         representant={[a.representant, a.qualite].filter(Boolean).join(", ")}
         maSignature={signature ? signatureEnDataUrl(signature.image) : null}
         dejaInventaire={!!a.factureId}

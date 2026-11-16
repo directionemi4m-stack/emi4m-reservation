@@ -1,6 +1,9 @@
 import { db } from "@/lib/db";
 import { lireCoordonnees } from "@/lib/coordonneesServeur";
 import { genererAttestationAchat } from "@/lib/attestationAchatPdf";
+import { euros } from "@/lib/devis";
+import { envoyerMailDocument } from "@/lib/mail";
+import { noterEchecMail } from "@/lib/echecsMail";
 
 export const chargerAttestation = (id: string) =>
   db.attestationAchat.findUnique({
@@ -84,4 +87,38 @@ export async function enregistrerSignature(
       }
     }
   });
+}
+
+// Exemplaire du vendeur : l'attestation signée sur place, envoyée par mail en pièce jointe
+// (la réponse arrive à la direction). Renvoie un message d'erreur, ou null si c'est parti.
+export async function envoyerCopieVendeur(id: string, a: string): Promise<string | null> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a)) return "Adresse mail du vendeur invalide.";
+  const att = await chargerAttestation(id);
+  if (!att) return "Attestation introuvable.";
+  if (!att.signeSurPlaceLe) return "Seule une attestation signée sur le téléphone peut être envoyée (la version papier est déjà en double exemplaire).";
+  const fichier = await pdfAttestation(id);
+  if (!fichier) return "Attestation introuvable.";
+  const c = await lireCoordonnees();
+  const total = att.lignes.reduce((s, l) => s + l.prixCentimes, 0);
+  const signee = att.signeSurPlaceLe.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" });
+  const message = [
+    "Bonjour,",
+    "",
+    `Veuillez trouver ci-joint votre exemplaire de l'attestation de vente n° ${att.numero}, signée le ${signee} : ${att.lignes.map((l) => l.designation).join(", ")}, pour ${euros(total)}.`,
+    "",
+    "Merci pour cette vente.",
+    "",
+    "Bien cordialement,",
+    [att.representant, att.qualite].filter(Boolean).join(", ") || "La direction",
+    `${c.nom} (${c.sigle})`,
+    c.telephone ?? "",
+  ].join("\n");
+  try {
+    await envoyerMailDocument({ a, sujet: `Votre attestation de vente ${att.numero} — ${c.sigle}`, message: message.trim(), pdf: fichier.pdf, nomFichier: fichier.nomFichier.replace(/\.pdf$/, " - signée.pdf") });
+  } catch (erreur) {
+    await noterEchecMail({ destinataire: `${att.vendeurNom} <${a}>`, objet: `Attestation de vente ${att.numero}`, detail: "Copie de l'attestation signée au vendeur" }, erreur);
+    return "Le mail n'est pas parti. Réessayez depuis la page de l'attestation.";
+  }
+  await db.attestationAchat.update({ where: { id }, data: { copieEnvoyeeLe: new Date(), copieEnvoyeeA: a, vendeurEmail: att.vendeurEmail ?? a } });
+  return null;
 }

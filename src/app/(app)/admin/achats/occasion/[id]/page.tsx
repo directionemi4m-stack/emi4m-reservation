@@ -7,6 +7,7 @@ import { LIBELLE_DESTINATION, LIBELLE_PAIEMENT, montantEnLettres } from "@/lib/a
 import { euros } from "@/lib/devis";
 import { AttestationForm } from "@/components/achats/AttestationForm";
 import { ArchivageAttestation } from "@/components/achats/ArchivageAttestation";
+import { EnvoiCopieVendeur } from "@/components/achats/EnvoiCopieVendeur";
 import { supprimerAttestation } from "../actions";
 
 const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
@@ -123,6 +124,16 @@ export default async function AttestationPage({ params, searchParams }: { params
                 {x.designation}
               </Link>
             ))}
+          </div>
+        )}
+        {a.signeSurPlaceLe && (
+          <div className="rounded-md bg-slate-50 p-3">
+            <p className="mb-2 text-xs font-semibold text-slate-600">Exemplaire du vendeur</p>
+            <EnvoiCopieVendeur
+              id={a.id}
+              email={a.copieEnvoyeeA ?? a.vendeurEmail ?? ""}
+              dejaEnvoyee={a.copieEnvoyeeLe ? `Envoyée le ${dateLongue(a.copieEnvoyeeLe)} à ${a.copieEnvoyeeA}.` : null}
+            />
           </div>
         )}
         <ArchivageAttestation id={a.id} dejaSignee={!!a.signeLe} dejaInventaire={!!a.facture?.articles.length || !!a.factureId} />
