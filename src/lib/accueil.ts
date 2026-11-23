@@ -161,12 +161,15 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
   const campagne = campagneOuverte(aujourdHui, periodeBulletins.anneeDebut, periodeBulletins.trimestre);
 
   // Contrats et avenants : à signer par le prof ; côté direction, ceux en cours de signature.
-  const [mesContratsASigner, mesContrats, contratsEnCours, mesIdees, ideesNouvelles] = await Promise.all([
+  const [mesContratsASigner, mesContrats, contratsEnCours, mesIdees, ideesNouvelles, mesDemandesMateriel, materielATraiter, materielUrgent] = await Promise.all([
     db.contratProf.count({ where: { profId: userId, papier: false, presidenceSigneLe: { not: null }, profSigneLe: null } }),
     db.contratProf.count({ where: { profId: userId, OR: [{ papier: true }, { presidenceSigneLe: { not: null } }] } }),
     estAdmin ? db.contratProf.count({ where: { papier: false, profSigneLe: null } }) : Promise.resolve(0),
     db.idee.count({ where: { auteurId: userId } }),
     estAdmin ? db.idee.count({ where: { statut: "NOUVELLE" } }) : Promise.resolve(0),
+    db.demandeMateriel.count({ where: { auteurId: userId, statut: { in: ["NOUVELLE", "A_L_ETUDE", "VALIDEE", "COMMANDEE"] } } }),
+    estAdmin ? db.demandeMateriel.count({ where: { statut: "NOUVELLE" } }) : Promise.resolve(0),
+    estAdmin ? db.demandeMateriel.count({ where: { urgence: "URGENTE", statut: { in: ["NOUVELLE", "A_L_ETUDE", "VALIDEE"] } } }) : Promise.resolve(0),
   ]);
 
   return {
@@ -242,6 +245,11 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
       ? { statut: `${pluriel(mesContratsASigner, "document")} à signer`, pastille: mesContratsASigner }
       : { statut: mesContrats ? pluriel(mesContrats, "document") : "Aucun document" },
     "/plans-de-scene": { statut: "Concerts et ensembles" },
+    "/materiel": { statut: mesDemandesMateriel ? `${pluriel(mesDemandesMateriel, "demande")} en cours` : "Demander du matériel" },
+    "/admin/materiel": {
+      statut: materielUrgent ? `${materielUrgent} urgente${materielUrgent > 1 ? "s" : ""}` : materielATraiter ? `${pluriel(materielATraiter, "demande")} à traiter` : "Rien de nouveau",
+      pastille: materielATraiter + materielUrgent ? Math.max(materielATraiter, materielUrgent) : undefined,
+    },
     "/idees": { statut: mesIdees ? `${pluriel(mesIdees, "idée")} envoyée${mesIdees > 1 ? "s" : ""}` : "Proposer une idée" },
     "/admin/idees": ideesNouvelles ? { statut: `${ideesNouvelles} nouvelle${ideesNouvelles > 1 ? "s idées" : " idée"}`, pastille: ideesNouvelles } : { statut: "Rien de nouveau" },
     "/admin/contrats": { statut: contratsEnCours ? `${contratsEnCours} en cours de signature` : "Déposer un contrat" },

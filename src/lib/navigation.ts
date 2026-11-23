@@ -41,6 +41,7 @@ export type CleIcone =
   | "contrat"
   | "idee"
   | "scene"
+  | "materiel"
   | "signature"
   | "convention"
   | "rentree"
@@ -92,6 +93,7 @@ export const SECTIONS: SectionNav[] = [
       { href: "/bulletins-cham", label: "Bulletins CHAM", icone: "bulletin", couleur: "vert" },
       { href: "/annuaire", label: "Annuaire", icone: "annuaire", couleur: "neutre" },
       { href: "/securite", label: "Sécurité", icone: "securite", couleur: "neutre" },
+      { href: "/materiel", label: "Demande de matériel", icone: "materiel", couleur: "ambre" },
       { href: "/idees", label: "Boîte à idées", icone: "idee", couleur: "ambre" },
       { href: DRIVE_PROFS, label: "Drive des profs", icone: "drive", couleur: "neutre", externe: true },
     ],
@@ -103,6 +105,7 @@ export const SECTIONS: SectionNav[] = [
       { href: "/admin/demandes", label: "À traiter", icone: "boite", couleur: "neutre" },
       { href: "/admin/locations", label: "Locations", icone: "location", couleur: "ambre" },
       { href: "/admin/inventaire", label: "Inventaire", icone: "inventaire", couleur: "neutre" },
+      { href: "/admin/materiel", label: "Matériel demandé", icone: "materiel", couleur: "ambre" },
       { href: "/admin/achats", label: "Achats", icone: "achats", couleur: "ambre" },
       { href: "/admin/devis", label: "Facturation", icone: "devis", couleur: "ambre" },
       { href: "/admin/cles", label: "Clés et badges", icone: "cles", couleur: "neutre" },

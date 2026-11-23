@@ -102,18 +102,20 @@ model User {
 
   inscriptionsHeureMusicale InscriptionHeureMusicale[]
 
-  suivisCham        SuiviCham[]
-  appreciationsCham AppreciationCham[]
-  signatureBulletin SignatureBulletin?
-  bilansChamSignes  BulletinCham[]      @relation("BilanDirection")
-  abonnementsPush   AbonnementPush[]
-  clesDetenues      RemiseCles[]        @relation("ClesDetenues")
-  clesRemises       RemiseCles[]        @relation("ClesRemisesPar")
-  clesRecues        RemiseCles[]        @relation("ClesRecuesPar")
-  documentsSignes   SignatureDocument[] @relation("DocumentsSignes")
-  contrats          ContratProf[]       @relation("ContratsProf")
-  idees             Idee[]              @relation("IdeesAuteur")
-  plansScene        PlanScene[]         @relation("PlansSceneAuteur")
+  suivisCham           SuiviCham[]
+  appreciationsCham    AppreciationCham[]
+  signatureBulletin    SignatureBulletin?
+  bilansChamSignes     BulletinCham[]        @relation("BilanDirection")
+  abonnementsPush      AbonnementPush[]
+  clesDetenues         RemiseCles[]          @relation("ClesDetenues")
+  clesRemises          RemiseCles[]          @relation("ClesRemisesPar")
+  clesRecues           RemiseCles[]          @relation("ClesRecuesPar")
+  documentsSignes      SignatureDocument[]   @relation("DocumentsSignes")
+  contrats             ContratProf[]         @relation("ContratsProf")
+  idees                Idee[]                @relation("IdeesAuteur")
+  plansScene           PlanScene[]           @relation("PlansSceneAuteur")
+  demandesMateriel     DemandeMateriel[]     @relation("DemandesMateriel")
+  propositionsMateriel PropositionMateriel[] @relation("PropositionsMateriel")
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -1541,4 +1543,60 @@ model PlanScene {
   @@index([evenementId, ordre])
   @@index([inscriptionId])
   @@index([classeId])
+}
+
+// --- Demandes de matériel ---
+
+enum UrgenceMateriel {
+  BASSE
+  NORMALE
+  HAUTE
+  URGENTE
+}
+
+enum StatutDemandeMateriel {
+  NOUVELLE
+  A_L_ETUDE
+  VALIDEE
+  COMMANDEE
+  RECUE
+  REFUSEE
+}
+
+// Matériel demandé par un prof, avec son niveau d'urgence ; la direction suit la demande
+// jusqu'à la réception. Gardée si le compte du prof disparaît.
+model DemandeMateriel {
+  id           String                @id @default(cuid())
+  auteurId     String?
+  auteur       User?                 @relation("DemandesMateriel", fields: [auteurId], references: [id], onDelete: SetNull)
+  titre        String
+  quantite     Int                   @default(1)
+  details      String?
+  urgence      UrgenceMateriel       @default(NORMALE)
+  statut       StatutDemandeMateriel @default(NOUVELLE)
+  reponse      String?
+  reponduLe    DateTime?
+  creeLe       DateTime              @default(now())
+  majLe        DateTime              @updatedAt
+  propositions PropositionMateriel[]
+
+  @@index([statut, urgence])
+  @@index([auteurId])
+}
+
+// Une proposition d'achat pour une demande : lien vers le site, prix unitaire, précision.
+// La direction peut en retenir une.
+model PropositionMateriel {
+  id           String          @id @default(cuid())
+  demandeId    String
+  demande      DemandeMateriel @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+  libelle      String?
+  url          String?
+  prixCentimes Int?
+  retenue      Boolean         @default(false)
+  auteurId     String?
+  auteur       User?           @relation("PropositionsMateriel", fields: [auteurId], references: [id], onDelete: SetNull)
+  creeLe       DateTime        @default(now())
+
+  @@index([demandeId])
 }

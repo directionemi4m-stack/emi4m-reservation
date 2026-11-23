@@ -642,3 +642,24 @@ export async function envoyerMailSuiteIdee(params: { prof: { prenom: string; ema
     }),
   });
 }
+
+// Demande de matériel : la direction a répondu ou fait avancer la demande d'un prof.
+export async function envoyerMailSuiteDemandeMateriel(params: { prof: { prenom: string; email: string }; titre: string; statut: string; reponse: string | null; url: string }) {
+  const { prof, titre, statut, reponse, url } = params;
+  const transport = creerTransporteur();
+  const intro = `Votre demande de matériel « ${titre} » est maintenant : ${statut}.`;
+  await transport.sendMail({
+    to: prof.email,
+    from: process.env.EMAIL_FROM,
+    replyTo: EMAIL_DIRECTION,
+    subject: `Demande de matériel — ${titre} : ${statut}`,
+    text: `Bonjour ${prof.prenom},\n\n${intro}${reponse ? `\n\nRéponse de la direction :\n${reponse}` : ""}\n\n${url}\n\nLa direction de l'EMI4M`,
+    html: htmlLienMotDePasse({
+      titre: "Demande de matériel",
+      intro: `Bonjour ${h(prof.prenom)},<br><br>${h(intro)}${reponse ? `<br><br><strong>Réponse de la direction :</strong><br>${h(reponse).replace(/\n/g, "<br>")}` : ""}`,
+      url,
+      libelleBouton: "Voir mes demandes",
+      mention: "",
+    }),
+  });
+}
