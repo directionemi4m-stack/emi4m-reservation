@@ -253,6 +253,23 @@ export async function signerTousLesBulletins(formData: FormData): Promise<EtatAc
   return { succes: true, eleveIds };
 }
 
+// Retire la signature de la direction d'un bulletin (ou de tous) tant qu'il n'est pas envoyé.
+// Les appréciations et les signatures des profs ne sont pas touchées.
+export async function retirerSignatureDirection(formData: FormData): Promise<EtatAction & { eleveIds?: string[] }> {
+  const refus = await exigerDirection();
+  if (refus) return refus;
+  const periode = lirePeriode(formData);
+  if (!periode) return { succes: false, message: "Trimestre invalide." };
+  const eleveId = champ(formData, "eleveId");
+  const ou = { ...periode, signeDirectionLe: { not: null }, envoyeLe: null, ...(eleveId ? { eleveId } : {}) };
+  const cibles = await db.bulletinCham.findMany({ where: ou, select: { eleveId: true } });
+  if (cibles.length === 0) return { succes: false, message: "Aucune signature à retirer sur un bulletin non envoyé." };
+  await db.bulletinCham.updateMany({ where: ou, data: { signatureDirection: null, directionId: null, directionNom: null, signeDirectionLe: null } });
+  revalidatePath("/bulletins-cham");
+  if (eleveId) revalidatePath(`/bulletins-cham/${eleveId}`);
+  return { succes: true, eleveIds: cibles.map((c) => c.eleveId) };
+}
+
 // Met à jour le PDF d'un bulletin dans le Drive, un par un après la signature groupée.
 export async function actualiserPdfBulletin(eleveId: string, anneeDebut: number, trimestre: number): Promise<boolean> {
   const refus = await exigerDirection();

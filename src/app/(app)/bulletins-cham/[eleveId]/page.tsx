@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { libellePeriode, MATIERES_CHAM, periodeCourante, signatureEnDataUrl } from "@/lib/bulletinsCham";
 import { AjouterMaPartie, BoutonRecompiler, FormAppreciation, FormSignatureDirection } from "@/components/bulletins/FormsBulletin";
+import { RetirerSignature } from "@/components/bulletins/RetirerSignature";
 import { nomDirection } from "@/lib/bulletinsChamServeur";
 import { MAIL_DIRECTION } from "@/lib/clesServeur";
 
@@ -44,6 +45,8 @@ export default async function BulletinElevePage({
   if (!eleve) notFound();
 
   const signatureParDefaut = !impersonation && maSignature ? signatureEnDataUrl(maSignature.image) : null;
+  const signeDirection = bulletin?.signeDirectionLe?.getTime() ?? 0;
+  const modifieApresSignature = signeDirection > 0 && appreciations.some((a) => a.signeLe.getTime() > signeDirection);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
@@ -117,9 +120,25 @@ export default async function BulletinElevePage({
         {bulletin?.signeDirectionLe ? (
           <p className="text-center text-xs text-slate-500">
             Signé par {bulletin.directionNom ?? direction} le {dateCourte(bulletin.signeDirectionLe)}
+            {!bulletin.envoyeLe && !impersonation && estAdmin && (
+              <>
+                {" · "}
+                <RetirerSignature
+                  periode={periode}
+                  eleveId={eleve.id}
+                  question={`Retirer votre signature du bulletin de ${eleve.prenom} ${eleve.nom} ?`}
+                  libelle="Retirer ma signature"
+                />
+              </>
+            )}
           </p>
         ) : (
           <p className="text-center text-xs text-slate-500">{direction}</p>
+        )}
+        {estAdmin && modifieApresSignature && (
+          <p className="rounded-md bg-amber-50 p-2 text-center text-xs font-medium text-amber-800">
+            ⚠ Un prof a modifié sa partie après votre signature : relisez, puis signez à nouveau pour valider.
+          </p>
         )}
         {estAdmin && (
           <>
@@ -139,6 +158,14 @@ export default async function BulletinElevePage({
       {estAdmin && (
         <section className="flex flex-col gap-2 rounded-lg bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-brand-slate">Bulletin compilé (PDF)</h2>
+          <a
+            href={`/api/bulletins-cham/${eleve.id}?annee=${periode.anneeDebut}&t=${periode.trimestre}`}
+            target="_blank"
+            rel="noopener"
+            className="w-fit rounded-md bg-brand-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-accent/90"
+          >
+            Voir le bulletin tel qu&apos;il sera envoyé
+          </a>
           {bulletin?.documentUrl ? (
             <p className="text-sm text-slate-600">
               <a href={bulletin.documentUrl} target="_blank" rel="noreferrer" className="text-brand-accent hover:underline">

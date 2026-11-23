@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { actualiserPdfBulletin, envoyerBulletinConfirme, signerTousLesBulletins } from "@/app/(app)/bulletins-cham/actions";
 import { PadSignature } from "@/components/bulletins/PadSignature";
+import { RetirerSignature } from "@/components/bulletins/RetirerSignature";
 import { adresseValide, contenuMailBulletin } from "@/lib/bulletinsCham";
 
 export interface LigneEnvoi {
@@ -20,6 +22,8 @@ export interface LigneEnvoi {
   envoyeLe: string | null;
   envoyeA: string | null;
   documentUrl: string | null;
+  modifieApresSignature: boolean;
+  modifieApresEnvoi: boolean;
 }
 
 interface Periode {
@@ -37,6 +41,7 @@ const boutonPrincipal = "w-fit rounded-md bg-brand-accent px-4 py-2 text-sm font
 const boutonSecondaire = "rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50";
 const date = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" });
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? "s" : ""}`;
+const lienPdf = (eleveId: string, p: Periode) => `/api/bulletins-cham/${eleveId}?annee=${p.anneeDebut}&t=${p.trimestre}`;
 
 // Signature de la direction sur tous les bulletins qui ne l'ont pas encore.
 function SignatureGroupee({ lignes, periode, maSignature, directionNom }: { lignes: LigneEnvoi[]; periode: Periode; maSignature: string | null; directionNom: string }) {
@@ -76,13 +81,23 @@ function SignatureGroupee({ lignes, periode, maSignature, directionNom }: { lign
     router.refresh();
   }
 
-  if (aSigner.length === 0) return message ? <p className={`text-sm ${message.ok ? "text-status-dispo" : "text-status-occupee"}`}>{message.texte}</p> : null;
+  const retirables = lignes.filter((l) => l.signe && !l.envoyeLe).length;
+  if (aSigner.length === 0 && retirables === 0) return message ? <p className={`text-sm ${message.ok ? "text-status-dispo" : "text-status-occupee"}`}>{message.texte}</p> : null;
   return (
     <div className="flex flex-col gap-2">
-      {!ouvert && (
+      {!ouvert && aSigner.length > 0 && (
         <button type="button" onClick={() => setOuvert(true)} className={boutonPrincipal}>
           ✍️ Appliquer ma signature sur tous les bulletins ({aSigner.length})…
         </button>
+      )}
+      {!ouvert && retirables > 0 && (
+        <span className="flex flex-wrap items-center gap-2">
+          <RetirerSignature
+            periode={periode}
+            question={`Retirer votre signature des ${retirables} bulletin(s) pas encore envoyé(s) ? Les textes et les signatures des profs ne changent pas.`}
+            libelle={`Retirer ma signature des ${pluriel(retirables, "bulletin")} non envoyé${retirables > 1 ? "s" : ""}`}
+          />
+        </span>
       )}
       {ouvert && (
         <form onSubmit={confirmer} className="flex flex-col gap-3 rounded-md border border-brand-accent/40 bg-sky-50/50 p-3">
@@ -90,7 +105,7 @@ function SignatureGroupee({ lignes, periode, maSignature, directionNom }: { lign
           <input type="hidden" name="trimestre" value={periode.trimestre} />
           <div>
             <p className="text-sm font-semibold text-brand-slate">Signer {pluriel(nombre, "bulletin")} au nom de : {directionNom}</p>
-            <p className="text-xs text-slate-600">Rien n&apos;est envoyé aux familles à cette étape. Une signature déjà posée n&apos;est pas remplacée.</p>
+            <p className="text-xs text-slate-600">Rien n&apos;est envoyé aux familles à cette étape. Vous et les profs pourrez encore tout relire et modifier, et vous pourrez retirer votre signature.</p>
           </div>
           <PadSignature nom="signature" initiale={maSignature} />
           {nonComplets.length > 0 && (
@@ -128,7 +143,7 @@ function ConfirmationEnvoi({ lignes, periode, renvoi, surFermer }: { lignes: Lig
   const router = useRouter();
   const adresseDe = (l: LigneEnvoi) => (renvoi ? (l.envoyeA ?? l.email ?? "") : (l.email ?? ""));
   const [adresses, setAdresses] = useState<Record<string, string>>(() => Object.fromEntries(lignes.map((l) => [l.eleveId, adresseDe(l)])));
-  const [coches, setCoches] = useState<Set<string>>(() => new Set(lignes.filter((l) => adresseValide(adresseDe(l))).map((l) => l.eleveId)));
+  const [coches, setCoches] = useState<Set<string>>(() => new Set(lignes.filter((l) => adresseValide(adresseDe(l)) && (lignes.length === 1 || !l.modifieApresSignature)).map((l) => l.eleveId)));
   const [apercuId, setApercuId] = useState(lignes[0]?.eleveId);
   const [garder, setGarder] = useState(true);
   const [progression, setProgression] = useState<{ fait: number; total: number } | null>(null);
@@ -217,14 +232,10 @@ function ConfirmationEnvoi({ lignes, periode, renvoi, surFermer }: { lignes: Lig
         <p className="mb-2 break-words text-slate-700">
           <span className="text-slate-500">Pièce jointe : </span>
           {contenu.nomFichier}
-          {apercu.documentUrl && (
-            <>
-              {" · "}
-              <a href={apercu.documentUrl} target="_blank" rel="noopener noreferrer" className="text-brand-accent hover:underline">
-                voir le bulletin
-              </a>
-            </>
-          )}
+          {" · "}
+          <a href={lienPdf(apercu.eleveId, periode)} target="_blank" rel="noopener" className="font-medium text-brand-accent hover:underline">
+            voir le bulletin
+          </a>
         </p>
         <div className="flex flex-col gap-2 border-t border-slate-100 pt-2 text-slate-700">
           {contenu.paragraphes.map((p) => (
@@ -245,7 +256,7 @@ function ConfirmationEnvoi({ lignes, periode, renvoi, surFermer }: { lignes: Lig
             const coche = coches.has(l.eleveId);
             const erreur = coche && !adresseValide(a);
             return (
-              <li key={l.eleveId} className="flex flex-col gap-1 p-2 sm:flex-row sm:items-center sm:gap-2">
+              <li key={l.eleveId} className="flex flex-col gap-1 p-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
                 <label className="flex min-w-0 items-center gap-2 text-sm text-slate-700 sm:w-52 sm:shrink-0">
                   <input
                     type="checkbox"
@@ -268,6 +279,10 @@ function ConfirmationEnvoi({ lignes, periode, renvoi, surFermer }: { lignes: Lig
                   aria-invalid={erreur}
                   className={`min-w-0 flex-1 rounded-md border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30 ${erreur ? "border-status-occupee" : "border-slate-300"}`}
                 />
+                <a href={lienPdf(l.eleveId, periode)} target="_blank" rel="noopener" className="shrink-0 text-xs font-medium text-brand-accent hover:underline">
+                  Voir le PDF
+                </a>
+                {l.modifieApresSignature && <span className="text-xs font-medium text-amber-800 sm:basis-full">⚠ Modifié après votre signature : à relire</span>}
               </li>
             );
           })}
@@ -337,6 +352,7 @@ export function EnvoiFamilles({
           Un mail par élève avec son bulletin en PDF. Chaque envoi passe par un écran de confirmation où vous relisez le mail et pouvez changer
           l&apos;adresse. Les familles qui répondent écrivent à la direction.
         </p>
+        <p className="mt-1 text-xs font-medium text-slate-600">Signer ne bloque rien : vous et les profs pouvez relire et modifier les bulletins à tout moment.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
@@ -363,7 +379,7 @@ export function EnvoiFamilles({
       )}
 
       <details className="text-sm">
-        <summary className="cursor-pointer text-slate-600 hover:text-brand-slate">Détail par élève</summary>
+        <summary className="cursor-pointer font-medium text-brand-accent hover:underline">Consulter ou modifier chaque bulletin ({lignes.length})</summary>
         <ul className="mt-2 divide-y divide-slate-100">
           {lignes.map((l) => (
             <li key={l.eleveId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
@@ -371,6 +387,19 @@ export function EnvoiFamilles({
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BADGES[l.etat].classe}`}>
                 {l.etat === "envoye" && l.envoyeLe ? `Envoyé le ${date(l.envoyeLe)}` : BADGES[l.etat].texte}
               </span>
+              <span className="flex items-center gap-2">
+                {l.aDesParties && (
+                  <a href={lienPdf(l.eleveId, periode)} target="_blank" rel="noopener" className="text-xs font-medium text-brand-accent hover:underline">
+                    Voir le PDF
+                  </a>
+                )}
+                <Link href={`/bulletins-cham/${l.eleveId}?t=${periode.trimestre}`} className="text-xs font-medium text-brand-accent hover:underline">
+                  Ouvrir
+                </Link>
+              </span>
+              {!bloque && l.signe && !l.envoyeLe && (
+                <RetirerSignature periode={periode} eleveId={l.eleveId} question={`Retirer votre signature du bulletin de ${l.libelle} ?`} libelle="Retirer ma signature" />
+              )}
               {!bloque && (l.etat === "pret" || l.etat === "sans_mail" || l.etat === "envoye") && (
                 <button
                   type="button"
@@ -383,6 +412,8 @@ export function EnvoiFamilles({
                   {l.etat === "envoye" ? "Renvoyer…" : "Envoyer…"}
                 </button>
               )}
+              {l.modifieApresSignature && !l.modifieApresEnvoi && <span className="w-full text-xs font-medium text-amber-800">⚠ Modifié après votre signature : à relire</span>}
+              {l.modifieApresEnvoi && <span className="w-full text-xs font-medium text-amber-800">⚠ Modifié depuis l&apos;envoi : la famille a l&apos;ancienne version, renvoyez-le si besoin</span>}
               {l.etat === "envoye" && l.envoyeA && <span className="w-full break-all text-xs text-slate-500">À {l.envoyeA}</span>}
               {l.etat === "incomplet" && <span className="w-full text-xs text-slate-500">Manque : {l.manque.join(", ")}</span>}
               {l.etat === "sans_mail" && <span className="w-full text-xs text-slate-500">Adresse à indiquer dans l&apos;écran de confirmation.</span>}

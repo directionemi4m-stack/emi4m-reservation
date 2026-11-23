@@ -90,6 +90,8 @@ export interface EnvoiEleve {
   envoyeLe: Date | null;
   envoyeA: string | null;
   documentUrl: string | null;
+  modifieApresSignature: boolean; // un prof a re-signé sa partie après la direction
+  modifieApresEnvoi: boolean; // la famille a reçu une version plus ancienne
 }
 
 // Pour chaque élève CHAM, où en est l'envoi de son bulletin : un bulletin n'est complet
@@ -99,7 +101,7 @@ export async function etatsEnvoi(anneeDebut: number, trimestre: number): Promise
   const [eleves, suivis, signees, bulletins, direction] = await Promise.all([
     db.eleveCham.findMany({ orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true, email: true } }),
     db.suiviCham.findMany({ include: { prof: { select: { prenom: true, nom: true, email: true } } } }),
-    db.appreciationCham.findMany({ where: { anneeDebut, trimestre }, select: { eleveId: true, profId: true, matiere: true } }),
+    db.appreciationCham.findMany({ where: { anneeDebut, trimestre }, select: { eleveId: true, profId: true, matiere: true, signeLe: true } }),
     db.bulletinCham.findMany({ where: { anneeDebut, trimestre }, select: { eleveId: true, signeDirectionLe: true, envoyeLe: true, envoyeA: true, documentUrl: true } }),
     nomDirection(),
   ]);
@@ -115,6 +117,7 @@ export async function etatsEnvoi(anneeDebut: number, trimestre: number): Promise
         .filter((s) => !faites.has(`${s.eleveId}|${s.profId}|${s.matiere}`))
         .map((s) => `${s.precision || libelleMatiere(s.matiere)} (${s.prof.email === MAIL_DIRECTION ? direction : nomComplet(s.prof)})`),
     ];
+    const derniere = Math.max(0, ...signees.filter((a) => a.eleveId === e.id).map((a) => a.signeLe.getTime()));
     const manque = [...manqueProfs, ...(bulletin?.signeDirectionLe ? [] : ["signature de la direction"])];
     const etat: EtatEnvoi = bulletin?.envoyeLe
       ? "envoye"
@@ -137,8 +140,17 @@ export async function etatsEnvoi(anneeDebut: number, trimestre: number): Promise
       envoyeLe: bulletin?.envoyeLe ?? null,
       envoyeA: bulletin?.envoyeA ?? null,
       documentUrl: bulletin?.documentUrl ?? null,
+      modifieApresSignature: Boolean(bulletin?.signeDirectionLe && derniere > bulletin.signeDirectionLe.getTime()),
+      modifieApresEnvoi: Boolean(bulletin?.envoyeLe && derniere > bulletin.envoyeLe.getTime()),
     };
   });
+}
+
+// Le PDF tel qu'il partirait maintenant, pour le relire avant l'envoi.
+export async function pdfBulletinActuel(eleveId: string, anneeDebut: number, trimestre: number) {
+  const prepare = await preparerBulletin(eleveId, anneeDebut, trimestre);
+  if (!prepare) return null;
+  return { pdf: await prepare.fabriquerPdf(), nomFichier: contenuMailBulletin(prepare.eleve, anneeDebut, trimestre).nomFichier };
 }
 
 // Envoie le bulletin d'un élève à l'adresse confirmée par la direction, PDF en pièce jointe.
