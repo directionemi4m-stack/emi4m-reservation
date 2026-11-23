@@ -1616,3 +1616,16 @@ model TableauMateriel {
   majLe     DateTime?
   echecLe   DateTime? // dernière mise à jour ratée, tant qu'elle n'est pas rattrapée
 }
+
+// Dates des bulletins CHAM d'une année scolaire, réglées par la direction (sans ligne : les
+// dates habituelles). L'historique des envois reste dans RappelBulletinCham.
+model CalendrierBulletinCham {
+  id         String   @id @default(cuid())
+  anneeDebut Int
+  trimestre  Int
+  ouverture  DateTime @db.Date
+  relance    DateTime @db.Date
+  majLe      DateTime @updatedAt
+
+  @@unique([anneeDebut, trimestre])
+}

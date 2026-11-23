@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decouperLignes, lireSignature, periodeCourante, rappelDuJour } from "./bulletinsCham";
+import { calendrierParDefaut, campagneOuverte, decouperLignes, erreurCalendrier, lireSignature, periodeCourante, rappelDuJour } from "./bulletinsCham";
 
 const d = (iso: string) => new Date(`${iso}T07:00:00.000Z`);
 
@@ -50,5 +50,61 @@ describe("decouperLignes", () => {
 
   it("coupe un mot trop long", () => {
     expect(decouperLignes("abcdefghij", 4, mesure)).toEqual(["abcd", "efgh", "ij"]);
+  });
+});
+
+describe("calendrier modifié", () => {
+  const jour = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+  const calendrier = () => {
+    const c = calendrierParDefaut(2026);
+    c[2] = { ouverture: jour("2027-02-01"), relance: jour("2027-02-10") };
+    return c;
+  };
+
+  it("suit les dates choisies pour le trimestre et les rappels", () => {
+    const c = calendrier();
+    expect(periodeCourante(d("2027-01-31"), c).trimestre).toBe(1);
+    expect(periodeCourante(d("2027-02-01"), c).trimestre).toBe(2);
+    expect(campagneOuverte(d("2027-02-01"), 2026, 2, c)).toBe(true);
+    expect(rappelDuJour(d("2027-01-31"), c)).toBeNull();
+    expect(rappelDuJour(d("2027-02-01"), c)).toEqual({ anneeDebut: 2026, trimestre: 2, type: "OUVERTURE" });
+    expect(rappelDuJour(d("2027-02-10"), c)).toEqual({ anneeDebut: 2026, trimestre: 2, type: "RELANCE" });
+    expect(rappelDuJour(d("2027-02-17"), c)).toBeNull();
+  });
+
+  it("donne priorité à l'annonce du trimestre suivant", () => {
+    const c = calendrierParDefaut(2026);
+    c[2] = { ouverture: jour("2027-02-15"), relance: jour("2027-05-10") };
+    c[3] = { ouverture: jour("2027-05-12"), relance: jour("2027-05-20") };
+    expect(rappelDuJour(d("2027-05-12"), c)).toEqual({ anneeDebut: 2026, trimestre: 3, type: "OUVERTURE" });
+  });
+
+  const verifier = (c: ReturnType<typeof calendrier>, envoyes: string[] = ["1-OUVERTURE", "1-RELANCE"]) =>
+    erreurCalendrier({ anneeDebut: 2026, calendrier: c, avant: calendrierParDefaut(2026), envoyes: new Set(envoyes), aujourdHui: d("2026-11-23") });
+
+  it("accepte des dates à venir cohérentes", () => {
+    expect(verifier(calendrier())).toBeNull();
+    expect(verifier(calendrierParDefaut(2026))).toBeNull();
+  });
+
+  it("refuse une relance avant l'annonce, un ordre incohérent ou une date hors de l'année", () => {
+    const a = calendrier();
+    a[2].relance = jour("2027-01-20");
+    expect(verifier(a)).toContain("relance doit être après");
+    const b = calendrier();
+    b[2].ouverture = jour("2026-11-19");
+    expect(verifier(b)).toContain("doit être après la relance");
+    const e = calendrier();
+    e[3] = { ouverture: jour("2027-08-30"), relance: jour("2027-09-02") };
+    expect(verifier(e)).toContain("année scolaire");
+  });
+
+  it("refuse de déplacer un rappel à aujourd'hui ou avant : rien ne part par surprise", () => {
+    const c = calendrierParDefaut(2026);
+    c[1] = { ouverture: jour("2026-11-23"), relance: jour("2026-11-30") };
+    expect(verifier(c, [])).toContain("à partir de demain");
+    const demain = calendrierParDefaut(2026);
+    demain[1] = { ouverture: jour("2026-11-24"), relance: jour("2026-11-30") };
+    expect(verifier(demain, [])).toBeNull();
   });
 });

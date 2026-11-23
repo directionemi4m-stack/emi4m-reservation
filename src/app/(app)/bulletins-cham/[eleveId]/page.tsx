@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { libellePeriode, MATIERES_CHAM, periodeCourante, signatureEnDataUrl } from "@/lib/bulletinsCham";
+import { libellePeriode, MATIERES_CHAM, signatureEnDataUrl } from "@/lib/bulletinsCham";
+import { contexteBulletins } from "@/lib/calendrierBulletinsServeur";
 import { AjouterMaPartie, BoutonRecompiler, FormAppreciation, FormSignatureDirection } from "@/components/bulletins/FormsBulletin";
 import { RetirerSignature } from "@/components/bulletins/RetirerSignature";
 import { nomDirection } from "@/lib/bulletinsChamServeur";
@@ -26,7 +27,7 @@ export default async function BulletinElevePage({
   const estAdmin = session!.user.role === "ADMIN";
   const impersonation = Boolean(session!.user.impersonation);
 
-  const courante = periodeCourante(new Date());
+  const { periode: courante } = await contexteBulletins(new Date());
   const t = Number((await searchParams).t);
   const periode = { anneeDebut: courante.anneeDebut, trimestre: [1, 2, 3].includes(t) ? t : courante.trimestre };
 

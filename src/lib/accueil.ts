@@ -4,7 +4,8 @@ import { dureeEnMinutes } from "@/lib/activiteAccessoire";
 import { ajouterJours, lundiDe } from "@/lib/planning";
 import { libelleTypeEvenement } from "@/lib/saison";
 import { DRIVE_PROFS } from "@/lib/navigation";
-import { campagneOuverte, periodeCourante } from "@/lib/bulletinsCham";
+import { campagneOuverte } from "@/lib/bulletinsCham";
+import { contexteBulletins } from "@/lib/calendrierBulletinsServeur";
 import { MAIL_DIRECTION, salariesDuRegistre } from "@/lib/clesServeur";
 import { seancesSansAppel } from "@/lib/appelsServeur";
 import { joursFeries } from "@/lib/joursFeries";
@@ -42,7 +43,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
   const finSemaine = ajouterJours(lundiDe(aujourdHui), 7);
   const debutMois = new Date(Date.UTC(aujourdHui.getUTCFullYear(), aujourdHui.getUTCMonth(), 1));
   const finMois = new Date(Date.UTC(aujourdHui.getUTCFullYear(), aujourdHui.getUTCMonth() + 1, 1));
-  const periodeBulletins = periodeCourante(aujourdHui);
+  const { periode: periodeBulletins, calendrier: calendrierBulletins } = await contexteBulletins(aujourdHui);
   const feries = await joursFeries({ gte: aujourdHui, lt: ajouterJours(aujourdHui, 120) });
 
   const [
@@ -158,7 +159,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
   // Le compte partagé de la direction ne signe pas.
   const documentsASigner = moi?.email === MAIL_DIRECTION ? 0 : courantes.filter((sigs) => !sigs.some((x) => x.userId === userId)).length;
   const signaturesManquantes = courantes.reduce((n, sigs) => n + Math.max(0, nbSignataires - sigs.length), 0);
-  const campagne = campagneOuverte(aujourdHui, periodeBulletins.anneeDebut, periodeBulletins.trimestre);
+  const campagne = campagneOuverte(aujourdHui, periodeBulletins.anneeDebut, periodeBulletins.trimestre, calendrierBulletins);
 
   // Contrats et avenants : à signer par le prof ; côté direction, ceux en cours de signature.
   const [mesContratsASigner, mesContrats, contratsEnCours, mesIdees, ideesNouvelles, mesDemandesMateriel, materielATraiter, materielUrgent] = await Promise.all([

@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
 import { genererBulletinPdf } from "@/lib/bulletinPdf";
-import { contenuMailBulletin, libelleDirection, libelleMatiere, libellePeriode, libelleTrimestre, rappelDuJour, type TypeRappel } from "@/lib/bulletinsCham";
+import { contenuMailBulletin, libelleDirection, libelleMatiere, libellePeriode, libelleTrimestre, periodeCourante, rappelDuJour, type TypeRappel } from "@/lib/bulletinsCham";
 import { MAIL_DIRECTION } from "@/lib/clesServeur";
 import { lireCoordonnees } from "@/lib/coordonneesServeur";
+import { lireCalendrierBulletins } from "@/lib/calendrierBulletinsServeur";
 import { deposerBulletinCham } from "@/lib/drive";
 import { envoyerMailBulletinFamille, envoyerMailRappelBulletins } from "@/lib/mail";
 import { envoyerPush } from "@/lib/push";
@@ -193,7 +194,8 @@ export async function bulletinsARemplir(anneeDebut: number, trimestre: number): 
 // Passage quotidien du cron : le 15, annonce à tous les profs ; 4 jours après, relance de
 // ceux qui ont encore des bulletins à signer. Chaque envoi n'a lieu qu'une fois.
 export async function envoyerRappelsBulletins(maintenant: Date, urlBase: string) {
-  const rappel = rappelDuJour(maintenant);
+  const calendrier = await lireCalendrierBulletins(periodeCourante(maintenant).anneeDebut);
+  const rappel = rappelDuJour(maintenant, calendrier);
   if (!rappel) return { envoi: null };
   const { anneeDebut, trimestre, type } = rappel;
 

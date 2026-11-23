@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { adresseValide, lireSignature, MATIERES_CHAM, periodeCourante, type MatiereCham } from "@/lib/bulletinsCham";
+import { adresseValide, erreurCalendrier, lireSignature, MATIERES_CHAM, periodeCourante, TRIMESTRES, type CalendrierBulletins, type MatiereCham } from "@/lib/bulletinsCham";
+import { lireCalendrierBulletins } from "@/lib/calendrierBulletinsServeur";
 import { compilerBulletin, envoyerBulletinFamille, etatsEnvoi, nomDirection } from "@/lib/bulletinsChamServeur";
 import { MAIL_DIRECTION } from "@/lib/clesServeur";
 
@@ -172,6 +173,7 @@ export async function signerDirection(_etat: EtatAction, formData: FormData): Pr
 }
 
 // --- Envoi aux familles (direction) ---
+// (Le calendrier des rappels est en fin de fichier.)
 
 async function exigerDirection(): Promise<EtatAction | null> {
   const s = await session();
@@ -286,4 +288,48 @@ export async function recompilerBulletin(_etat: EtatAction, formData: FormData):
   const avertissement = await recompiler(eleveId, periode.anneeDebut, periode.trimestre);
   revalidatePath(`/bulletins-cham/${eleveId}`);
   return avertissement ? { succes: false, message: avertissement.replace("Enregistré, mais l", "L") } : { succes: true, message: "PDF mis à jour dans le Drive." };
+}
+
+// --- Calendrier des rappels aux profs (direction) ---
+
+// Enregistre les dates de l'année en cours. Un rappel déjà parti garde sa date.
+export async function enregistrerCalendrierBulletins(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+  const refus = await exigerDirection();
+  if (refus) return refus;
+  const maintenant = new Date();
+  const anneeDebut = periodeCourante(maintenant).anneeDebut;
+  if (Number(formData.get("anneeDebut")) !== anneeDebut) return { succes: false, message: "Année scolaire invalide : rechargez la page." };
+
+  const [avant, partis] = await Promise.all([lireCalendrierBulletins(anneeDebut), db.rappelBulletinCham.findMany({ where: { anneeDebut }, select: { trimestre: true, type: true } })]);
+  const envoyes = new Set(partis.map((r) => `${r.trimestre}-${r.type}`));
+  const lire = (nom: string, trimestre: number, type: "OUVERTURE" | "RELANCE", defaut: Date) => {
+    if (envoyes.has(`${trimestre}-${type}`)) return defaut;
+    const v = champ(formData, nom);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+    const d = new Date(`${v}T00:00:00.000Z`);
+    return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v ? null : d;
+  };
+  const calendrier: CalendrierBulletins = {};
+  for (const t of TRIMESTRES) {
+    const ouverture = lire(`ouverture${t}`, t, "OUVERTURE", avant[t].ouverture);
+    const relance = lire(`relance${t}`, t, "RELANCE", avant[t].relance);
+    if (!ouverture || !relance) return { succes: false, message: "Indiquez toutes les dates." };
+    calendrier[t] = { ouverture, relance };
+  }
+  const aujourdHui = new Date(`${maintenant.toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" })}T00:00:00.000Z`);
+  const erreur = erreurCalendrier({ anneeDebut, calendrier, avant, envoyes, aujourdHui });
+  if (erreur) return { succes: false, message: erreur };
+
+  await db.$transaction(
+    TRIMESTRES.map((trimestre) =>
+      db.calendrierBulletinCham.upsert({
+        where: { anneeDebut_trimestre: { anneeDebut, trimestre } },
+        create: { anneeDebut, trimestre, ...calendrier[trimestre] },
+        update: calendrier[trimestre],
+      })
+    )
+  );
+  revalidatePath("/bulletins-cham", "layout");
+  revalidatePath("/accueil");
+  return { succes: true, message: "Dates enregistrées." };
 }

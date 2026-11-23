@@ -8,14 +8,15 @@ import {
   libellePeriode,
   libelleTrimestre,
   MATIERES_CHAM,
-  periodeCourante,
   signatureEnDataUrl,
   TRIMESTRES,
 } from "@/lib/bulletinsCham";
 import { retirerSuivi } from "@/app/(app)/bulletins-cham/actions";
 import { AjouterSuiviForm } from "@/components/bulletins/FormsBulletin";
 import { ActiverNotifications } from "@/components/notifications/ActiverNotifications";
+import { CalendrierRappels } from "@/components/bulletins/CalendrierRappels";
 import { EnvoiFamilles } from "@/components/bulletins/EnvoiFamilles";
+import { contexteBulletins } from "@/lib/calendrierBulletinsServeur";
 import { etatsEnvoi, nomDirection } from "@/lib/bulletinsChamServeur";
 
 // Signature et envoi groupés : traités élève par élève depuis le navigateur.
@@ -23,6 +24,16 @@ export const maxDuration = 300;
 
 const ordreMatiere = (m: string) => MATIERES_CHAM.findIndex((x) => x.valeur === m);
 const dateCourte = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" });
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+const dateHeure = (d: Date) => {
+  const fr = { timeZone: "Europe/Paris" } as const;
+  return `${d.toLocaleDateString("fr-FR", { ...fr, weekday: "long", day: "numeric", month: "long", year: "numeric" })} à ${d.toLocaleTimeString("fr-FR", { ...fr, hour: "2-digit", minute: "2-digit" }).replace(":", "h")}`;
+};
+// Aujourd'hui et demain à Paris, au format des champs de date.
+function joursRepere() {
+  const aujourdHui = new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" });
+  return { aujourdHui, demain: new Date(Date.parse(`${aujourdHui}T00:00:00.000Z`) + 86_400_000).toISOString().slice(0, 10) };
+}
 
 export default async function BulletinsChamPage({ searchParams }: { searchParams: Promise<{ t?: string }> }) {
   const session = await auth();
@@ -30,12 +41,12 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
   const estAdmin = session!.user.role === "ADMIN";
   const impersonation = Boolean(session!.user.impersonation);
 
-  const courante = periodeCourante(new Date());
+  const { periode: courante, calendrier } = await contexteBulletins(new Date());
   const t = Number((await searchParams).t);
   const periode = { anneeDebut: courante.anneeDebut, trimestre: [1, 2, 3].includes(t) ? t : courante.trimestre };
-  const ouverte = campagneOuverte(new Date(), periode.anneeDebut, periode.trimestre);
+  const ouverte = campagneOuverte(new Date(), periode.anneeDebut, periode.trimestre, calendrier);
 
-  const [eleves, mesSuivis, mesAppreciations, tousSuivis, toutesAppreciations, bulletins, envois, maSignature, direction] = await Promise.all([
+  const [eleves, mesSuivis, mesAppreciations, tousSuivis, toutesAppreciations, bulletins, envois, maSignature, direction, rappels] = await Promise.all([
     db.eleveCham.findMany({ orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true } }),
     db.suiviCham.findMany({ where: { profId: userId }, include: { eleve: { select: { prenom: true, nom: true } } } }),
     db.appreciationCham.findMany({ where: { profId: userId, ...periode }, select: { eleveId: true, matiere: true, signeLe: true } }),
@@ -49,7 +60,11 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
     estAdmin ? etatsEnvoi(periode.anneeDebut, periode.trimestre) : Promise.resolve(null),
     estAdmin && !impersonation ? db.signatureBulletin.findUnique({ where: { userId } }) : Promise.resolve(null),
     estAdmin ? nomDirection() : Promise.resolve(""),
+    estAdmin ? db.rappelBulletinCham.findMany({ where: { anneeDebut: periode.anneeDebut } }) : Promise.resolve([]),
   ]);
+  const { aujourdHui, demain } = joursRepere();
+  const envoiDe = (t: number, type: string) => rappels.find((r) => r.trimestre === t && r.type === type)?.envoyeLe ?? null;
+  const dernierRappel = rappels.reduce<Date | null>((m, r) => (!m || r.envoyeLe > m ? r.envoyeLe : m), null);
 
   const signeLe = new Map(mesAppreciations.map((a) => [`${a.eleveId}|${a.matiere}`, a.signeLe]));
   const suivis = [...mesSuivis].sort(
@@ -63,8 +78,8 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
         <h1 className="text-xl font-semibold text-brand-slate">Bulletins CHAM</h1>
         <p className="text-sm text-slate-500">
           {ouverte
-            ? `${libellePeriode(periode.anneeDebut, periode.trimestre)} : à remplir depuis le ${dateCourte(dateOuverture(periode.anneeDebut, periode.trimestre))}.`
-            : `${libellePeriode(periode.anneeDebut, periode.trimestre)} : ouverture le ${dateCourte(dateOuverture(periode.anneeDebut, periode.trimestre))}, vous pouvez déjà préparer vos appréciations.`}
+            ? `${libellePeriode(periode.anneeDebut, periode.trimestre)} : à remplir depuis le ${dateCourte(dateOuverture(periode.anneeDebut, periode.trimestre, calendrier))}.`
+            : `${libellePeriode(periode.anneeDebut, periode.trimestre)} : ouverture le ${dateCourte(dateOuverture(periode.anneeDebut, periode.trimestre, calendrier))}, vous pouvez déjà préparer vos appréciations.`}
         </p>
       </div>
 
@@ -142,6 +157,23 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
           libellePeriode={libellePeriode(periode.anneeDebut, periode.trimestre)}
           maSignature={maSignature ? signatureEnDataUrl(maSignature.image) : null}
           directionNom={direction}
+          bloque={impersonation}
+        />
+      )}
+
+      {estAdmin && (
+        <CalendrierRappels
+          anneeDebut={periode.anneeDebut}
+          lignes={TRIMESTRES.map((t) => ({
+            trimestre: t,
+            ouverture: iso(calendrier[t].ouverture),
+            relance: iso(calendrier[t].relance),
+            ouvertureEnvoyee: envoiDe(t, "OUVERTURE") ? dateHeure(envoiDe(t, "OUVERTURE")!) : null,
+            relanceEnvoyee: envoiDe(t, "RELANCE") ? dateHeure(envoiDe(t, "RELANCE")!) : null,
+          }))}
+          dernier={dernierRappel ? dateHeure(dernierRappel) : null}
+          aujourdHui={aujourdHui}
+          demain={demain}
           bloque={impersonation}
         />
       )}

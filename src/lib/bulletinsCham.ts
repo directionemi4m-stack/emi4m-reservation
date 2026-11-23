@@ -28,12 +28,12 @@ export function libellePeriode(anneeDebut: number, trimestre: number): string {
 
 export { libelleAnneeScolaire };
 
-// Jour où les bulletins de chaque trimestre sont à remplir : 15 novembre, 15 février, 15 mai.
-export function dateOuverture(anneeDebut: number, trimestre: number): Date {
-  if (trimestre === 1) return new Date(Date.UTC(anneeDebut, 10, 15));
-  if (trimestre === 2) return new Date(Date.UTC(anneeDebut + 1, 1, 15));
-  return new Date(Date.UTC(anneeDebut + 1, 4, 15));
+// Dates d'un trimestre : l'annonce (ouverture des bulletins) et la relance.
+export interface DatesTrimestre {
+  ouverture: Date;
+  relance: Date;
 }
+export type CalendrierBulletins = Record<number, DatesTrimestre>;
 
 export const DELAI_RELANCE_JOURS = 4;
 
@@ -45,34 +45,81 @@ function ajouterJours(date: Date, jours: number): Date {
   return new Date(date.getTime() + jours * 86_400_000);
 }
 
-// Le trimestre à remplir à une date donnée : celui dont le 15 est passé le plus récemment
-// (avant le 15 novembre, on peut déjà préparer le 1er trimestre).
-export function periodeCourante(date: Date): { anneeDebut: number; trimestre: number } {
+// Dates habituelles : 15 novembre, 15 février, 15 mai, et relance 4 jours après.
+export function calendrierParDefaut(anneeDebut: number): CalendrierBulletins {
+  const ouvertures: Record<number, Date> = {
+    1: new Date(Date.UTC(anneeDebut, 10, 15)),
+    2: new Date(Date.UTC(anneeDebut + 1, 1, 15)),
+    3: new Date(Date.UTC(anneeDebut + 1, 4, 15)),
+  };
+  return Object.fromEntries(TRIMESTRES.map((t) => [t, { ouverture: ouvertures[t], relance: ajouterJours(ouvertures[t], DELAI_RELANCE_JOURS) }]));
+}
+
+// Jour où les bulletins d'un trimestre sont à remplir.
+export function dateOuverture(anneeDebut: number, trimestre: number, calendrier?: CalendrierBulletins): Date {
+  return (calendrier ?? calendrierParDefaut(anneeDebut))[trimestre].ouverture;
+}
+
+// Le trimestre à remplir à une date donnée : celui dont l'ouverture est passée le plus
+// récemment (avant la première, on peut déjà préparer le 1er trimestre).
+export function periodeCourante(date: Date, calendrier?: CalendrierBulletins): { anneeDebut: number; trimestre: number } {
   const anneeDebut = anneeScolaireDebut(date);
   const jour = jourUTC(date);
-  if (jour < dateOuverture(anneeDebut, 2)) return { anneeDebut, trimestre: 1 };
-  if (jour < dateOuverture(anneeDebut, 3)) return { anneeDebut, trimestre: 2 };
+  if (jour < dateOuverture(anneeDebut, 2, calendrier)) return { anneeDebut, trimestre: 1 };
+  if (jour < dateOuverture(anneeDebut, 3, calendrier)) return { anneeDebut, trimestre: 2 };
   return { anneeDebut, trimestre: 3 };
 }
 
-// La campagne d'un trimestre est ouverte à partir de son 15.
-export function campagneOuverte(date: Date, anneeDebut: number, trimestre: number): boolean {
-  return jourUTC(date) >= dateOuverture(anneeDebut, trimestre);
+// La campagne d'un trimestre est ouverte à partir de sa date d'ouverture.
+export function campagneOuverte(date: Date, anneeDebut: number, trimestre: number, calendrier?: CalendrierBulletins): boolean {
+  return jourUTC(date) >= dateOuverture(anneeDebut, trimestre, calendrier);
 }
 
 export type TypeRappel = "OUVERTURE" | "RELANCE";
 
 // Rappel à envoyer à la date donnée (le cron passe chaque matin). Une fenêtre de quelques
 // jours plutôt qu'un jour exact permet de rattraper un passage manqué ; c'est la trace en
-// base des envois qui empêche les doublons.
-export function rappelDuJour(date: Date): { anneeDebut: number; trimestre: number; type: TypeRappel } | null {
+// base des envois qui empêche les doublons. Le trimestre le plus récent passe en premier.
+export function rappelDuJour(date: Date, calendrier?: CalendrierBulletins): { anneeDebut: number; trimestre: number; type: TypeRappel } | null {
   const jour = jourUTC(date);
   const anneeDebut = anneeScolaireDebut(jour);
-  for (const trimestre of TRIMESTRES) {
-    const ouverture = dateOuverture(anneeDebut, trimestre);
-    const relance = ajouterJours(ouverture, DELAI_RELANCE_JOURS);
+  const dates = calendrier ?? calendrierParDefaut(anneeDebut);
+  for (const trimestre of [...TRIMESTRES].reverse()) {
+    const { ouverture, relance } = dates[trimestre];
     if (jour >= ouverture && jour < relance) return { anneeDebut, trimestre, type: "OUVERTURE" };
     if (jour >= relance && jour < ajouterJours(relance, 7)) return { anneeDebut, trimestre, type: "RELANCE" };
+  }
+  return null;
+}
+
+// Vérifie un calendrier modifié par la direction. `envoyes` contient les rappels déjà partis
+// (« 1-OUVERTURE ») : ils ne bougent pas. Une date changée doit être au plus tôt demain, pour
+// qu'aucun rappel ne parte par surprise au prochain passage. Renvoie le message d'erreur.
+export function erreurCalendrier(params: {
+  anneeDebut: number;
+  calendrier: CalendrierBulletins;
+  avant: CalendrierBulletins;
+  envoyes: Set<string>;
+  aujourdHui: Date;
+}): string | null {
+  const { anneeDebut, calendrier, avant, envoyes, aujourdHui } = params;
+  const nom = (t: number) => (t === 1 ? "1er trimestre" : `${t}e trimestre`);
+  const debut = new Date(Date.UTC(anneeDebut, 8, 1));
+  const fin = new Date(Date.UTC(anneeDebut + 1, 7, 31));
+  const jour = jourUTC(aujourdHui);
+  for (const t of TRIMESTRES) {
+    const { ouverture, relance } = calendrier[t];
+    if (ouverture < debut || relance > fin) return `${nom(t)} : choisissez des dates dans l'année scolaire ${anneeDebut}-${anneeDebut + 1}.`;
+    if (relance <= ouverture) return `${nom(t)} : la relance doit être après l'annonce.`;
+    if (t < 3 && calendrier[t + 1].ouverture <= relance) return `L'annonce du ${nom(t + 1)} doit être après la relance du ${nom(t)}.`;
+    for (const [type, valeur, ancienne, libelle] of [
+      ["OUVERTURE", ouverture, avant[t].ouverture, "l'annonce"],
+      ["RELANCE", relance, avant[t].relance, "la relance"],
+    ] as const) {
+      if (!envoyes.has(`${t}-${type}`) && valeur.getTime() !== ancienne.getTime() && valeur <= jour) {
+        return `${nom(t)} : ${libelle} doit être à partir de demain.`;
+      }
+    }
   }
   return null;
 }
