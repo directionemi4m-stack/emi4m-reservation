@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { urlBase } from "@/lib/url";
@@ -8,13 +9,14 @@ import { lireCentimes } from "@/lib/devis";
 import { noterEchecMail } from "@/lib/echecsMail";
 import { envoyerAlerteDirection, envoyerMailSuiteDemandeMateriel } from "@/lib/mail";
 import { envoyerPush } from "@/lib/push";
+import { synchroniserTableauMateriel } from "@/lib/demandesMaterielServeur";
 import {
   DETAILS_MAX,
   INFOS_STATUT,
   INFOS_URGENCE,
   LIBELLE_MAX,
   lireLien,
-  modifiableParProf,
+  peutModifierDemande,
   QUANTITE_MAX,
   REPONSE_MAX,
   STATUTS,
@@ -38,11 +40,18 @@ function rafraichir() {
   revalidatePath("/materiel");
   revalidatePath("/admin/materiel");
   revalidatePath("/accueil");
+  // Le tableau du Drive suit chaque changement, sans faire attendre celui qui enregistre.
+  after(() => synchroniserTableauMateriel());
 }
 
 type Session = Awaited<ReturnType<typeof connecte>>;
-const peutModifier = (session: Session, d: { auteurId: string | null; statut: StatutDemande }) =>
-  session.user.role === "ADMIN" || (d.auteurId === session.user.id && modifiableParProf(d.statut));
+const peutModifier = (session: Session, d: { auteurId: string | null; statut: StatutDemande }) => peutModifierDemande(session.user, d);
+const refus = (session: Session, d: { auteurId: string | null }) =>
+  session.user.impersonation
+    ? "Impossible en mode « connecté en tant que » : seul le prof peut modifier sa demande."
+    : d.auteurId !== session.user.id
+      ? "Seule la personne qui a fait cette demande peut la modifier."
+      : "Cette demande a déjà été décidée : voyez avec la direction.";
 
 // Une proposition saisie : un lien, un prix ou une précision (au moins l'un des trois).
 function lireProposition(lien: string, prix: string, libelle: string): { erreur: string } | { url: string | null; prixCentimes: number | null; libelle: string | null } | null {
@@ -95,7 +104,7 @@ export async function enregistrerDemandeMateriel(_etat: EtatAction, fd: FormData
   if (id) {
     const avant = await db.demandeMateriel.findUnique({ where: { id }, select: { auteurId: true, statut: true, urgence: true } });
     if (!avant) return { succes: false, message: "Cette demande n'existe plus." };
-    if (!peutModifier(session, avant)) return { succes: false, message: "Cette demande a déjà été traitée : voyez avec la direction." };
+    if (!peutModifier(session, avant)) return { succes: false, message: refus(session, avant) };
     await db.demandeMateriel.update({ where: { id }, data: donnees });
     if (urgenceLue === "URGENTE" && avant.urgence !== "URGENTE") {
       await prevenirDirection(donnees, { id: session.user.id, nom: session.user.name ?? "Un prof" }, false);
@@ -104,6 +113,7 @@ export async function enregistrerDemandeMateriel(_etat: EtatAction, fd: FormData
     return { succes: true, message: "Demande modifiée." };
   }
 
+  if (session.user.impersonation) return { succes: false, message: "Impossible en mode « connecté en tant que » : le prof fait sa demande lui-même." };
   const liens = fd.getAll("pLien").map(String);
   const prix = fd.getAll("pPrix").map(String);
   const libelles = fd.getAll("pLibelle").map(String);
@@ -125,7 +135,7 @@ export async function enregistrerProposition(_etat: EtatAction, fd: FormData): P
   const session = await connecte();
   const demande = await db.demandeMateriel.findUnique({ where: { id: champ(fd, "demandeId", 40) }, select: { id: true, auteurId: true, statut: true } });
   if (!demande) return { succes: false, message: "Cette demande n'existe plus." };
-  if (!peutModifier(session, demande)) return { succes: false, message: "Cette demande a déjà été traitée." };
+  if (!peutModifier(session, demande)) return { succes: false, message: refus(session, demande) };
   const p = lireProposition(String(fd.get("lien") ?? ""), String(fd.get("prix") ?? ""), String(fd.get("libelle") ?? ""));
   if (!p) return { succes: false, message: "Indiquez un lien, un prix ou une précision." };
   if ("erreur" in p) return { succes: false, message: p.erreur };
@@ -149,7 +159,7 @@ export async function supprimerProposition(fd: FormData) {
   rafraichir();
 }
 
-// Le prof retire sa demande tant que rien n'est décidé ; la direction peut toujours le faire.
+// Seul l'auteur retire sa demande, tant que rien n'est décidé (la direction peut la refuser).
 export async function retirerDemandeMateriel(fd: FormData) {
   const session = await connecte();
   const d = await db.demandeMateriel.findUnique({ where: { id: champ(fd, "id", 40) }, select: { id: true, auteurId: true, statut: true } });
@@ -202,4 +212,13 @@ export async function traiterDemandeMateriel(_etat: EtatAction, fd: FormData): P
   }
   rafraichir();
   return { succes: true, message: `Enregistré.${suite}` };
+}
+
+// Mise à jour du tableau du Drive à la demande (après une panne de connexion Google).
+export async function mettreAJourTableauMateriel(): Promise<EtatAction> {
+  const session = await connecte();
+  if (session.user.role !== "ADMIN") return { succes: false, message: "Accès réservé à la direction." };
+  const ok = await synchroniserTableauMateriel();
+  revalidatePath("/admin/materiel");
+  return ok ? { succes: true, message: "Tableau à jour." } : { succes: false, message: "Le Drive n'a pas répondu : vérifiez la connexion Google dans Paramètres." };
 }

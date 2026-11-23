@@ -182,7 +182,7 @@ export function CarteDemandeMateriel({ demande: d, peutModifier, direction = fal
             {d.titre}
             {d.quantite > 1 && <span className="font-normal text-slate-500"> × {d.quantite}</span>}
           </h3>
-          <p className="text-xs text-slate-500">{[direction ? (d.auteur ?? "Compte supprimé") : null, jour(d.creeLe)].filter(Boolean).join(" · ")}</p>
+          <p className="text-xs text-slate-500">{[d.auteur ?? "Compte supprimé", jour(d.creeLe)].join(" · ")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${INFOS_URGENCE[d.urgence].classe}`}>{INFOS_URGENCE[d.urgence].libelle}</span>

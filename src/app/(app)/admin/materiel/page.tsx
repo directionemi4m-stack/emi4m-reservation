@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { euros } from "@/lib/devis";
-import { coutDemande, STATUTS_EN_COURS, trierDemandes, type StatutDemande } from "@/lib/demandesMateriel";
+import { coutDemande, peutModifierDemande, STATUTS_EN_COURS, trierDemandes, type StatutDemande } from "@/lib/demandesMateriel";
 import { CarteDemandeMateriel } from "@/components/materiel/CarteDemandeMateriel";
+import { TableauDriveMateriel } from "@/components/materiel/TableauDriveMateriel";
 
 const VUES: { cle: string; libelle: string; statuts: StatutDemande[] }[] = [
   { cle: "en-cours", libelle: "À traiter", statuts: STATUTS_EN_COURS },
@@ -14,9 +16,13 @@ const VUES: { cle: string; libelle: string; statuts: StatutDemande[] }[] = [
 export default async function MaterielDirectionPage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
   const { vue: vueDemandee } = await searchParams;
   const vue = VUES.find((v) => v.cle === vueDemandee) ?? VUES[0];
-  const toutes = await db.demandeMateriel.findMany({
-    include: { auteur: { select: { prenom: true, nom: true } }, propositions: { orderBy: { creeLe: "asc" } } },
-  });
+  const session = await auth();
+  const [toutes, tableau] = await Promise.all([
+    db.demandeMateriel.findMany({
+      include: { auteur: { select: { prenom: true, nom: true } }, propositions: { orderBy: { creeLe: "asc" } } },
+    }),
+    db.tableauMateriel.findUnique({ where: { id: "singleton" } }),
+  ]);
   const demandes = trierDemandes(toutes.filter((d) => vue.statuts.includes(d.statut)));
   const urgentes = demandes.filter((d) => d.urgence === "URGENTE").length;
   const couts = demandes.map((d) => coutDemande(d.quantite, d.propositions));
@@ -27,8 +33,16 @@ export default async function MaterielDirectionPage({ searchParams }: { searchPa
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div>
         <h1 className="text-xl font-semibold text-brand-slate">Demandes de matériel</h1>
-        <p className="text-sm text-slate-500">Comparez les liens et les prix, retenez une proposition, puis suivez la demande jusqu&apos;à la réception.</p>
+        <p className="text-sm text-slate-500">
+          Comparez les liens et les prix, retenez une proposition, puis suivez la demande jusqu&apos;à la réception. Le contenu d&apos;une demande
+          n&apos;est modifiable que par la personne qui l&apos;a faite.
+        </p>
       </div>
+      <TableauDriveMateriel
+        url={tableau?.url ?? null}
+        majLe={tableau?.majLe ? tableau.majLe.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Paris" }) : null}
+        echec={!!tableau?.echecLe}
+      />
       <div className="flex flex-wrap gap-2">
         {VUES.map((v) => {
           const n = toutes.filter((d) => v.statuts.includes(d.statut)).length;
@@ -48,7 +62,7 @@ export default async function MaterielDirectionPage({ searchParams }: { searchPa
       )}
       <div className="flex flex-col gap-3">
         {demandes.map((d) => (
-          <CarteDemandeMateriel key={d.id} demande={{ ...d, auteur: d.auteur ? `${d.auteur.prenom} ${d.auteur.nom}` : null }} peutModifier direction />
+          <CarteDemandeMateriel key={d.id} demande={{ ...d, auteur: d.auteur ? `${d.auteur.prenom} ${d.auteur.nom}` : null }} peutModifier={peutModifierDemande(session!.user, d)} direction />
         ))}
         {demandes.length === 0 && <p className="rounded-lg bg-white p-4 text-sm text-slate-500 shadow-sm">Aucune demande ici pour l&apos;instant.</p>}
       </div>

@@ -1600,3 +1600,12 @@ model PropositionMateriel {
 
   @@index([demandeId])
 }
+
+// Le tableau Google Sheets des demandes de matériel, tenu à jour par l'appli (ligne unique).
+model TableauMateriel {
+  id        String    @id @default("singleton")
+  fichierId String?
+  url       String?
+  majLe     DateTime?
+  echecLe   DateTime? // dernière mise à jour ratée, tant qu'elle n'est pas rattrapée
+}

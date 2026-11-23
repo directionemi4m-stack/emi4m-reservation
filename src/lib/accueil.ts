@@ -167,7 +167,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     estAdmin ? db.contratProf.count({ where: { papier: false, profSigneLe: null } }) : Promise.resolve(0),
     db.idee.count({ where: { auteurId: userId } }),
     estAdmin ? db.idee.count({ where: { statut: "NOUVELLE" } }) : Promise.resolve(0),
-    db.demandeMateriel.count({ where: { auteurId: userId, statut: { in: ["NOUVELLE", "A_L_ETUDE", "VALIDEE", "COMMANDEE"] } } }),
+    db.demandeMateriel.count({ where: { statut: { in: ["NOUVELLE", "A_L_ETUDE", "VALIDEE", "COMMANDEE"] } } }),
     estAdmin ? db.demandeMateriel.count({ where: { statut: "NOUVELLE" } }) : Promise.resolve(0),
     estAdmin ? db.demandeMateriel.count({ where: { urgence: "URGENTE", statut: { in: ["NOUVELLE", "A_L_ETUDE", "VALIDEE"] } } }) : Promise.resolve(0),
   ]);

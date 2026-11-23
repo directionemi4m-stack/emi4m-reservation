@@ -866,3 +866,121 @@ export async function deposerContrat(params: {
   });
   return { id: data.id!, url: data.webViewLink ?? "" };
 }
+
+// --- Demandes de matériel ---
+
+export interface LigneTableauMateriel {
+  urgence: string;
+  couleurUrgence: { red: number; green: number; blue: number };
+  statut: string;
+  date: Date;
+  prof: string;
+  materiel: string;
+  quantite: number;
+  details: string;
+  propositions: { texte: string; liens: { debut: number; fin: number; url: string }[] };
+  coutCentimes: number | null;
+  baseCout: string;
+  reponse: string;
+}
+
+const NOM_TABLEAU_MATERIEL = "Demandes de matériel des profs";
+
+// Le tableur des demandes, dans le Drive de la direction, entièrement réécrit à chaque
+// changement. Tous les textes sont écrits comme du texte : un « = » saisi par un prof ne
+// devient jamais une formule.
+export async function ecrireTableauMateriel(lignes: LigneTableauMateriel[], resume: string): Promise<{ id: string; url: string } | null> {
+  const client = await creerClientDrive();
+  if (!client) return null;
+  const { drive, auth } = client;
+  const sheets = google.sheets({ version: "v4", auth });
+
+  const memo = await db.tableauMateriel.findUnique({ where: { id: "singleton" } });
+  let fichier = memo?.fichierId ? { id: memo.fichierId, url: memo.url ?? "" } : null;
+  if (fichier) {
+    try {
+      const { data } = await drive.files.get({ fileId: fichier.id, fields: "trashed" });
+      if (data.trashed) fichier = null;
+    } catch (erreur) {
+      // Supprimé à la main : on le recrée. Une simple panne ne doit pas créer un doublon.
+      const e = erreur as { status?: number; code?: number | string };
+      if (e.status !== 404 && Number(e.code) !== 404) throw erreur;
+      fichier = null;
+    }
+  }
+  if (!fichier) {
+    const racine = await dossierRacineParNom(drive, "Demandes de matériel");
+    const { data } = await drive.files.create({
+      requestBody: { name: NOM_TABLEAU_MATERIEL, mimeType: "application/vnd.google-apps.spreadsheet", parents: [racine] },
+      fields: "id, webViewLink",
+    });
+    fichier = { id: data.id!, url: data.webViewLink ?? "" };
+    await db.tableauMateriel.upsert({ where: { id: "singleton" }, create: { fichierId: fichier.id, url: fichier.url }, update: { fichierId: fichier.id, url: fichier.url } });
+  }
+
+  const { data: classeur } = await sheets.spreadsheets.get({ spreadsheetId: fichier.id, fields: "sheets(properties(sheetId))" });
+  const sheetId = classeur.sheets?.[0]?.properties?.sheetId ?? 0;
+
+  const haut = { verticalAlignment: "TOP", wrapStrategy: "WRAP" };
+  const texte = (v: string) => ({ userEnteredValue: { stringValue: v }, userEnteredFormat: haut });
+  const entete = ["Urgence", "Statut", "Demandé le", "Prof", "Matériel", "Quantité", "Pour quoi faire", "Propositions (liens et prix unitaires)", "Coût", "Base du coût", "Réponse de la direction"];
+  const bleuLien = { red: 0.07, green: 0.33, blue: 0.8 };
+
+  const rows = [
+    { values: [{ userEnteredValue: { stringValue: NOM_TABLEAU_MATERIEL }, userEnteredFormat: { textFormat: { bold: true, fontSize: 14 } } }] },
+    { values: [{ userEnteredValue: { stringValue: resume } }] },
+    {
+      values: entete.map((t) => ({
+        userEnteredValue: { stringValue: t },
+        userEnteredFormat: { backgroundColor: { red: 0.17, green: 0.24, blue: 0.31 }, textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } }, wrapStrategy: "WRAP" },
+      })),
+    },
+    ...lignes.map((l) => {
+      const runs = l.propositions.liens.flatMap((x) => [
+        { startIndex: x.debut, format: { link: { uri: x.url }, foregroundColor: bleuLien, underline: true } },
+        ...(x.fin < l.propositions.texte.length ? [{ startIndex: x.fin, format: {} }] : []),
+      ]);
+      return {
+        values: [
+          { userEnteredValue: { stringValue: l.urgence }, userEnteredFormat: { ...haut, backgroundColor: l.couleurUrgence, textFormat: { bold: true } } },
+          texte(l.statut),
+          { userEnteredValue: { numberValue: l.date.getTime() / 86400000 + 25569 }, userEnteredFormat: { ...haut, numberFormat: { type: "DATE", pattern: "dd/mm/yyyy" } } },
+          texte(l.prof),
+          { userEnteredValue: { stringValue: l.materiel }, userEnteredFormat: { ...haut, textFormat: { bold: true } } },
+          { userEnteredValue: { numberValue: l.quantite }, userEnteredFormat: haut },
+          texte(l.details),
+          { ...texte(l.propositions.texte), ...(runs.length ? { textFormatRuns: runs } : {}) },
+          l.coutCentimes === null
+            ? texte("")
+            : { userEnteredValue: { numberValue: l.coutCentimes / 100 }, userEnteredFormat: { ...haut, numberFormat: { type: "CURRENCY", pattern: '#,##0.00 "€"' } } },
+          texte(l.baseCout),
+          texte(l.reponse),
+        ],
+      };
+    }),
+  ];
+  const largeurs = [90, 95, 90, 150, 230, 70, 240, 340, 90, 100, 260];
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: fichier.id,
+    requestBody: {
+      requests: [
+        {
+          updateSheetProperties: {
+            properties: { sheetId, title: "Demandes", gridProperties: { frozenRowCount: 3, rowCount: Math.max(1000, lignes.length + 20) } },
+            fields: "title,gridProperties.frozenRowCount,gridProperties.rowCount",
+          },
+        },
+        { clearBasicFilter: { sheetId } },
+        { updateCells: { range: { sheetId }, fields: "*" } },
+        { updateCells: { range: { sheetId, startRowIndex: 0, startColumnIndex: 0 }, rows, fields: "*" } },
+        ...largeurs.map((pixelSize, i) => ({
+          updateDimensionProperties: { range: { sheetId, dimension: "COLUMNS", startIndex: i, endIndex: i + 1 }, properties: { pixelSize }, fields: "pixelSize" },
+        })),
+        ...(lignes.length ? [{ autoResizeDimensions: { dimensions: { sheetId, dimension: "ROWS", startIndex: 3, endIndex: 3 + lignes.length } } }] : []),
+        { setBasicFilter: { filter: { range: { sheetId, startRowIndex: 2, endRowIndex: 3 + lignes.length, startColumnIndex: 0, endColumnIndex: entete.length } } } },
+      ],
+    },
+  });
+  return fichier;
+}

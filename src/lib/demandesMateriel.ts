@@ -76,3 +76,39 @@ export function coutDemande(quantite: number, propositions: PropositionPrix[]): 
 export function trierDemandes<T extends { urgence: Urgence; creeLe: Date }>(demandes: T[]): T[] {
   return [...demandes].sort((a, b) => URGENCES.indexOf(a.urgence) - URGENCES.indexOf(b.urgence) || a.creeLe.getTime() - b.creeLe.getTime());
 }
+
+// Seule la personne qui a fait la demande la modifie, tant que la direction n'a pas décidé.
+// Ni un collègue, ni la direction, ni le mode « connecté en tant que ».
+export function peutModifierDemande(moi: { id: string; impersonation?: unknown }, d: { auteurId: string | null; statut: StatutDemande }) {
+  return !moi.impersonation && d.auteurId === moi.id && modifiableParProf(d.statut);
+}
+
+// En cours d'abord (les plus urgentes en tête), puis commandées, puis reçues et refusées.
+export function trierPourTableau<T extends { urgence: Urgence; statut: StatutDemande; creeLe: Date }>(demandes: T[]): T[] {
+  const groupe = (s: StatutDemande) => (STATUTS_EN_COURS.includes(s) ? 0 : s === "COMMANDEE" ? 1 : 2);
+  return [...trierDemandes(demandes)].sort((a, b) => groupe(a.statut) - groupe(b.statut));
+}
+
+// Le contenu de la cellule « Propositions » : une ligne par proposition, avec la position du
+// nom du site pour en faire un lien cliquable dans le tableau.
+export function cellulePropositions(
+  propositions: { libelle: string | null; url: string | null; prixCentimes: number | null; retenue: boolean }[],
+  formaterPrix: (centimes: number) => string
+): { texte: string; liens: { debut: number; fin: number; url: string }[] } {
+  let texte = "";
+  const liens: { debut: number; fin: number; url: string }[] = [];
+  propositions.forEach((p, i) => {
+    if (i > 0) texte += "\n";
+    if (p.retenue) texte += "✓ ";
+    if (p.url) {
+      const site = nomSite(p.url);
+      liens.push({ debut: texte.length, fin: texte.length + site.length, url: p.url });
+      texte += site;
+      if (p.libelle) texte += ` (${p.libelle})`;
+    } else {
+      texte += p.libelle ?? "Proposition";
+    }
+    if (p.prixCentimes !== null) texte += ` : ${formaterPrix(p.prixCentimes)}`;
+  });
+  return { texte, liens };
+}
