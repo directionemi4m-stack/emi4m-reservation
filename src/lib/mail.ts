@@ -528,28 +528,23 @@ Direction EMI4M`,
 // réponses arrivent à la direction.
 export async function envoyerMailBulletinFamille(params: {
   email: string;
-  eleve: { prenom: string; nom: string };
-  periode: string; // « 1er trimestre 2026/2027 »
-  nomFichier: string;
+  contenu: { sujet: string; titre: string; paragraphes: string[]; nomFichier: string };
   pdf: Uint8Array;
 }) {
-  const { email, eleve, periode, nomFichier, pdf } = params;
+  const { email, contenu, pdf } = params;
   const transport = creerTransporteur();
-  const echapper = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const nomEleve = `${eleve.prenom} ${eleve.nom.toUpperCase()}`;
+  const corps = contenu.paragraphes
+    .map((p, i) => `<p style="margin:${i === contenu.paragraphes.length - 1 ? "0" : "0 0 16px"};">${h(p).replace(/\n/g, "<br>")}</p>`)
+    .join("");
 
   const resultat = await transport.sendMail({
     to: email,
     from: process.env.EMAIL_FROM,
     replyTo: EMAIL_DIRECTION,
-    subject: `Bulletin CHAM — ${periode} — ${nomEleve}`,
-    text: `Bonjour,\n\nVeuillez trouver ci-joint le bulletin de la classe CHAM de ${nomEleve} pour le ${periode}.\n\nPour toute question, vous pouvez répondre directement à ce message.\n\nBien cordialement,\nLa direction de l'EMI4M\nÉcole Musicale Itinérante des 4 Montagnes`,
-    html: htmlDecision({
-      couleur: COULEUR_SLATE,
-      titre: `Bulletin CHAM — ${echapper(periode)}`,
-      corps: `<p style="margin:0 0 16px;">Bonjour,</p><p style="margin:0 0 16px;">Veuillez trouver ci-joint le bulletin de la classe CHAM de <strong>${echapper(nomEleve)}</strong> pour le ${echapper(periode)}.</p><p style="margin:0 0 16px;">Pour toute question, vous pouvez répondre directement à ce message.</p><p style="margin:0;">Bien cordialement,<br>La direction de l'EMI4M<br><span style="color:#7f8c8d;">École Musicale Itinérante des 4 Montagnes</span></p>`,
-    }),
-    attachments: [{ filename: nomFichier, content: Buffer.from(pdf), contentType: "application/pdf" }],
+    subject: contenu.sujet,
+    text: contenu.paragraphes.join("\n\n"),
+    html: htmlDecision({ couleur: COULEUR_SLATE, titre: h(contenu.titre), corps }),
+    attachments: [{ filename: contenu.nomFichier, content: Buffer.from(pdf), contentType: "application/pdf" }],
   });
   if (resultat.rejected.filter(Boolean).length > 0) throw new Error(`Adresse refusée : ${email}`);
 }

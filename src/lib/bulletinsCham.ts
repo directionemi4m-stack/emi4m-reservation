@@ -97,6 +97,26 @@ export function libelleDirection(nom: string | null | undefined, fonction: strin
   return n ? `${n} - ${fonction?.trim() || "direction"}` : "La direction";
 }
 
+// Une seule adresse, sans espace ni séparateur.
+export const adresseValide = (a: string) => /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/.test(a.trim());
+
+// Le mail du bulletin : le même texte sert à l'aperçu de confirmation et à l'envoi réel.
+export function contenuMailBulletin(eleve: { prenom: string; nom: string }, anneeDebut: number, trimestre: number) {
+  const nomEleve = `${eleve.prenom} ${eleve.nom.toUpperCase()}`;
+  const periode = libellePeriode(anneeDebut, trimestre);
+  return {
+    sujet: `Bulletin CHAM — ${periode} — ${nomEleve}`,
+    titre: `Bulletin CHAM — ${periode}`,
+    paragraphes: [
+      "Bonjour,",
+      `Veuillez trouver ci-joint le bulletin de la classe CHAM de ${nomEleve} pour le ${periode}.`,
+      "Pour toute question, vous pouvez répondre directement à ce message.",
+      "Bien cordialement,\nLa direction de l'EMI4M\nÉcole Musicale Itinérante des 4 Montagnes",
+    ],
+    nomFichier: `Bulletin CHAM T${trimestre} ${anneeDebut}-${anneeDebut + 1} - ${eleve.nom.toUpperCase()} ${eleve.prenom}.pdf`,
+  };
+}
+
 export function signatureEnDataUrl(image: Uint8Array): string {
   return `data:image/png;base64,${Buffer.from(image).toString("base64")}`;
 }

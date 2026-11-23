@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { genererBulletinPdf } from "@/lib/bulletinPdf";
-import { libelleDirection, libelleMatiere, libellePeriode, libelleTrimestre, rappelDuJour, type TypeRappel } from "@/lib/bulletinsCham";
+import { contenuMailBulletin, libelleDirection, libelleMatiere, libellePeriode, libelleTrimestre, rappelDuJour, type TypeRappel } from "@/lib/bulletinsCham";
 import { MAIL_DIRECTION } from "@/lib/clesServeur";
 import { lireCoordonnees } from "@/lib/coordonneesServeur";
 import { deposerBulletinCham } from "@/lib/drive";
@@ -79,9 +79,17 @@ export type EtatEnvoi = "pret" | "envoye" | "incomplet" | "sans_mail";
 export interface EnvoiEleve {
   eleveId: string;
   libelle: string; // « MARTIN Léa »
+  prenom: string;
+  nom: string;
+  email: string | null;
   etat: EtatEnvoi;
   manque: string[]; // ce qui empêche l'envoi d'un bulletin incomplet
+  manqueProfs: string[]; // la même liste, sans la signature de la direction
+  signe: boolean; // signé par la direction
+  aDesParties: boolean; // au moins une appréciation : il y a quelque chose à signer
   envoyeLe: Date | null;
+  envoyeA: string | null;
+  documentUrl: string | null;
 }
 
 // Pour chaque élève CHAM, où en est l'envoi de son bulletin : un bulletin n'est complet
@@ -92,7 +100,7 @@ export async function etatsEnvoi(anneeDebut: number, trimestre: number): Promise
     db.eleveCham.findMany({ orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true, email: true } }),
     db.suiviCham.findMany({ include: { prof: { select: { prenom: true, nom: true, email: true } } } }),
     db.appreciationCham.findMany({ where: { anneeDebut, trimestre }, select: { eleveId: true, profId: true, matiere: true } }),
-    db.bulletinCham.findMany({ where: { anneeDebut, trimestre }, select: { eleveId: true, signeDirectionLe: true, envoyeLe: true } }),
+    db.bulletinCham.findMany({ where: { anneeDebut, trimestre }, select: { eleveId: true, signeDirectionLe: true, envoyeLe: true, envoyeA: true, documentUrl: true } }),
     nomDirection(),
   ]);
   const faites = new Set(signees.map((a) => `${a.eleveId}|${a.profId}|${a.matiere}`));
@@ -101,13 +109,13 @@ export async function etatsEnvoi(anneeDebut: number, trimestre: number): Promise
   return eleves.map((e) => {
     const attendus = suivis.filter((s) => s.eleveId === e.id);
     const bulletin = parEleve.get(e.id);
-    const manque = [
+    const manqueProfs = [
       ...(attendus.length === 0 ? ["aucun prof déclaré"] : []),
       ...attendus
         .filter((s) => !faites.has(`${s.eleveId}|${s.profId}|${s.matiere}`))
         .map((s) => `${s.precision || libelleMatiere(s.matiere)} (${s.prof.email === MAIL_DIRECTION ? direction : nomComplet(s.prof)})`),
-      ...(bulletin?.signeDirectionLe ? [] : ["signature de la direction"]),
     ];
+    const manque = [...manqueProfs, ...(bulletin?.signeDirectionLe ? [] : ["signature de la direction"])];
     const etat: EtatEnvoi = bulletin?.envoyeLe
       ? "envoye"
       : manque.length > 0
@@ -115,28 +123,42 @@ export async function etatsEnvoi(anneeDebut: number, trimestre: number): Promise
         : e.email
           ? "pret"
           : "sans_mail";
-    return { eleveId: e.id, libelle: `${e.nom.toUpperCase()} ${e.prenom}`, etat, manque, envoyeLe: bulletin?.envoyeLe ?? null };
+    return {
+      eleveId: e.id,
+      libelle: `${e.nom.toUpperCase()} ${e.prenom}`,
+      prenom: e.prenom,
+      nom: e.nom,
+      email: e.email,
+      etat,
+      manque,
+      manqueProfs,
+      signe: Boolean(bulletin?.signeDirectionLe),
+      aDesParties: signees.some((a) => a.eleveId === e.id),
+      envoyeLe: bulletin?.envoyeLe ?? null,
+      envoyeA: bulletin?.envoyeA ?? null,
+      documentUrl: bulletin?.documentUrl ?? null,
+    };
   });
 }
 
-// Envoie à la famille le bulletin d'un élève, PDF en pièce jointe, et note l'envoi.
-export async function envoyerBulletinFamille(eleveId: string, anneeDebut: number, trimestre: number) {
+// Envoie le bulletin d'un élève à l'adresse confirmée par la direction, PDF en pièce jointe.
+// L'envoi est réservé en base avant de partir : deux clics ou deux onglets ne peuvent pas
+// envoyer deux fois le même bulletin. Un échec rétablit l'état précédent.
+export async function envoyerBulletinFamille(eleveId: string, anneeDebut: number, trimestre: number, adresse: string, renvoi: boolean) {
   const prepare = await preparerBulletin(eleveId, anneeDebut, trimestre);
   if (!prepare?.bulletin) throw new Error("Bulletin introuvable.");
-  const { eleve, fabriquerPdf } = prepare;
-  if (!eleve.email) throw new Error("Pas d'adresse mail pour cet élève.");
-
-  await envoyerMailBulletinFamille({
-    email: eleve.email,
-    eleve,
-    periode: libellePeriode(anneeDebut, trimestre),
-    nomFichier: `Bulletin CHAM T${trimestre} ${anneeDebut}-${anneeDebut + 1} - ${eleve.nom.toUpperCase()} ${eleve.prenom}.pdf`,
-    pdf: await fabriquerPdf(),
-  });
-  await db.bulletinCham.update({
-    where: { eleveId_anneeDebut_trimestre: { eleveId, anneeDebut, trimestre } },
-    data: { envoyeLe: new Date(), envoyeA: eleve.email },
-  });
+  const { eleve, bulletin, fabriquerPdf } = prepare;
+  const pdf = await fabriquerPdf();
+  const cle = { eleveId, anneeDebut, trimestre };
+  const envoi = { envoyeLe: new Date(), envoyeA: adresse };
+  const { count } = await db.bulletinCham.updateMany({ where: renvoi ? { ...cle, envoyeLe: bulletin.envoyeLe } : { ...cle, envoyeLe: null }, data: envoi });
+  if (count === 0) throw new Error("Ce bulletin vient déjà d'être envoyé.");
+  try {
+    await envoyerMailBulletinFamille({ email: adresse, contenu: contenuMailBulletin(eleve, anneeDebut, trimestre), pdf });
+  } catch (erreur) {
+    await db.bulletinCham.updateMany({ where: { ...cle, envoyeLe: envoi.envoyeLe }, data: { envoyeLe: bulletin.envoyeLe, envoyeA: bulletin.envoyeA } });
+    throw erreur;
+  }
 }
 
 // Ce qu'il reste à signer pour un trimestre, prof par prof : chaque élève suivi dont la

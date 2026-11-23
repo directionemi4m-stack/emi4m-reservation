@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { lireSignature, MATIERES_CHAM, periodeCourante, type MatiereCham } from "@/lib/bulletinsCham";
+import { adresseValide, lireSignature, MATIERES_CHAM, periodeCourante, type MatiereCham } from "@/lib/bulletinsCham";
 import { compilerBulletin, envoyerBulletinFamille, etatsEnvoi, nomDirection } from "@/lib/bulletinsChamServeur";
 import { MAIL_DIRECTION } from "@/lib/clesServeur";
 
@@ -180,53 +180,84 @@ async function exigerDirection(): Promise<EtatAction | null> {
   return null;
 }
 
-// Envoie, un mail par élève, tous les bulletins complets pas encore envoyés. Les bulletins
-// incomplets ou sans adresse sont laissés de côté.
-export async function envoyerBulletinsPrets(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+// Envoi d'un bulletin à l'adresse confirmée dans l'écran de confirmation (l'adresse est
+// obligatoire : aucun envoi ne peut partir sans être passé par cet écran). Appelé élève par
+// élève, pour suivre la progression et ne jamais dépasser le temps d'exécution du serveur.
+export async function envoyerBulletinConfirme(params: {
+  eleveId: string;
+  anneeDebut: number;
+  trimestre: number;
+  adresse: string;
+  garderAdresse: boolean;
+  renvoi: boolean;
+}): Promise<EtatAction> {
   const refus = await exigerDirection();
   if (refus) return refus;
-  const periode = lirePeriode(formData);
+  const fd = new FormData();
+  fd.set("anneeDebut", String(params.anneeDebut));
+  fd.set("trimestre", String(params.trimestre));
+  const periode = lirePeriode(fd);
   if (!periode) return { succes: false, message: "Trimestre invalide." };
+  const adresse = String(params.adresse ?? "").trim().slice(0, 200);
+  if (!adresseValide(adresse)) return { succes: false, message: "Adresse mail invalide." };
 
-  const prets = (await etatsEnvoi(periode.anneeDebut, periode.trimestre)).filter((e) => e.etat === "pret");
-  if (prets.length === 0) return { succes: false, message: "Aucun bulletin complet à envoyer." };
-
-  const echecs: string[] = [];
-  for (const e of prets) {
-    try {
-      await envoyerBulletinFamille(e.eleveId, periode.anneeDebut, periode.trimestre);
-    } catch (erreur) {
-      console.error(`Bulletin CHAM non envoyé (${e.libelle}) :`, erreur);
-      echecs.push(e.libelle);
-    }
-  }
-  revalidatePath("/bulletins-cham");
-  const envoyes = prets.length - echecs.length;
-  return echecs.length
-    ? { succes: false, message: `${envoyes} bulletin(s) envoyé(s). Échec pour : ${echecs.join(", ")}.` }
-    : { succes: true, message: `${envoyes} bulletin${envoyes > 1 ? "s" : ""} envoyé${envoyes > 1 ? "s" : ""} aux familles.` };
-}
-
-// Envoi (ou renvoi) du bulletin d'un seul élève, s'il est complet.
-export async function envoyerUnBulletin(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
-  const refus = await exigerDirection();
-  if (refus) return refus;
-  const periode = lirePeriode(formData);
-  if (!periode) return { succes: false, message: "Trimestre invalide." };
-  const eleveId = champ(formData, "eleveId");
-
-  const etat = (await etatsEnvoi(periode.anneeDebut, periode.trimestre)).find((e) => e.eleveId === eleveId);
+  const etat = (await etatsEnvoi(periode.anneeDebut, periode.trimestre)).find((e) => e.eleveId === params.eleveId);
   if (!etat) return { succes: false, message: "Élève introuvable." };
   if (etat.manque.length > 0) return { succes: false, message: `Bulletin incomplet : ${etat.manque.join(", ")}.` };
+  if (etat.envoyeLe && !params.renvoi) return { succes: false, message: "Déjà envoyé." };
 
   try {
-    await envoyerBulletinFamille(eleveId, periode.anneeDebut, periode.trimestre);
+    await envoyerBulletinFamille(params.eleveId, periode.anneeDebut, periode.trimestre, adresse, params.renvoi);
   } catch (erreur) {
     console.error(`Bulletin CHAM non envoyé (${etat.libelle}) :`, erreur);
     return { succes: false, message: erreur instanceof Error ? erreur.message : "Envoi impossible." };
   }
-  revalidatePath("/bulletins-cham");
+  if (params.garderAdresse && adresse !== etat.email) {
+    await db.eleveCham.update({ where: { id: params.eleveId }, data: { email: adresse } });
+  }
   return { succes: true, message: "Envoyé." };
+}
+
+// Applique la signature de la direction sur tous les bulletins du trimestre qui ne l'ont pas
+// encore : ceux qui sont complets et, si c'est demandé, ceux où il manque encore un prof.
+// Une signature déjà posée n'est jamais remplacée. Les PDF sont mis à jour ensuite.
+export async function signerTousLesBulletins(formData: FormData): Promise<EtatAction & { eleveIds?: string[] }> {
+  const refus = await exigerDirection();
+  if (refus) return refus;
+  const s = await session();
+  const periode = lirePeriode(formData);
+  if (!periode) return { succes: false, message: "Trimestre invalide." };
+  const signature = lireSignature(champ(formData, "signature"));
+  if (!signature) return { succes: false, message: "Signez dans le cadre avant de confirmer." };
+  const inclureIncomplets = formData.get("incomplets") === "on";
+
+  const etats = await etatsEnvoi(periode.anneeDebut, periode.trimestre);
+  const eleveIds = etats.filter((e) => !e.signe && e.aDesParties && (inclureIncomplets || e.manqueProfs.length === 0)).map((e) => e.eleveId);
+  if (eleveIds.length === 0) return { succes: false, message: "Aucun bulletin à signer." };
+
+  const donnees = {
+    signatureDirection: new Uint8Array(signature),
+    directionId: s.user.id,
+    directionNom: await nomDirection(),
+    signeDirectionLe: new Date(),
+  };
+  await db.$transaction([
+    db.bulletinCham.updateMany({ where: { ...periode, eleveId: { in: eleveIds }, signeDirectionLe: null }, data: donnees }),
+    db.bulletinCham.createMany({ data: eleveIds.map((eleveId) => ({ eleveId, ...periode, ...donnees })), skipDuplicates: true }),
+    db.signatureBulletin.upsert({
+      where: { userId: s.user.id },
+      create: { userId: s.user.id, image: new Uint8Array(signature) },
+      update: { image: new Uint8Array(signature) },
+    }),
+  ]);
+  return { succes: true, eleveIds };
+}
+
+// Met à jour le PDF d'un bulletin dans le Drive, un par un après la signature groupée.
+export async function actualiserPdfBulletin(eleveId: string, anneeDebut: number, trimestre: number): Promise<boolean> {
+  const refus = await exigerDirection();
+  if (refus) return false;
+  return (await recompiler(eleveId, anneeDebut, trimestre)) === undefined;
 }
 
 export async function recompilerBulletin(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
