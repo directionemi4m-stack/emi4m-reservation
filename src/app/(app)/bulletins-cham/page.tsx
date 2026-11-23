@@ -154,7 +154,7 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
 }
 
 // Vue d'ensemble pour la direction : pour chaque élève, les parties signées sur celles
-// attendues (d'après les profs qui l'ont déclaré), le bilan et le PDF compilé.
+// attendues (d'après les profs qui l'ont déclaré), la signature de la direction et le PDF.
 function SuiviDirection({
   eleves,
   suivis,
@@ -180,7 +180,7 @@ function SuiviDirection({
             <tr>
               <th className="px-4 py-2 font-medium">Élève</th>
               <th className="px-4 py-2 font-medium">Profs</th>
-              <th className="px-4 py-2 font-medium">Bilan</th>
+              <th className="px-4 py-2 font-medium">Direction</th>
               <th className="px-4 py-2 font-medium">PDF</th>
             </tr>
           </thead>

@@ -39,6 +39,8 @@ export async function enregistrerCoordonnees(_etat: EtatAction, formData: FormDa
     presidenceNom: texte(formData, "presidenceNom", 120),
     presidenceQualite: texte(formData, "presidenceQualite", 80),
     presidenceEmail: texte(formData, "presidenceEmail", 200)?.toLowerCase() ?? null,
+    directionNom: texte(formData, "directionNom", 120),
+    directionFonction: texte(formData, "directionFonction", 80),
   };
   if (donnees.presidenceEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(donnees.presidenceEmail)) {
     return { succes: false, message: "Le mail de la présidence n'est pas valide." };
@@ -59,6 +61,7 @@ export async function enregistrerCoordonnees(_etat: EtatAction, formData: FormDa
   }
   revalidatePath("/admin/parametres/ecole");
   revalidatePath("/admin/sacem");
+  revalidatePath("/bulletins-cham", "layout");
   revalidatePath("/admin/devis", "layout");
   return { succes: true, message: `Coordonnées enregistrées.${suite}` };
 }

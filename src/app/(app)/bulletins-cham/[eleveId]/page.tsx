@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { libellePeriode, MATIERES_CHAM, periodeCourante, signatureEnDataUrl } from "@/lib/bulletinsCham";
-import { AjouterMaPartie, BoutonRecompiler, FormAppreciation, FormBilan } from "@/components/bulletins/FormsBulletin";
+import { AjouterMaPartie, BoutonRecompiler, FormAppreciation, FormSignatureDirection } from "@/components/bulletins/FormsBulletin";
+import { nomDirection } from "@/lib/bulletinsChamServeur";
+import { MAIL_DIRECTION } from "@/lib/clesServeur";
 
 const dateCourte = (d: Date) => d.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" });
 
@@ -27,19 +29,17 @@ export default async function BulletinElevePage({
   const t = Number((await searchParams).t);
   const periode = { anneeDebut: courante.anneeDebut, trimestre: [1, 2, 3].includes(t) ? t : courante.trimestre };
 
-  const [eleve, mesSuivis, appreciations, bulletin, maSignature] = await Promise.all([
+  const [eleve, mesSuivis, appreciations, bulletin, maSignature, direction] = await Promise.all([
     db.eleveCham.findUnique({ where: { id: eleveId }, select: { id: true, prenom: true, nom: true } }),
     db.suiviCham.findMany({ where: { eleveId, profId: userId } }),
     db.appreciationCham.findMany({
       where: { eleveId, ...periode },
-      include: { prof: { select: { prenom: true, nom: true } } },
+      include: { prof: { select: { prenom: true, nom: true, email: true } } },
       orderBy: { signeLe: "asc" },
     }),
-    db.bulletinCham.findUnique({
-      where: { eleveId_anneeDebut_trimestre: { eleveId, ...periode } },
-      include: { direction: { select: { prenom: true, nom: true } } },
-    }),
+    db.bulletinCham.findUnique({ where: { eleveId_anneeDebut_trimestre: { eleveId, ...periode } } }),
     db.signatureBulletin.findUnique({ where: { userId } }),
+    nomDirection(),
   ]);
   if (!eleve) notFound();
 
@@ -74,7 +74,7 @@ export default async function BulletinElevePage({
             {autres.map((a) => (
               <div key={a.id} className="border-l-2 border-slate-200 pl-3">
                 <p className="text-xs text-slate-500">
-                  {[a.precision, `${a.prof.prenom} ${a.prof.nom}`].filter(Boolean).join(" · ")} — signé le {dateCourte(a.signeLe)}
+                  {[a.precision, a.signataireNom ?? (a.prof.email === MAIL_DIRECTION ? direction : `${a.prof.prenom} ${a.prof.nom}`)].filter(Boolean).join(" · ")} — signé le {dateCourte(a.signeLe)}
                 </p>
                 <p className="whitespace-pre-line text-sm text-slate-700">{a.texte}</p>
               </div>
@@ -113,19 +113,19 @@ export default async function BulletinElevePage({
       })}
 
       <section className="flex flex-col gap-3 rounded-lg bg-white p-4 shadow-sm">
-        <h2 className="text-center text-base font-semibold text-brand-slate">Bilan</h2>
-        {estAdmin ? (
+        <h2 className="text-center text-base font-semibold text-brand-slate">Signature de la direction</h2>
+        {bulletin?.signeDirectionLe ? (
+          <p className="text-center text-xs text-slate-500">
+            Signé par {bulletin.directionNom ?? direction} le {dateCourte(bulletin.signeDirectionLe)}
+          </p>
+        ) : (
+          <p className="text-center text-xs text-slate-500">{direction}</p>
+        )}
+        {estAdmin && (
           <>
-            {bulletin?.signeDirectionLe && (
-              <p className="text-xs text-slate-500">
-                Signé par {bulletin.direction ? `${bulletin.direction.prenom} ${bulletin.direction.nom}` : "la direction"} le{" "}
-                {dateCourte(bulletin.signeDirectionLe)}
-              </p>
-            )}
-            <FormBilan
+            <FormSignatureDirection
               eleveId={eleve.id}
               periode={periode}
-              bilan={bulletin?.bilan ?? ""}
               signature={
                 bulletin?.signatureDirection && !impersonation ? signatureEnDataUrl(bulletin.signatureDirection) : signatureParDefaut
               }
@@ -133,10 +133,6 @@ export default async function BulletinElevePage({
               bloque={impersonation}
             />
           </>
-        ) : bulletin?.bilan ? (
-          <p className="whitespace-pre-line text-sm text-slate-700">{bulletin.bilan}</p>
-        ) : (
-          <p className="text-center text-sm italic text-slate-400">Rédigé par la direction</p>
         )}
       </section>
 

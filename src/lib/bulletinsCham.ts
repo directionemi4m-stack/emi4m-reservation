@@ -91,6 +91,12 @@ export function lireSignature(dataUrl: string): Buffer | null {
   return buffer;
 }
 
+// « Nicolas Bercovitz - direction », d'après les coordonnées de l'école.
+export function libelleDirection(nom: string | null | undefined, fonction: string | null | undefined): string {
+  const n = nom?.trim();
+  return n ? `${n} - ${fonction?.trim() || "direction"}` : "La direction";
+}
+
 export function signatureEnDataUrl(image: Uint8Array): string {
   return `data:image/png;base64,${Buffer.from(image).toString("base64")}`;
 }

@@ -37,6 +37,13 @@ export function CoordonneesForm({ coordonnees }: { coordonnees: Coordonnees }) {
       {champ("siteWeb", "Site internet")}
       {champ("siret", "SIRET", "14 chiffres")}
       {champ("numeroSacem", "Numéro de client SACEM", "Figure sur vos courriers ou factures SACEM")}
+      <h2 className="mt-2 text-sm font-semibold text-brand-slate sm:col-span-2">Direction</h2>
+      <p className="-mt-2 text-xs text-slate-500 sm:col-span-2">
+        Nom affiché sur les bulletins CHAM à la place du compte de la direction. Si la direction change, modifiez-le ici : les prochaines
+        signatures porteront le nouveau nom, celles déjà faites gardent le nom de la personne qui a signé.
+      </p>
+      {champ("directionNom", "Prénom et nom", "Ex. « Nicolas Bercovitz »")}
+      {champ("directionFonction", "Fonction", "Ex. « direction »")}
       <h2 className="mt-2 text-sm font-semibold text-brand-slate sm:col-span-2">Présidence</h2>
       <p className="-mt-2 text-xs text-slate-500 sm:col-span-2">
         Signe les contrats et avenants des profs, à distance, avec un lien reçu par mail. Si vous changez de présidence, les documents en

@@ -66,6 +66,8 @@ export interface Coordonnees {
   presidenceNom: string | null;
   presidenceQualite: string | null;
   presidenceEmail: string | null;
+  directionNom: string | null;
+  directionFonction: string | null;
 }
 
 // Valeurs proposées tant que la direction n'a rien enregistré (cf. Paramètres › Coordonnées).
@@ -88,4 +90,6 @@ export const COORDONNEES_DEFAUT: Coordonnees = {
   presidenceNom: null,
   presidenceQualite: null,
   presidenceEmail: null,
+  directionNom: null,
+  directionFonction: null,
 };

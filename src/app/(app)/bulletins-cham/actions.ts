@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { lireSignature, MATIERES_CHAM, periodeCourante, type MatiereCham } from "@/lib/bulletinsCham";
-import { compilerBulletin, envoyerBulletinFamille, etatsEnvoi } from "@/lib/bulletinsChamServeur";
+import { compilerBulletin, envoyerBulletinFamille, etatsEnvoi, nomDirection } from "@/lib/bulletinsChamServeur";
+import { MAIL_DIRECTION } from "@/lib/clesServeur";
 
 export type EtatAction = { succes: boolean; message?: string };
 
@@ -111,7 +112,9 @@ export async function signerAppreciation(_etat: EtatAction, formData: FormData):
     : await db.suiviCham.upsert({ where: suiviCle, create: { eleveId, profId: s.user.id, matiere }, update: {} });
 
   const cle = { eleveId, profId: s.user.id, matiere, ...periode };
-  const donnees = { texte, signature: new Uint8Array(signature), signeLe: new Date(), precision: suivi.precision };
+  // Compte partagé de la direction : on garde le nom de la personne qui signe aujourd'hui.
+  const signataireNom = s.user.email === MAIL_DIRECTION ? await nomDirection() : null;
+  const donnees = { texte, signature: new Uint8Array(signature), signeLe: new Date(), precision: suivi.precision, signataireNom };
   await db.appreciationCham.upsert({
     where: { eleveId_profId_matiere_anneeDebut_trimestre: cle },
     create: { ...cle, ...donnees },
@@ -129,7 +132,7 @@ export async function signerAppreciation(_etat: EtatAction, formData: FormData):
   return { succes: true, message: avertissement ?? "Appréciation signée et bulletin mis à jour." };
 }
 
-export async function signerBilan(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
+export async function signerDirection(_etat: EtatAction, formData: FormData): Promise<EtatAction> {
   const s = await session();
   if (s.user.role !== "ADMIN") return { succes: false, message: "Réservé à la direction." };
   const refus = refusSiImpersonation(s);
@@ -138,19 +141,17 @@ export async function signerBilan(_etat: EtatAction, formData: FormData): Promis
   const periode = lirePeriode(formData);
   if (!periode) return { succes: false, message: "Trimestre invalide." };
   const eleveId = champ(formData, "eleveId");
-  const bilan = champ(formData, "bilan");
   const signature = lireSignature(champ(formData, "signature"));
 
   if (!(await db.eleveCham.findUnique({ where: { id: eleveId }, select: { id: true } }))) {
     return { succes: false, message: "Élève introuvable." };
   }
-  if (bilan.length > TEXTE_MAX) return { succes: false, message: `Bilan trop long (${TEXTE_MAX} caractères au plus).` };
   if (!signature) return { succes: false, message: "Signez dans le cadre avant d'enregistrer." };
 
   const donnees = {
-    bilan: bilan || null,
     signatureDirection: new Uint8Array(signature),
     directionId: s.user.id,
+    directionNom: await nomDirection(),
     signeDirectionLe: new Date(),
   };
   await db.bulletinCham.upsert({
@@ -167,7 +168,7 @@ export async function signerBilan(_etat: EtatAction, formData: FormData): Promis
   const avertissement = await recompiler(eleveId, periode.anneeDebut, periode.trimestre);
   revalidatePath("/bulletins-cham");
   revalidatePath(`/bulletins-cham/${eleveId}`);
-  return { succes: true, message: avertissement ?? "Bilan signé et bulletin mis à jour." };
+  return { succes: true, message: avertissement ?? "Bulletin signé et mis à jour." };
 }
 
 // --- Envoi aux familles (direction) ---

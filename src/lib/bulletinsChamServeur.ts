@@ -1,26 +1,32 @@
 import { db } from "@/lib/db";
 import { genererBulletinPdf } from "@/lib/bulletinPdf";
-import { libelleMatiere, libellePeriode, libelleTrimestre, rappelDuJour, type TypeRappel } from "@/lib/bulletinsCham";
+import { libelleDirection, libelleMatiere, libellePeriode, libelleTrimestre, rappelDuJour, type TypeRappel } from "@/lib/bulletinsCham";
+import { MAIL_DIRECTION } from "@/lib/clesServeur";
+import { lireCoordonnees } from "@/lib/coordonneesServeur";
 import { deposerBulletinCham } from "@/lib/drive";
 import { envoyerMailBulletinFamille, envoyerMailRappelBulletins } from "@/lib/mail";
 import { envoyerPush } from "@/lib/push";
 
 const nomComplet = (u: { prenom: string; nom: string }) => `${u.prenom} ${u.nom}`.trim();
 
+// La direction actuelle, telle que réglée dans Paramètres › Coordonnées de l'école.
+export async function nomDirection(): Promise<string> {
+  const c = await lireCoordonnees();
+  return libelleDirection(c.directionNom, c.directionFonction);
+}
+
 // Tout ce qu'il faut pour fabriquer le PDF du bulletin d'un élève pour un trimestre : le
 // même PDF sert pour le Drive et pour l'envoi aux familles.
 async function preparerBulletin(eleveId: string, anneeDebut: number, trimestre: number) {
-  const [eleve, appreciations, bulletin] = await Promise.all([
+  const [eleve, appreciations, bulletin, direction] = await Promise.all([
     db.eleveCham.findUnique({ where: { id: eleveId }, select: { prenom: true, nom: true, email: true } }),
     db.appreciationCham.findMany({
       where: { eleveId, anneeDebut, trimestre },
-      include: { prof: { select: { prenom: true, nom: true } } },
+      include: { prof: { select: { prenom: true, nom: true, email: true } } },
       orderBy: { signeLe: "asc" },
     }),
-    db.bulletinCham.findUnique({
-      where: { eleveId_anneeDebut_trimestre: { eleveId, anneeDebut, trimestre } },
-      include: { direction: { select: { prenom: true, nom: true } } },
-    }),
+    db.bulletinCham.findUnique({ where: { eleveId_anneeDebut_trimestre: { eleveId, anneeDebut, trimestre } } }),
+    nomDirection(),
   ]);
   if (!eleve || (appreciations.length === 0 && !bulletin?.signatureDirection)) return null;
 
@@ -33,23 +39,17 @@ async function preparerBulletin(eleveId: string, anneeDebut: number, trimestre: 
         matiere: a.matiere,
         precision: a.precision,
         profId: a.profId,
-        profNom: nomComplet(a.prof),
+        profNom: a.signataireNom ?? (a.prof.email === MAIL_DIRECTION ? direction : nomComplet(a.prof)),
         texte: a.texte,
         signature: a.signature,
         signeLe: a.signeLe,
       })),
-      bilan: bulletin
-        ? {
-            texte: bulletin.bilan,
-            signature: bulletin.signatureDirection,
-            directionNom: bulletin.direction ? nomComplet(bulletin.direction) : null,
-          }
-        : null,
+      direction: { signature: bulletin?.signatureDirection ?? null, nom: bulletin?.directionNom ?? direction },
     });
   return { eleve, bulletin, fabriquerPdf };
 }
 
-// Régénère le PDF du bulletin d'un élève (toutes les parties signées et le bilan) et le
+// Régénère le PDF du bulletin d'un élève (toutes les parties signées) et le
 // dépose dans le Drive. Appelé après chaque signature ; une erreur Google est remontée à
 // l'appelant, qui ne doit pas faire échouer la saisie pour autant.
 export async function compilerBulletin(eleveId: string, anneeDebut: number, trimestre: number) {
@@ -86,13 +86,14 @@ export interface EnvoiEleve {
 
 // Pour chaque élève CHAM, où en est l'envoi de son bulletin : un bulletin n'est complet
 // (donc envoyable) que si chaque prof déclaré a signé sa partie et que la direction a
-// signé le bilan.
+// signé le bulletin.
 export async function etatsEnvoi(anneeDebut: number, trimestre: number): Promise<EnvoiEleve[]> {
-  const [eleves, suivis, signees, bulletins] = await Promise.all([
+  const [eleves, suivis, signees, bulletins, direction] = await Promise.all([
     db.eleveCham.findMany({ orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true, email: true } }),
-    db.suiviCham.findMany({ include: { prof: { select: { prenom: true, nom: true } } } }),
+    db.suiviCham.findMany({ include: { prof: { select: { prenom: true, nom: true, email: true } } } }),
     db.appreciationCham.findMany({ where: { anneeDebut, trimestre }, select: { eleveId: true, profId: true, matiere: true } }),
     db.bulletinCham.findMany({ where: { anneeDebut, trimestre }, select: { eleveId: true, signeDirectionLe: true, envoyeLe: true } }),
+    nomDirection(),
   ]);
   const faites = new Set(signees.map((a) => `${a.eleveId}|${a.profId}|${a.matiere}`));
   const parEleve = new Map(bulletins.map((b) => [b.eleveId, b]));
@@ -104,8 +105,8 @@ export async function etatsEnvoi(anneeDebut: number, trimestre: number): Promise
       ...(attendus.length === 0 ? ["aucun prof déclaré"] : []),
       ...attendus
         .filter((s) => !faites.has(`${s.eleveId}|${s.profId}|${s.matiere}`))
-        .map((s) => `${s.precision || libelleMatiere(s.matiere)} (${nomComplet(s.prof)})`),
-      ...(bulletin?.signeDirectionLe ? [] : ["bilan de la direction"]),
+        .map((s) => `${s.precision || libelleMatiere(s.matiere)} (${s.prof.email === MAIL_DIRECTION ? direction : nomComplet(s.prof)})`),
+      ...(bulletin?.signeDirectionLe ? [] : ["signature de la direction"]),
     ];
     const etat: EtatEnvoi = bulletin?.envoyeLe
       ? "envoye"

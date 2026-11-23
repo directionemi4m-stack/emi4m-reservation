@@ -553,18 +553,21 @@ model SuiviCham {
 // La partie d'un prof dans le bulletin d'un élève, pour un trimestre : appréciation et
 // signature manuscrite (PNG dessiné à l'écran). Modifier le texte oblige à re-signer.
 model AppreciationCham {
-  id         String      @id @default(cuid())
-  eleveId    String
-  eleve      EleveCham   @relation(fields: [eleveId], references: [id], onDelete: Cascade)
-  profId     String
-  prof       User        @relation(fields: [profId], references: [id], onDelete: Cascade)
-  matiere    MatiereCham
-  precision  String?
-  anneeDebut Int // 2026 pour 2026-2027
-  trimestre  Int // 1, 2 ou 3
-  texte      String
-  signature  Bytes
-  signeLe    DateTime
+  id            String      @id @default(cuid())
+  eleveId       String
+  eleve         EleveCham   @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  profId        String
+  prof          User        @relation(fields: [profId], references: [id], onDelete: Cascade)
+  matiere       MatiereCham
+  precision     String?
+  anneeDebut    Int // 2026 pour 2026-2027
+  trimestre     Int // 1, 2 ou 3
+  texte         String
+  signature     Bytes
+  signeLe       DateTime
+  // Compte partagé de la direction : le nom de la personne qui a signé, gardé tel quel
+  // même si la direction change ensuite.
+  signataireNom String?
 
   @@unique([eleveId, profId, matiere, anneeDebut, trimestre])
   @@index([anneeDebut, trimestre])
@@ -592,6 +595,7 @@ model BulletinCham {
   directionId        String?
   direction          User?     @relation("BilanDirection", fields: [directionId], references: [id])
   signeDirectionLe   DateTime?
+  directionNom       String? // « Prénom Nom - direction », figé à la signature
   documentDriveId    String?
   documentUrl        String?
   documentMajLe      DateTime?
@@ -859,6 +863,9 @@ model CoordonneesEcole {
   presidenceNom      String?
   presidenceQualite  String? // « Présidente », « Président », « Co-président »…
   presidenceEmail    String?
+  // Direction : nom affiché sur les bulletins CHAM (le compte de connexion est partagé).
+  directionNom       String?
+  directionFonction  String?
   // Devis et factures émis.
   mentionTva         String? // « TVA non applicable… »
   conditionsPaiement String? // reprises par défaut sur chaque devis et facture

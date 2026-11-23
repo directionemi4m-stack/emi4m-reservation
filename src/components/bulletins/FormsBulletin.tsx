@@ -6,7 +6,7 @@ import {
   ajouterSuivi,
   recompilerBulletin,
   signerAppreciation,
-  signerBilan,
+  signerDirection,
   type EtatAction,
 } from "@/app/(app)/bulletins-cham/actions";
 import { MATIERES_CHAM } from "@/lib/bulletinsCham";
@@ -138,41 +138,30 @@ export function AjouterMaPartie(props: { eleveId: string; matiere: string; perio
   return <FormAppreciation {...props} texte="" dejaSigne={false} bloque={false} avecPrecision />;
 }
 
-export function FormBilan({
+export function FormSignatureDirection({
   eleveId,
   periode,
-  bilan,
   signature,
   dejaSigne,
   bloque,
 }: {
   eleveId: string;
   periode: Periode;
-  bilan: string;
   signature: string | null;
   dejaSigne: boolean;
   bloque: boolean;
 }) {
-  const [etat, soumettre, enCours] = useSoumission(signerBilan, etatInitial);
+  const [etat, soumettre, enCours] = useSoumission(signerDirection, etatInitial);
   return (
     <form onSubmit={soumettre} className="flex flex-col gap-2">
       <input type="hidden" name="eleveId" value={eleveId} />
       <input type="hidden" name="anneeDebut" value={periode.anneeDebut} />
       <input type="hidden" name="trimestre" value={periode.trimestre} />
-      <textarea
-        name="bilan"
-        defaultValue={bilan}
-        rows={4}
-        maxLength={2000}
-        disabled={bloque}
-        placeholder="Bilan général du trimestre…"
-        className={`${champClass} w-full`}
-      />
       <PadSignature nom="signature" initiale={signature} desactive={bloque} />
       <Message etat={etat} />
       {!bloque && (
         <button type="submit" disabled={enCours} className={boutonClass}>
-          {enCours ? "Enregistrement…" : dejaSigne ? "Re-signer le bilan" : "Signer le bilan"}
+          {enCours ? "Enregistrement…" : dejaSigne ? "Signer à nouveau" : "Signer le bulletin"}
         </button>
       )}
     </form>

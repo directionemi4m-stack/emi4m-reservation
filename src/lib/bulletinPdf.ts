@@ -17,7 +17,7 @@ export interface DonneesBulletin {
   anneeDebut: number;
   trimestre: number;
   parties: PartieProf[];
-  bilan: { texte: string | null; signature: Uint8Array | null; directionNom: string | null } | null;
+  direction: { signature: Uint8Array | null; nom: string };
 }
 
 const LARGEUR = 595.28; // A4
@@ -30,8 +30,8 @@ const GRIS = rgb(0.45, 0.49, 0.53);
 const GRIS_CLAIR = rgb(0.82, 0.85, 0.88);
 
 // Le bulletin compilé d'un élève pour un trimestre, à la manière du modèle papier : en-tête
-// aux trois logos, une rubrique par matière avec l'appréciation de chaque prof, le bilan de
-// la direction, puis toutes les signatures réunies en bas du document.
+// aux trois logos, une rubrique par matière avec l'appréciation de chaque prof, puis
+// toutes les signatures (profs et direction) réunies en bas du document.
 export async function genererBulletinPdf(donnees: DonneesBulletin): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Bulletin CHAM — ${donnees.eleve.prenom} ${donnees.eleve.nom} — ${libellePeriode(donnees.anneeDebut, donnees.trimestre)}`);
@@ -108,10 +108,6 @@ export async function genererBulletinPdf(donnees: DonneesBulletin): Promise<Uint
     }
   }
 
-  titreRubrique("Bilan");
-  if (donnees.bilan?.texte) paragraphe(donnees.bilan.texte, 10.5, normale);
-  else paragraphe("Non renseigné", 9, italique, GRIS);
-
   // --- Signatures ---
   const embarquer = (png: Uint8Array) => pdf.embedPng(copieIndependante(png));
   const cadre = async (x: number, haut: number, image: PDFImage | null, nom: string, sousTitre: string) => {
@@ -130,7 +126,8 @@ export async function genererBulletinPdf(donnees: DonneesBulletin): Promise<Uint
 
   // Un cadre par prof (sa signature la plus récente), même s'il intervient dans deux rubriques.
   const parProf = new Map<string, PartieProf[]>();
-  for (const p of donnees.parties) parProf.set(p.profId, [...(parProf.get(p.profId) ?? []), p]);
+  // (Par nom aussi : le compte partagé de la direction peut avoir signé sous deux noms.)
+  for (const p of donnees.parties) parProf.set(`${p.profId}|${p.profNom}`, [...(parProf.get(`${p.profId}|${p.profNom}`) ?? []), p]);
   const profs = [...parProf.values()].map((ps) => ps.sort((a, b) => b.signeLe.getTime() - a.signeLe.getTime()));
 
   place(50);
@@ -152,10 +149,10 @@ export async function genererBulletinPdf(donnees: DonneesBulletin): Promise<Uint
 
   place(95);
   y -= 22;
-  ecrire("Le directeur :", { taille: 11, police: grasse });
+  ecrire("La direction :", { taille: 11, police: grasse });
   y -= 8;
-  const signatureDirection = donnees.bilan?.signature ? await embarquer(donnees.bilan.signature) : null;
-  await cadre(MARGE, y, signatureDirection, donnees.bilan?.directionNom ?? "", "");
+  const signatureDirection = donnees.direction.signature ? await embarquer(donnees.direction.signature) : null;
+  await cadre(MARGE, y, signatureDirection, donnees.direction.nom, "");
 
   // Pied de page discret sur chaque page.
   const genere = `Bulletin compilé le ${new Date().toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })} — École Musicale Itinérante des 4 Montagnes`;

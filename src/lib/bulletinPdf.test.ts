@@ -37,7 +37,7 @@ describe("images du bulletin", () => {
       parties: [
         { matiere: "INSTRUMENT", precision: "Piano", profId: "p1", profNom: "Jeanne Dupont", texte: "Très bien 🎵", signature, signeLe: new Date() },
       ],
-      bilan: { texte: "Bilan", signature, directionNom: "Direction" },
+      direction: { signature, nom: "Prénom Nom - direction" },
     });
     expect(Buffer.from(pdf.subarray(0, 5)).toString()).toBe("%PDF-");
   });
