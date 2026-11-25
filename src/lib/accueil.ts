@@ -9,6 +9,8 @@ import { contexteBulletins } from "@/lib/calendrierBulletinsServeur";
 import { MAIL_DIRECTION, salariesDuRegistre } from "@/lib/clesServeur";
 import { seancesSansAppel } from "@/lib/appelsServeur";
 import { joursFeries } from "@/lib/joursFeries";
+import { resumeSante } from "@/lib/santeTravailServeur";
+import { dateCourte, LIBELLE_TYPE_VISITE } from "@/lib/santeTravail";
 
 export interface EtatTuile {
   statut?: string;
@@ -162,7 +164,7 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
   const campagne = campagneOuverte(aujourdHui, periodeBulletins.anneeDebut, periodeBulletins.trimestre, calendrierBulletins);
 
   // Contrats et avenants : à signer par le prof ; côté direction, ceux en cours de signature.
-  const [mesContratsASigner, mesContrats, contratsEnCours, mesIdees, ideesNouvelles, mesDemandesMateriel, materielATraiter, materielUrgent] = await Promise.all([
+  const [mesContratsASigner, mesContrats, contratsEnCours, mesIdees, ideesNouvelles, mesDemandesMateriel, materielATraiter, materielUrgent, sante, maVisite] = await Promise.all([
     db.contratProf.count({ where: { profId: userId, papier: false, presidenceSigneLe: { not: null }, profSigneLe: null } }),
     db.contratProf.count({ where: { profId: userId, OR: [{ papier: true }, { presidenceSigneLe: { not: null } }] } }),
     estAdmin ? db.contratProf.count({ where: { papier: false, profSigneLe: null } }) : Promise.resolve(0),
@@ -171,7 +173,15 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     db.demandeMateriel.count({ where: { statut: { in: ["NOUVELLE", "A_L_ETUDE", "VALIDEE", "COMMANDEE"] } } }),
     estAdmin ? db.demandeMateriel.count({ where: { statut: "NOUVELLE" } }) : Promise.resolve(0),
     estAdmin ? db.demandeMateriel.count({ where: { urgence: "URGENTE", statut: { in: ["NOUVELLE", "A_L_ETUDE", "VALIDEE"] } } }) : Promise.resolve(0),
+    estAdmin ? resumeSante(aujourdHui) : Promise.resolve(null),
+    // Ma prochaine convocation de santé au travail, dans les 30 jours.
+    db.visiteMedicale.findFirst({
+      where: { statut: "PREVUE", date: { gte: aujourdHui, lt: ajouterJours(aujourdHui, 31) }, salarie: { userId } },
+      orderBy: { date: "asc" },
+      select: { type: true, date: true },
+    }),
   ]);
+  const santeAFaire = sante ? sante.enRetard + sante.aConfirmer + sante.facturesEnRetard : 0;
 
   return {
     "/planning": { statut: reservations ? `${pluriel(reservations, "réservation")} cette sem.` : "Voir les salles" },
@@ -244,7 +254,29 @@ export async function etatsAccueil(userId: string, estAdmin: boolean): Promise<R
     },
     "/contrats": mesContratsASigner
       ? { statut: `${pluriel(mesContratsASigner, "document")} à signer`, pastille: mesContratsASigner }
-      : { statut: mesContrats ? pluriel(mesContrats, "document") : "Aucun document" },
+      : maVisite?.date
+        ? { statut: `${LIBELLE_TYPE_VISITE[maVisite.type]} le ${dateCourte(maVisite.date).replace(/ \d{4}$/, "")}` }
+        : { statut: mesContrats ? pluriel(mesContrats, "document") : "Aucun document" },
+    "/admin/sante": sante
+      ? {
+          statut: sante.enRetard
+            ? `${pluriel(sante.enRetard, "visite")} en retard`
+            : sante.aConfirmer
+              ? `${pluriel(sante.aConfirmer, "visite")} à confirmer`
+              : sante.facturesEnRetard
+                ? `${pluriel(sante.facturesEnRetard, "facture")} en retard`
+                : sante.bientot
+                  ? `${pluriel(sante.bientot, "visite")} à prévoir`
+                  : sante.aRenseigner
+                    ? `${pluriel(sante.aRenseigner, "fiche")} à compléter`
+                    : sante.alertes
+                      ? `${pluriel(sante.alertes, "point")} à vérifier`
+                      : sante.salaries
+                        ? "Suivi à jour"
+                        : "Ajouter les salariés",
+          pastille: santeAFaire || undefined,
+        }
+      : {},
     "/plans-de-scene": { statut: "Concerts et ensembles" },
     "/materiel": { statut: mesDemandesMateriel ? `${pluriel(mesDemandesMateriel, "demande")} en cours` : "Demander du matériel" },
     "/admin/materiel": {

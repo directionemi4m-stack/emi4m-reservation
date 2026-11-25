@@ -46,7 +46,8 @@ export type CleIcone =
   | "convention"
   | "rentree"
   | "bilan"
-  | "devis";
+  | "devis"
+  | "sante";
 
 export interface LienNav {
   href: string;
@@ -111,6 +112,7 @@ export const SECTIONS: SectionNav[] = [
       { href: "/admin/cles", label: "Clés et badges", icone: "cles", couleur: "neutre" },
       { href: "/admin/documents", label: "Signatures", icone: "signature", couleur: "neutre" },
       { href: "/admin/contrats", label: "Contrats profs", icone: "contrat", couleur: "neutre" },
+      { href: "/admin/sante", label: "Visites médicales", icone: "sante", couleur: "neutre" },
       { href: "/admin/idees", label: "Idées des profs", icone: "idee", couleur: "ambre" },
       { href: "/admin/conventions", label: "Conventions", icone: "convention", couleur: "bleu" },
       { href: "/admin/parametres/profs", label: "Profs", icone: "profs", couleur: "neutre" },

@@ -39,6 +39,7 @@ import {
   IconChartBar,
   IconFileInvoice,
   IconUsers,
+  IconStethoscope,
 } from "@tabler/icons-react";
 import type { CleIcone, CouleurTuile } from "@/lib/navigation";
 
@@ -83,6 +84,7 @@ const ICONES: Record<CleIcone, typeof IconHome> = {
   rentree: IconBackpack,
   bilan: IconChartBar,
   devis: IconFileInvoice,
+  sante: IconStethoscope,
 };
 
 // Pastille ronde colorée derrière l'icône, comme sur Home Assistant.

@@ -658,3 +658,33 @@ export async function envoyerMailSuiteDemandeMateriel(params: { prof: { prenom: 
     }),
   });
 }
+
+// Santé au travail : la direction transmet au salarié la convocation reçue du service.
+export async function envoyerMailConvocationVisite(params: {
+  salarie: { prenom: string; email: string };
+  visite: string; // « visite périodique »
+  quand: string; // « mardi 3 décembre 2026 à 14h30 »
+  lieu: string | null;
+  organisme: string | null;
+  url: string;
+}) {
+  const { salarie, visite, quand, lieu, organisme, url } = params;
+  const transport = creerTransporteur();
+  const phrase = `Vous êtes convoqué(e) à une ${visite} de santé au travail le ${quand}${lieu ? `, ${lieu}` : ""}${organisme ? ` (${organisme})` : ""}.`;
+  const consigne = "Le temps de la visite compte comme du temps de travail. Si vous ne pouvez pas vous y rendre, prévenez la direction au plus vite pour qu'elle demande une autre date.";
+  const resultat = await transport.sendMail({
+    to: salarie.email,
+    from: process.env.EMAIL_FROM,
+    replyTo: EMAIL_DIRECTION,
+    subject: `Convocation — ${visite} le ${quand}`,
+    text: `Bonjour ${salarie.prenom},\n\n${phrase}\n\n${consigne}\n\n${url}\n\nLa direction de l'EMI4M`,
+    html: htmlLienMotDePasse({
+      titre: "Visite de santé au travail",
+      intro: `Bonjour ${h(salarie.prenom)},<br><br><strong>${h(phrase)}</strong><br><br>${h(consigne)}`,
+      url,
+      libelleBouton: "Voir dans l'appli",
+      mention: "",
+    }),
+  });
+  if (resultat.rejected.filter(Boolean).length > 0) throw new Error(`Adresse refusée : ${salarie.email}`);
+}

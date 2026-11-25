@@ -116,6 +116,7 @@ model User {
   plansScene           PlanScene[]           @relation("PlansSceneAuteur")
   demandesMateriel     DemandeMateriel[]     @relation("DemandesMateriel")
   propositionsMateriel PropositionMateriel[] @relation("PropositionsMateriel")
+  suiviSante           SalarieSante?         @relation("SuiviSante")
 }
 
 // Lien à usage unique envoyé par email pour définir ou réinitialiser le mot de
@@ -1018,6 +1019,7 @@ model Facture {
   articles         ArticleInventaire[]
   devisRecu        DevisRecu?
   attestationAchat AttestationAchat?
+  factureSante     FactureSante?
 
   @@index([date])
   @@index([fournisseur])
@@ -1628,4 +1630,112 @@ model CalendrierBulletinCham {
   majLe      DateTime @updatedAt
 
   @@unique([anneeDebut, trimestre])
+}
+
+// --- Santé au travail ---
+
+enum CategorieSuiviSante {
+  SIG // suivi individuel général
+  SIA // suivi adapté (handicap, travail de nuit, moins de 18 ans…)
+  SIR // suivi renforcé (postes à risques)
+}
+
+enum TypeVisiteMedicale {
+  EMBAUCHE
+  PERIODIQUE
+  INTERMEDIAIRE
+  REPRISE
+  PRE_REPRISE
+  MI_CARRIERE
+  DEMANDE
+}
+
+enum StatutVisiteMedicale {
+  DEMANDEE // demandée au service, date pas encore fixée
+  PREVUE // convocation reçue
+  REALISEE
+  ANNULEE
+}
+
+enum AvisVisiteMedicale {
+  ATTESTATION // attestation de suivi (visite d'information et de prévention)
+  APTE
+  APTE_AMENAGEMENT
+  INAPTE
+}
+
+// Un salarié suivi par le service de santé au travail : un prof de l'appli, ou une autre
+// personne salariée sans compte. Aucune information médicale : seulement les dates.
+model SalarieSante {
+  id             String              @id @default(cuid())
+  userId         String?             @unique
+  user           User?               @relation("SuiviSante", fields: [userId], references: [id], onDelete: SetNull)
+  nom            String
+  prenom         String
+  poste          String?
+  categorie      CategorieSuiviSante @default(SIG)
+  embaucheLe     DateTime?           @db.Date
+  sortieLe       DateTime?           @db.Date
+  affilieLe      DateTime?           @db.Date // déclaré au service de santé au travail
+  desaffilieLe   DateTime?           @db.Date // départ signalé au service
+  anneeNaissance Int? // pour la visite de mi-carrière (année des 45 ans)
+  notes          String?
+  creeLe         DateTime            @default(now())
+  visites        VisiteMedicale[]
+}
+
+// Une visite : demandée, convoquée, réalisée ou annulée. L'attestation remise à l'employeur
+// peut être jointe (PDF ou photos).
+model VisiteMedicale {
+  id               String               @id @default(cuid())
+  salarieId        String
+  salarie          SalarieSante         @relation(fields: [salarieId], references: [id], onDelete: Cascade)
+  type             TypeVisiteMedicale
+  statut           StatutVisiteMedicale
+  date             DateTime?            @db.Date
+  heure            String?
+  lieu             String?
+  avis             AvisVisiteMedicale?
+  prochaineAvant   DateTime?            @db.Date // « prochaine visite au plus tard le »
+  commentaire      String?
+  pdf              Bytes?
+  nomFichier       String?
+  salariePrevenuLe DateTime?
+  creeLe           DateTime             @default(now())
+  majLe            DateTime             @updatedAt
+
+  @@index([salarieId])
+}
+
+// Le service de santé au travail auquel l'école adhère. Ligne unique.
+model OrganismeSante {
+  id             String   @id @default("singleton")
+  nom            String
+  numeroAdherent String?
+  adresse        String?
+  telephone      String?
+  email          String?
+  siteWeb        String?
+  majLe          DateTime @updatedAt
+}
+
+// Facture du service de santé au travail (cotisation annuelle, visites…). Le PDF est gardé
+// dans l'appli et, quand le Drive est connecté, archivé aussi avec les factures d'achat.
+model FactureSante {
+  id              String    @id @default(cuid())
+  date            DateTime  @db.Date
+  numero          String?
+  objet           String
+  anneeCotisation Int
+  montantCentimes Int?
+  nombreSalaries  Int?
+  echeance        DateTime? @db.Date
+  payeeLe         DateTime? @db.Date
+  pdf             Bytes
+  nomFichier      String
+  factureId       String?   @unique
+  facture         Facture?  @relation(fields: [factureId], references: [id], onDelete: SetNull)
+  creeLe          DateTime  @default(now())
+
+  @@index([anneeCotisation])
 }
