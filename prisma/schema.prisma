@@ -499,6 +499,10 @@ model EleveCham {
   prenom                  String
   nom                     String
   age                     Int?
+  // Année scolaire où l'élève était (ou sera) en 6e : 2026 pour 2026-2027. La classe
+  // (6e, 5e, 4e, 3e) s'en déduit pour chaque année, sans ressaisie à la rentrée ; un
+  // redoublement se corrige en changeant la classe sur la fiche.
+  anneeSixieme            Int?
   telephone               String?
   email                   String?
   ville                   String?

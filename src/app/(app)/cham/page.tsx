@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ListeCham } from "@/components/cham/ListeCham";
+import { classeEnAnnee } from "@/lib/cham";
+import { anneeScolaireDebut } from "@/lib/fraisRecap";
 
 export default async function ChamPage() {
   const session = await auth();
@@ -13,6 +15,7 @@ export default async function ChamPage() {
       prenom: true,
       nom: true,
       age: true,
+      anneeSixieme: true,
       telephone: true,
       email: true,
       ville: true,
@@ -25,8 +28,10 @@ export default async function ChamPage() {
   });
   // La fiche scannée (signatures, coordonnées des parents) n'est transmise qu'à la
   // direction : les profs ne reçoivent même pas son lien.
-  const eleves = lignes.map(({ documentUrl, documentMajLe, ...e }) => ({
+  const annee = anneeScolaireDebut(new Date());
+  const eleves = lignes.map(({ documentUrl, documentMajLe, anneeSixieme, ...e }) => ({
     ...e,
+    classe: classeEnAnnee(anneeSixieme, annee),
     document: estAdmin && documentUrl ? { url: documentUrl, majLe: documentMajLe?.toISOString() ?? null } : null,
   }));
 

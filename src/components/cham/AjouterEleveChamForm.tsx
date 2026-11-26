@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSoumission } from "@/lib/useSoumission";
 import { ajouterEleveCham, type EtatAction } from "@/app/(app)/cham/actions";
+import { ChoixClasse } from "@/components/cham/LigneEleveCham";
 
 const etatInitial: EtatAction = { succes: true };
 
@@ -37,6 +38,7 @@ export function AjouterEleveChamForm() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <input name="prenom" required placeholder="Prénom" className={champClass} />
         <input name="nom" required placeholder="Nom" className={champClass} />
+        <ChoixClasse />
         <input name="age" type="number" min={3} max={25} placeholder="Âge" className={champClass} />
         <input name="telephone" placeholder="Téléphone" className={champClass} />
         <input name="email" type="email" placeholder="E-mail" className={champClass} />

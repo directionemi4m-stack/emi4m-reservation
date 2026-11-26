@@ -13,7 +13,7 @@ export interface PartieProf {
 }
 
 export interface DonneesBulletin {
-  eleve: { prenom: string; nom: string };
+  eleve: { prenom: string; nom: string; classe?: string | null };
   anneeDebut: number;
   trimestre: number;
   parties: PartieProf[];
@@ -84,6 +84,13 @@ export async function genererBulletinPdf(donnees: DonneesBulletin): Promise<Uint
   y -= 30;
   ecrire("Nom :", { taille: 12, police: grasse });
   ecrire(`${donnees.eleve.nom.toUpperCase()} ${donnees.eleve.prenom}`, { x: MARGE + 40, taille: 12, police: normale });
+  if (donnees.eleve.classe) {
+    // « Classe : 4e », calé à droite sur la ligne du nom.
+    const valeur = nettoyer(donnees.eleve.classe, normale);
+    const xValeur = LARGEUR - MARGE - normale.widthOfTextAtSize(valeur, 12);
+    ecrire(valeur, { x: xValeur, taille: 12, police: normale });
+    ecrire("Classe :", { x: xValeur - 6 - grasse.widthOfTextAtSize("Classe :", 12), taille: 12, police: grasse });
+  }
   y -= 10;
 
   const titreRubrique = (titre: string) => {

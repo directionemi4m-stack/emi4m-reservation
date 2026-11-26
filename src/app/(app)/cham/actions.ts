@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { contenuCorrespond } from "@/lib/typeFichier";
-import { AUTORISATIONS, AUTORISATIONS_INTERCOURS } from "@/lib/cham";
+import { anneeSixiemePour, AUTORISATIONS, AUTORISATIONS_INTERCOURS } from "@/lib/cham";
+import { anneeScolaireDebut } from "@/lib/fraisRecap";
 import {
   alerterConnexionDriveInterrompue,
   estJetonRevoqueOuExpire,
@@ -33,6 +34,7 @@ interface ChampsEleve {
   prenom: string;
   nom: string;
   age: number | null;
+  anneeSixieme: number | null;
   telephone: string | null;
   email: string | null;
   ville: string | null;
@@ -53,11 +55,17 @@ function lireChampsEleve(formData: FormData): { erreur: string } | { champs: Cha
   const email = texteOuNull(formData, "email")?.toLowerCase() ?? null;
   if (email && !/^\S+@\S+\.\S+$/.test(email)) return { erreur: "Adresse e-mail invalide." };
 
+  // La classe est choisie pour l'année scolaire en cours.
+  const classe = String(formData.get("classe") ?? "").trim();
+  const anneeSixieme = classe ? anneeSixiemePour(classe, anneeScolaireDebut(new Date())) : null;
+  if (classe && anneeSixieme == null) return { erreur: "Classe invalide." };
+
   return {
     champs: {
       prenom,
       nom,
       age,
+      anneeSixieme,
       telephone: texteOuNull(formData, "telephone"),
       email,
       ville: texteOuNull(formData, "ville"),

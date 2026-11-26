@@ -18,6 +18,7 @@ import { CalendrierRappels } from "@/components/bulletins/CalendrierRappels";
 import { EnvoiFamilles } from "@/components/bulletins/EnvoiFamilles";
 import { contexteBulletins } from "@/lib/calendrierBulletinsServeur";
 import { etatsEnvoi, nomDirection } from "@/lib/bulletinsChamServeur";
+import { classeEnAnnee } from "@/lib/cham";
 
 // Signature et envoi groupés : traités élève par élève depuis le navigateur.
 export const maxDuration = 300;
@@ -47,8 +48,8 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
   const ouverte = campagneOuverte(new Date(), periode.anneeDebut, periode.trimestre, calendrier);
 
   const [eleves, mesSuivis, mesAppreciations, tousSuivis, toutesAppreciations, bulletins, envois, maSignature, direction, rappels] = await Promise.all([
-    db.eleveCham.findMany({ orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true } }),
-    db.suiviCham.findMany({ where: { profId: userId }, include: { eleve: { select: { prenom: true, nom: true } } } }),
+    db.eleveCham.findMany({ orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true, anneeSixieme: true } }),
+    db.suiviCham.findMany({ where: { profId: userId }, include: { eleve: { select: { prenom: true, nom: true, anneeSixieme: true } } } }),
     db.appreciationCham.findMany({ where: { profId: userId, ...periode }, select: { eleveId: true, matiere: true, signeLe: true } }),
     estAdmin ? db.suiviCham.findMany({ select: { eleveId: true, profId: true, matiere: true } }) : Promise.resolve([]),
     estAdmin
@@ -71,6 +72,8 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
     (a, b) => a.eleve.nom.localeCompare(b.eleve.nom) || a.eleve.prenom.localeCompare(b.eleve.prenom) || ordreMatiere(a.matiere) - ordreMatiere(b.matiere)
   );
   const restants = suivis.filter((s) => !signeLe.has(`${s.eleveId}|${s.matiere}`)).length;
+  // La classe de l'élève pour l'année des bulletins affichés.
+  const classe = (e: { anneeSixieme: number | null }) => classeEnAnnee(e.anneeSixieme, periode.anneeDebut);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
@@ -117,6 +120,7 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
                       {s.eleve.nom.toUpperCase()} {s.eleve.prenom}
                     </p>
                     <p className="text-xs text-slate-500">
+                      {classe(s.eleve) ? `${classe(s.eleve)} · ` : ""}
                       {libelleMatiere(s.matiere)}
                       {s.precision ? ` · ${s.precision}` : ""}
                     </p>
@@ -145,7 +149,9 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
             })}
           </ul>
         )}
-        <AjouterSuiviForm eleves={eleves.map((e) => ({ id: e.id, libelle: `${e.nom.toUpperCase()} ${e.prenom}` }))} />
+        <AjouterSuiviForm
+          eleves={eleves.map((e) => ({ id: e.id, libelle: `${e.nom.toUpperCase()} ${e.prenom}${classe(e) ? ` (${classe(e)})` : ""}` }))}
+        />
       </section>
 
       <ActiverNotifications bloque={impersonation} />
@@ -180,7 +186,7 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
 
       {estAdmin && (
         <SuiviDirection
-          eleves={eleves}
+          eleves={eleves.map((e) => ({ ...e, classe: classe(e) }))}
           suivis={tousSuivis}
           appreciations={toutesAppreciations}
           bulletins={bulletins}
@@ -200,7 +206,7 @@ function SuiviDirection({
   bulletins,
   trimestre,
 }: {
-  eleves: { id: string; prenom: string; nom: string }[];
+  eleves: { id: string; prenom: string; nom: string; classe: string | null }[];
   suivis: { eleveId: string; profId: string; matiere: string }[];
   appreciations: { eleveId: string; profId: string; matiere: string }[];
   bulletins: { eleveId: string; signeDirectionLe: Date | null; documentUrl: string | null }[];
@@ -233,6 +239,7 @@ function SuiviDirection({
                     <Link href={`/bulletins-cham/${e.id}?t=${trimestre}`} className="text-brand-accent hover:underline">
                       {e.nom.toUpperCase()} {e.prenom}
                     </Link>
+                    {e.classe && <span className="ml-1.5 text-xs text-slate-500">{e.classe}</span>}
                   </td>
                   <td className="px-4 py-2">
                     {attendus.length === 0 ? (

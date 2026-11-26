@@ -6,6 +6,7 @@ import { LigneEleveCham, type EleveChamVue } from "@/components/cham/LigneEleveC
 import {
   AUTORISATIONS,
   AUTORISATIONS_INTERCOURS,
+  CLASSES_CHAM,
   LIBELLE_AUTORISATION,
   LIBELLE_INTERCOURS,
   STYLE_AUTORISATION,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/cham";
 
 type Filtre =
+  | { champ: "classe"; valeur: string }
   | { champ: "intercours"; valeur: string }
   | { champ: "sortie16h30"; valeur: string }
   | { champ: "sansFiche" }
@@ -21,6 +23,7 @@ type Filtre =
 
 function correspond(e: EleveChamVue, f: Filtre) {
   if (!f) return true;
+  if (f.champ === "classe") return (e.classe ?? "") === f.valeur;
   if (f.champ === "intercours") return e.autorisationIntercours === f.valeur;
   if (f.champ === "sortie16h30") return e.autorisationSortie16h30 === f.valeur;
   return !e.document;
@@ -73,6 +76,11 @@ export function ListeCham({ eleves, estAdmin }: { eleves: EleveChamVue[]; estAdm
           className="rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
         />
         <div className="flex flex-wrap items-center gap-2">
+          <span className="w-20 text-xs font-medium text-slate-500">Classe</span>
+          {CLASSES_CHAM.map((c) => pastille({ champ: "classe", valeur: c }, c, "bg-brand-accent/10 text-brand-accent"))}
+          {eleves.some((e) => !e.classe) && pastille({ champ: "classe", valeur: "" }, "Non renseignée", "bg-slate-200 text-slate-500")}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <span className="w-20 text-xs font-medium text-slate-500">Intercours</span>
           {AUTORISATIONS_INTERCOURS.map((a) =>
             pastille({ champ: "intercours", valeur: a }, LIBELLE_INTERCOURS[a], STYLE_INTERCOURS[a])
@@ -102,7 +110,7 @@ export function ListeCham({ eleves, estAdmin }: { eleves: EleveChamVue[]; estAdm
         {visibles.map((e) => (
           // La clé change quand la fiche est modifiée : l'éditeur se referme sur les nouvelles valeurs.
           <LigneEleveCham
-            key={[e.id, e.prenom, e.nom, e.age, e.telephone, e.email, e.ville].join("|")}
+            key={[e.id, e.prenom, e.nom, e.classe, e.age, e.telephone, e.email, e.ville].join("|")}
             eleve={e}
             estAdmin={estAdmin}
           />

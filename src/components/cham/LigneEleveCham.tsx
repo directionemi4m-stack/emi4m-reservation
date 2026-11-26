@@ -13,7 +13,9 @@ import { FicheCham } from "@/components/cham/FicheCham";
 import {
   AUTORISATIONS,
   AUTORISATIONS_INTERCOURS,
+  CLASSES_CHAM,
   LIBELLE_AUTORISATION,
+  type ClasseCham,
   LIBELLE_INTERCOURS,
   STYLE_AUTORISATION,
   STYLE_INTERCOURS,
@@ -27,6 +29,7 @@ export interface EleveChamVue {
   prenom: string;
   nom: string;
   age: number | null;
+  classe: ClasseCham | null; // pour l'année scolaire en cours
   telephone: string | null;
   email: string | null;
   ville: string | null;
@@ -42,6 +45,20 @@ const etatInitial: EtatAction = { succes: true };
 const champClass =
   "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
 
+// Classe de cette année scolaire ; elle passe toute seule à la suivante à la rentrée.
+export function ChoixClasse({ defaut }: { defaut?: ClasseCham | null }) {
+  return (
+    <select name="classe" defaultValue={defaut ?? ""} aria-label="Classe" className={champClass}>
+      <option value="">Classe…</option>
+      {CLASSES_CHAM.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function LigneEleveCham({ eleve, estAdmin }: { eleve: EleveChamVue; estAdmin: boolean }) {
   const [edition, setEdition] = useState(false);
   const [etatSortie, soumettreSortie, enCoursSortie] = useSoumission(enregistrerSortieCham, etatInitial);
@@ -54,6 +71,9 @@ export function LigneEleveCham({ eleve, estAdmin }: { eleve: EleveChamVue; estAd
         <div className="min-w-0">
           <p className="text-sm font-semibold text-brand-slate">
             {eleve.nom.toUpperCase()} {eleve.prenom}
+            {eleve.classe && (
+              <span className="ml-2 rounded-full bg-brand-accent/10 px-2 py-0.5 text-xs font-medium text-brand-accent">{eleve.classe}</span>
+            )}
           </p>
           <p className="text-xs text-slate-500">
             {[eleve.age != null ? `${eleve.age} ans` : null, eleve.ville].filter(Boolean).join(" · ")}
@@ -187,6 +207,7 @@ export function LigneEleveCham({ eleve, estAdmin }: { eleve: EleveChamVue; estAd
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <input name="prenom" required defaultValue={eleve.prenom} placeholder="Prénom" className={champClass} />
             <input name="nom" required defaultValue={eleve.nom} placeholder="Nom" className={champClass} />
+            <ChoixClasse defaut={eleve.classe} />
             <input
               name="age"
               type="number"
