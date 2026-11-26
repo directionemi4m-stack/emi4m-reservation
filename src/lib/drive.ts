@@ -275,9 +275,9 @@ export async function supprimerDocumentCham(eleveId: string) {
 
 // --- Bulletins CHAM compilés ---
 
-// « Suivi CHAM / Bulletins 2026-2027 / 1er trimestre / MARTIN Léa — bulletin CHAM.pdf ».
-// Le même fichier est remplacé à chaque nouvelle signature (son lien reste stable) ; s'il a
-// été supprimé à la main dans le Drive, il est recréé.
+// « Suivi CHAM / Bulletins 2026-2027 / 1er trimestre / 5e / 5B — MARTIN Léa — bulletin CHAM T1.pdf ».
+// Le même fichier est remplacé à chaque nouvelle signature (son lien reste stable), et
+// déplacé si l'élève a changé de classe ; s'il a été supprimé à la main, il est recréé.
 export async function deposerBulletinCham(params: {
   dossiers: string[];
   nomFichier: string;
@@ -289,22 +289,28 @@ export async function deposerBulletinCham(params: {
   const { drive } = client;
   const media = { mimeType: "application/pdf", body: Readable.from(Buffer.from(params.pdf)) };
 
+  let parentId = await dossierSuiviChamId(drive);
+  for (const nom of params.dossiers) parentId = await dossierProfId(drive, parentId, nom);
+
   if (params.fichierExistantId) {
     try {
-      const { data } = await drive.files.update({
-        fileId: params.fichierExistantId,
-        requestBody: { name: params.nomFichier },
-        media,
-        fields: "id, webViewLink, trashed",
-      });
-      if (!data.trashed) return { id: data.id!, url: data.webViewLink ?? "" };
+      const { data: actuel } = await drive.files.get({ fileId: params.fichierExistantId, fields: "parents, trashed" });
+      if (!actuel.trashed) {
+        const autres = (actuel.parents ?? []).filter((p) => p !== parentId);
+        const { data } = await drive.files.update({
+          fileId: params.fichierExistantId,
+          requestBody: { name: params.nomFichier },
+          media,
+          ...(actuel.parents?.includes(parentId) ? {} : { addParents: parentId }),
+          ...(autres.length > 0 ? { removeParents: autres.join(",") } : {}),
+          fields: "id, webViewLink",
+        });
+        return { id: data.id!, url: data.webViewLink ?? "" };
+      }
     } catch (erreur) {
       console.error("Bulletin CHAM introuvable dans le Drive, recréation :", erreur);
     }
   }
-
-  let parentId = await dossierSuiviChamId(drive);
-  for (const nom of params.dossiers) parentId = await dossierProfId(drive, parentId, nom);
 
   const { data: fichier } = await drive.files.create({
     requestBody: { name: params.nomFichier, parents: [parentId] },

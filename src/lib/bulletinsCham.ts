@@ -147,8 +147,22 @@ export function libelleDirection(nom: string | null | undefined, fonction: strin
 // Une seule adresse, sans espace ni séparateur.
 export const adresseValide = (a: string) => /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/.test(a.trim());
 
+// Classe telle qu'écrite sur le bulletin (« 5B », ou « 3e » sans division), et son niveau.
+export const niveauDeClasse = (classe: string | null | undefined) => (classe ? `${classe[0]}e` : null);
+
+// Où ranger le bulletin dans le Drive : « Bulletins 2026-2027 / 1er trimestre / 5e /
+// 5B — MARTIN Léa — bulletin CHAM T1.pdf ». Sans classe connue, il reste dans le dossier
+// du trimestre.
+export function rangementBulletin(eleve: { prenom: string; nom: string; classe?: string | null }, anneeDebut: number, trimestre: number) {
+  const niveau = niveauDeClasse(eleve.classe);
+  return {
+    dossiers: [`Bulletins ${anneeDebut}-${anneeDebut + 1}`, libelleTrimestre(trimestre), ...(niveau ? [niveau] : [])],
+    nomFichier: `${eleve.classe ? `${eleve.classe} — ` : ""}${eleve.nom.toUpperCase()} ${eleve.prenom} — bulletin CHAM T${trimestre}.pdf`,
+  };
+}
+
 // Le mail du bulletin : le même texte sert à l'aperçu de confirmation et à l'envoi réel.
-export function contenuMailBulletin(eleve: { prenom: string; nom: string }, anneeDebut: number, trimestre: number) {
+export function contenuMailBulletin(eleve: { prenom: string; nom: string; classe?: string | null }, anneeDebut: number, trimestre: number) {
   const nomEleve = `${eleve.prenom} ${eleve.nom.toUpperCase()}`;
   const periode = libellePeriode(anneeDebut, trimestre);
   return {
@@ -160,7 +174,7 @@ export function contenuMailBulletin(eleve: { prenom: string; nom: string }, anne
       "Pour toute question, vous pouvez répondre directement à ce message.",
       "Bien cordialement,\nLa direction de l'EMI4M\nÉcole Musicale Itinérante des 4 Montagnes",
     ],
-    nomFichier: `Bulletin CHAM T${trimestre} ${anneeDebut}-${anneeDebut + 1} - ${eleve.nom.toUpperCase()} ${eleve.prenom}.pdf`,
+    nomFichier: `Bulletin CHAM T${trimestre} ${anneeDebut}-${anneeDebut + 1} - ${eleve.classe ? `${eleve.classe} - ` : ""}${eleve.nom.toUpperCase()} ${eleve.prenom}.pdf`,
   };
 }
 

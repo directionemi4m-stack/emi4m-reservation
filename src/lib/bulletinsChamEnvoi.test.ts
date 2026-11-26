@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adresseValide, contenuMailBulletin } from "./bulletinsCham";
+import { adresseValide, contenuMailBulletin, rangementBulletin } from "./bulletinsCham";
 
 describe("adresseValide", () => {
   it("accepte une seule adresse", () => {
@@ -20,5 +20,20 @@ describe("contenuMailBulletin", () => {
     expect(c.sujet).toContain("2026/2027");
     expect(c.paragraphes.join(" ")).toContain("bulletin de la classe CHAM de Léa MARTIN");
     expect(c.nomFichier).toBe("Bulletin CHAM T1 2026-2027 - MARTIN Léa.pdf");
+    expect(contenuMailBulletin({ prenom: "Léa", nom: "Martin", classe: "5B" }, 2026, 1).nomFichier).toBe(
+      "Bulletin CHAM T1 2026-2027 - 5B - MARTIN Léa.pdf"
+    );
+  });
+
+  it("range le bulletin dans le dossier de son niveau, classe en tête du nom", () => {
+    expect(rangementBulletin({ prenom: "Léa", nom: "Martin", classe: "5B" }, 2026, 1)).toEqual({
+      dossiers: ["Bulletins 2026-2027", "1er trimestre", "5e"],
+      nomFichier: "5B — MARTIN Léa — bulletin CHAM T1.pdf",
+    });
+    expect(rangementBulletin({ prenom: "Noam", nom: "Pascal", classe: "3e" }, 2026, 1).dossiers).toEqual(["Bulletins 2026-2027", "1er trimestre", "3e"]);
+    expect(rangementBulletin({ prenom: "Léa", nom: "Martin" }, 2026, 2)).toEqual({
+      dossiers: ["Bulletins 2026-2027", "2e trimestre"],
+      nomFichier: "MARTIN Léa — bulletin CHAM T2.pdf",
+    });
   });
 });
