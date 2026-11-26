@@ -30,6 +30,7 @@ export interface EleveChamVue {
   nom: string;
   age: number | null;
   classe: ClasseCham | null; // pour l'année scolaire en cours
+  division: string | null; // « 5B », si connue pour l'année en cours
   telephone: string | null;
   email: string | null;
   ville: string | null;
@@ -59,6 +60,20 @@ export function ChoixClasse({ defaut }: { defaut?: ClasseCham | null }) {
   );
 }
 
+// Division au collège pour cette année (« 5B ») ; facultative.
+export function ChampDivision({ defaut }: { defaut?: string | null }) {
+  return (
+    <input
+      name="division"
+      defaultValue={defaut ?? ""}
+      placeholder="Division (ex. 5B)"
+      maxLength={8}
+      aria-label="Division"
+      className={champClass}
+    />
+  );
+}
+
 export function LigneEleveCham({ eleve, estAdmin }: { eleve: EleveChamVue; estAdmin: boolean }) {
   const [edition, setEdition] = useState(false);
   const [etatSortie, soumettreSortie, enCoursSortie] = useSoumission(enregistrerSortieCham, etatInitial);
@@ -72,7 +87,9 @@ export function LigneEleveCham({ eleve, estAdmin }: { eleve: EleveChamVue; estAd
           <p className="text-sm font-semibold text-brand-slate">
             {eleve.nom.toUpperCase()} {eleve.prenom}
             {eleve.classe && (
-              <span className="ml-2 rounded-full bg-brand-accent/10 px-2 py-0.5 text-xs font-medium text-brand-accent">{eleve.classe}</span>
+              <span className="ml-2 rounded-full bg-brand-accent/10 px-2 py-0.5 text-xs font-medium text-brand-accent">
+                {eleve.division ?? eleve.classe}
+              </span>
             )}
           </p>
           <p className="text-xs text-slate-500">
@@ -208,6 +225,7 @@ export function LigneEleveCham({ eleve, estAdmin }: { eleve: EleveChamVue; estAd
             <input name="prenom" required defaultValue={eleve.prenom} placeholder="Prénom" className={champClass} />
             <input name="nom" required defaultValue={eleve.nom} placeholder="Nom" className={champClass} />
             <ChoixClasse defaut={eleve.classe} />
+            <ChampDivision defaut={eleve.division} />
             <input
               name="age"
               type="number"

@@ -18,7 +18,9 @@ import { CalendrierRappels } from "@/components/bulletins/CalendrierRappels";
 import { EnvoiFamilles } from "@/components/bulletins/EnvoiFamilles";
 import { contexteBulletins } from "@/lib/calendrierBulletinsServeur";
 import { etatsEnvoi, nomDirection } from "@/lib/bulletinsChamServeur";
-import { classeEnAnnee } from "@/lib/cham";
+import { libelleClasse } from "@/lib/cham";
+
+const champsClasse = { anneeSixieme: true, division: true, anneeDivision: true } as const;
 
 // Signature et envoi groupés : traités élève par élève depuis le navigateur.
 export const maxDuration = 300;
@@ -48,8 +50,8 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
   const ouverte = campagneOuverte(new Date(), periode.anneeDebut, periode.trimestre, calendrier);
 
   const [eleves, mesSuivis, mesAppreciations, tousSuivis, toutesAppreciations, bulletins, envois, maSignature, direction, rappels] = await Promise.all([
-    db.eleveCham.findMany({ orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true, anneeSixieme: true } }),
-    db.suiviCham.findMany({ where: { profId: userId }, include: { eleve: { select: { prenom: true, nom: true, anneeSixieme: true } } } }),
+    db.eleveCham.findMany({ orderBy: [{ nom: "asc" }, { prenom: "asc" }], select: { id: true, prenom: true, nom: true, ...champsClasse } }),
+    db.suiviCham.findMany({ where: { profId: userId }, include: { eleve: { select: { prenom: true, nom: true, ...champsClasse } } } }),
     db.appreciationCham.findMany({ where: { profId: userId, ...periode }, select: { eleveId: true, matiere: true, signeLe: true } }),
     estAdmin ? db.suiviCham.findMany({ select: { eleveId: true, profId: true, matiere: true } }) : Promise.resolve([]),
     estAdmin
@@ -73,7 +75,8 @@ export default async function BulletinsChamPage({ searchParams }: { searchParams
   );
   const restants = suivis.filter((s) => !signeLe.has(`${s.eleveId}|${s.matiere}`)).length;
   // La classe de l'élève pour l'année des bulletins affichés.
-  const classe = (e: { anneeSixieme: number | null }) => classeEnAnnee(e.anneeSixieme, periode.anneeDebut);
+  const classe = (e: { anneeSixieme: number | null; division: string | null; anneeDivision: number | null }) =>
+    libelleClasse(e, periode.anneeDebut);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">

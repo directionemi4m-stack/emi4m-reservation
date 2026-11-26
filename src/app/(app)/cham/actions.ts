@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { contenuCorrespond } from "@/lib/typeFichier";
-import { anneeSixiemePour, AUTORISATIONS, AUTORISATIONS_INTERCOURS } from "@/lib/cham";
+import { anneeSixiemePour, AUTORISATIONS, AUTORISATIONS_INTERCOURS, normaliserDivision } from "@/lib/cham";
 import { anneeScolaireDebut } from "@/lib/fraisRecap";
 import {
   alerterConnexionDriveInterrompue,
@@ -35,6 +35,8 @@ interface ChampsEleve {
   nom: string;
   age: number | null;
   anneeSixieme: number | null;
+  division: string | null;
+  anneeDivision: number | null;
   telephone: string | null;
   email: string | null;
   ville: string | null;
@@ -55,9 +57,19 @@ function lireChampsEleve(formData: FormData): { erreur: string } | { champs: Cha
   const email = texteOuNull(formData, "email")?.toLowerCase() ?? null;
   if (email && !/^\S+@\S+\.\S+$/.test(email)) return { erreur: "Adresse e-mail invalide." };
 
-  // La classe est choisie pour l'année scolaire en cours.
-  const classe = String(formData.get("classe") ?? "").trim();
-  const anneeSixieme = classe ? anneeSixiemePour(classe, anneeScolaireDebut(new Date())) : null;
+  // La classe et la division sont choisies pour l'année scolaire en cours. La division
+  // (« 5B ») suffit : le niveau s'en déduit.
+  const annee = anneeScolaireDebut(new Date());
+  const divisionBrute = String(formData.get("division") ?? "").trim();
+  const division = divisionBrute ? normaliserDivision(divisionBrute) : null;
+  if (divisionBrute && !division) return { erreur: "Division invalide (ex. 5B)." };
+  let classe = String(formData.get("classe") ?? "").trim();
+  if (division) {
+    const niveau = `${division[0]}e`;
+    if (classe && classe !== niveau) return { erreur: `La division ${division} ne correspond pas à la classe de ${classe}.` };
+    classe = niveau;
+  }
+  const anneeSixieme = classe ? anneeSixiemePour(classe, annee) : null;
   if (classe && anneeSixieme == null) return { erreur: "Classe invalide." };
 
   return {
@@ -66,6 +78,8 @@ function lireChampsEleve(formData: FormData): { erreur: string } | { champs: Cha
       nom,
       age,
       anneeSixieme,
+      division,
+      anneeDivision: division ? annee : null,
       telephone: texteOuNull(formData, "telephone"),
       email,
       ville: texteOuNull(formData, "ville"),

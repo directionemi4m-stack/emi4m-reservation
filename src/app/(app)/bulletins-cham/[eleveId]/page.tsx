@@ -8,7 +8,7 @@ import { AjouterMaPartie, BoutonRecompiler, FormAppreciation, FormSignatureDirec
 import { RetirerSignature } from "@/components/bulletins/RetirerSignature";
 import { nomDirection } from "@/lib/bulletinsChamServeur";
 import { MAIL_DIRECTION } from "@/lib/clesServeur";
-import { classeEnAnnee } from "@/lib/cham";
+import { libelleClasse } from "@/lib/cham";
 
 const dateCourte = (d: Date) => d.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" });
 
@@ -33,7 +33,7 @@ export default async function BulletinElevePage({
   const periode = { anneeDebut: courante.anneeDebut, trimestre: [1, 2, 3].includes(t) ? t : courante.trimestre };
 
   const [eleve, mesSuivis, appreciations, bulletin, maSignature, direction] = await Promise.all([
-    db.eleveCham.findUnique({ where: { id: eleveId }, select: { id: true, prenom: true, nom: true, anneeSixieme: true } }),
+    db.eleveCham.findUnique({ where: { id: eleveId }, select: { id: true, prenom: true, nom: true, anneeSixieme: true, division: true, anneeDivision: true } }),
     db.suiviCham.findMany({ where: { eleveId, profId: userId } }),
     db.appreciationCham.findMany({
       where: { eleveId, ...periode },
@@ -45,7 +45,7 @@ export default async function BulletinElevePage({
     nomDirection(),
   ]);
   if (!eleve) notFound();
-  const classe = classeEnAnnee(eleve.anneeSixieme, periode.anneeDebut);
+  const classe = libelleClasse(eleve, periode.anneeDebut);
 
   const signatureParDefaut = !impersonation && maSignature ? signatureEnDataUrl(maSignature.image) : null;
   const signeDirection = bulletin?.signeDirectionLe?.getTime() ?? 0;
@@ -61,7 +61,7 @@ export default async function BulletinElevePage({
           {eleve.nom.toUpperCase()} {eleve.prenom}
         </h1>
         <p className="text-sm text-slate-500">
-          {classe ? `Classe de ${classe} · ` : ""}Bulletin du {libellePeriode(periode.anneeDebut, periode.trimestre)}
+          {classe ? `Classe : ${classe} · ` : ""}Bulletin du {libellePeriode(periode.anneeDebut, periode.trimestre)}
         </p>
       </div>
 

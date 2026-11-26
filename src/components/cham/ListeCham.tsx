@@ -42,7 +42,7 @@ export function ListeCham({ eleves, estAdmin }: { eleves: EleveChamVue[]; estAdm
     return eleves.filter((e) => {
       if (!correspond(e, filtre)) return false;
       if (!cherche) return true;
-      return sansAccents(`${e.prenom} ${e.nom} ${e.nom} ${e.prenom} ${e.ville ?? ""}`).includes(cherche);
+      return sansAccents(`${e.prenom} ${e.nom} ${e.nom} ${e.prenom} ${e.ville ?? ""} ${e.division ?? ""}`).includes(cherche);
     });
   }, [eleves, recherche, filtre]);
 
@@ -110,7 +110,7 @@ export function ListeCham({ eleves, estAdmin }: { eleves: EleveChamVue[]; estAdm
         {visibles.map((e) => (
           // La clé change quand la fiche est modifiée : l'éditeur se referme sur les nouvelles valeurs.
           <LigneEleveCham
-            key={[e.id, e.prenom, e.nom, e.classe, e.age, e.telephone, e.email, e.ville].join("|")}
+            key={[e.id, e.prenom, e.nom, e.classe, e.division, e.age, e.telephone, e.email, e.ville].join("|")}
             eleve={e}
             estAdmin={estAdmin}
           />

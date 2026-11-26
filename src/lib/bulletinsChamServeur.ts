@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { genererBulletinPdf } from "@/lib/bulletinPdf";
 import { contenuMailBulletin, libelleDirection, libelleMatiere, libellePeriode, libelleTrimestre, periodeCourante, rappelDuJour, type TypeRappel } from "@/lib/bulletinsCham";
-import { classeEnAnnee } from "@/lib/cham";
+import { libelleClasse } from "@/lib/cham";
 import { MAIL_DIRECTION } from "@/lib/clesServeur";
 import { lireCoordonnees } from "@/lib/coordonneesServeur";
 import { lireCalendrierBulletins } from "@/lib/calendrierBulletinsServeur";
@@ -21,7 +21,7 @@ export async function nomDirection(): Promise<string> {
 // même PDF sert pour le Drive et pour l'envoi aux familles.
 async function preparerBulletin(eleveId: string, anneeDebut: number, trimestre: number) {
   const [eleve, appreciations, bulletin, direction] = await Promise.all([
-    db.eleveCham.findUnique({ where: { id: eleveId }, select: { prenom: true, nom: true, email: true, anneeSixieme: true } }),
+    db.eleveCham.findUnique({ where: { id: eleveId }, select: { prenom: true, nom: true, email: true, anneeSixieme: true, division: true, anneeDivision: true } }),
     db.appreciationCham.findMany({
       where: { eleveId, anneeDebut, trimestre },
       include: { prof: { select: { prenom: true, nom: true, email: true } } },
@@ -35,7 +35,7 @@ async function preparerBulletin(eleveId: string, anneeDebut: number, trimestre: 
   const fabriquerPdf = () =>
     genererBulletinPdf({
       // La classe de l'année du bulletin (un bulletin de l'an dernier garde la classe d'alors).
-      eleve: { ...eleve, classe: classeEnAnnee(eleve.anneeSixieme, anneeDebut) },
+      eleve: { ...eleve, classe: libelleClasse(eleve, anneeDebut) },
       anneeDebut,
       trimestre,
       parties: appreciations.map((a) => ({

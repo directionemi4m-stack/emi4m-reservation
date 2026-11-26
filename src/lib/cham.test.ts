@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anneeSixiemePour, classeEnAnnee } from "./cham";
+import { anneeSixiemePour, classeEnAnnee, libelleClasse, normaliserDivision } from "./cham";
 
 describe("classe CHAM", () => {
   it("avance d'une classe à chaque rentrée, et disparaît après la 3e", () => {
@@ -10,6 +10,16 @@ describe("classe CHAM", () => {
     expect(classeEnAnnee(anneeSixieme, 2027)).toBe("3e");
     expect(classeEnAnnee(anneeSixieme, 2028)).toBeNull();
     expect(classeEnAnnee(anneeSixieme, 2023)).toBeNull();
+  });
+
+  it("la division ne vaut que pour son année", () => {
+    const e = { anneeSixieme: 2025, division: "5B", anneeDivision: 2026 };
+    expect(libelleClasse(e, 2026)).toBe("5B");
+    expect(libelleClasse(e, 2027)).toBe("4e");
+    expect(libelleClasse({ ...e, division: null }, 2026)).toBe("5e");
+    expect(normaliserDivision("5ème b")).toBe("5B");
+    expect(normaliserDivision(" 4 c ")).toBe("4C");
+    expect(normaliserDivision("CHAM")).toBeNull();
   });
 
   it("classe inconnue ou invalide", () => {

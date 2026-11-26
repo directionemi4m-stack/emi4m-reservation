@@ -503,6 +503,10 @@ model EleveCham {
   // (6e, 5e, 4e, 3e) s'en déduit pour chaque année, sans ressaisie à la rentrée ; un
   // redoublement se corrige en changeant la classe sur la fiche.
   anneeSixieme            Int?
+  // Division au collège (« 5B ») : elle ne vaut que pour son année scolaire. Les années
+  // suivantes, on affiche seulement le niveau, jusqu'à la nouvelle répartition.
+  division                String?
+  anneeDivision           Int?
   telephone               String?
   email                   String?
   ville                   String?

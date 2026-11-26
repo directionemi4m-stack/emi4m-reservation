@@ -43,6 +43,28 @@ export function classeEnAnnee(anneeSixieme: number | null | undefined, anneeDebu
   return CLASSES_CHAM[anneeDebut - anneeSixieme] ?? null;
 }
 
+interface ClasseEleve {
+  anneeSixieme: number | null;
+  division: string | null;
+  anneeDivision: number | null;
+}
+
+// La division (« 5B ») si on la connaît pour cette année scolaire.
+export function divisionEnAnnee(e: ClasseEleve, anneeDebut: number): string | null {
+  return e.division && e.anneeDivision === anneeDebut ? e.division : null;
+}
+
+// Ce qu'on écrit sur le bulletin : la division (« 5B »), sinon le niveau (« 5e »).
+export function libelleClasse(e: ClasseEleve, anneeDebut: number): string | null {
+  return divisionEnAnnee(e, anneeDebut) ?? classeEnAnnee(e.anneeSixieme, anneeDebut);
+}
+
+// Saisie libre « 5 b », « 5ème B » → « 5B ». null si vide ou illisible.
+export function normaliserDivision(brut: string): string | null {
+  const m = /^\s*([3-6])\s*(?:e|è|ème|eme)?\s*([A-Za-z])\s*$/i.exec(brut);
+  return m ? `${m[1]}${m[2].toUpperCase()}` : null;
+}
+
 // L'inverse : « en 4e en 2026-2027 » → en 6e en 2024-2025.
 export function anneeSixiemePour(classe: string, anneeDebut: number): number | null {
   const rang = CLASSES_CHAM.indexOf(classe as ClasseCham);
