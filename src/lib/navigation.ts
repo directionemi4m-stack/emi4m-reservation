@@ -48,7 +48,8 @@ export type CleIcone =
   | "bilan"
   | "devis"
   | "sante"
-  | "reglement";
+  | "reglement"
+  | "projet";
 
 export interface LienNav {
   href: string;
@@ -95,7 +96,8 @@ export const SECTIONS: SectionNav[] = [
       { href: "/bulletins-cham", label: "Bulletins CHAM", icone: "bulletin", couleur: "vert" },
       { href: "/annuaire", label: "Annuaire", icone: "annuaire", couleur: "neutre" },
       { href: "/securite", label: "Sécurité", icone: "securite", couleur: "neutre" },
-      { href: "/reglement-interieur", label: "Règlement intérieur", icone: "reglement", couleur: "neutre" },
+      { href: "/documents-ecole/reglement-interieur", label: "Règlement intérieur", icone: "reglement", couleur: "neutre" },
+      { href: "/documents-ecole/projet-etablissement", label: "Projet d'établissement", icone: "projet", couleur: "neutre" },
       { href: "/materiel", label: "Demande de matériel", icone: "materiel", couleur: "ambre" },
       { href: "/idees", label: "Boîte à idées", icone: "idee", couleur: "ambre" },
       { href: DRIVE_PROFS, label: "Drive des profs", icone: "drive", couleur: "neutre", externe: true },

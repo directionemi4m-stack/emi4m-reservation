@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "11mb",
     },
   },
+  async redirects() {
+    return [{ source: "/reglement-interieur", destination: "/documents-ecole/reglement-interieur", permanent: false }];
+  },
   async headers() {
     return [
       {

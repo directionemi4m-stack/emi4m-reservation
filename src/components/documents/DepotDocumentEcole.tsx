@@ -1,21 +1,29 @@
 "use client";
 
 import { useSoumission } from "@/lib/useSoumission";
-import { enregistrerReglement, type EtatAction } from "@/app/(app)/reglement-interieur/actions";
+import { enregistrerDocumentEcole, type EtatAction } from "@/app/(app)/documents-ecole/actions";
 
 const champClass =
   "rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
 const etatInitial: EtatAction = { succes: true };
 
-// Direction : déposer ou remplacer le PDF, et indiquer la date de la dernière mise à jour.
-export function DepotReglement({ majLe, existe, aujourdHui }: { majLe: string | null; existe: boolean; aujourdHui: string }) {
-  const [etat, soumettre, enCours] = useSoumission(enregistrerReglement, etatInitial);
+// Direction : déposer ou remplacer le PDF d'un document de l'école, et indiquer la date de
+// sa dernière mise à jour.
+export function DepotDocumentEcole({ cle, nom, majLe, existe, aujourdHui }: { cle: string; nom: string; majLe: string | null; existe: boolean; aujourdHui: string }) {
+  const [etat, soumettre, enCours] = useSoumission(enregistrerDocumentEcole, etatInitial);
   return (
     <form onSubmit={soumettre} className="flex flex-col gap-3">
+      <input type="hidden" name="cle" value={cle} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-          {existe ? "Remplacer le PDF (facultatif)" : "PDF du règlement intérieur"}
-          <input type="file" name="pdf" accept="application/pdf" required={!existe} className="text-sm text-slate-700 file:mr-2 file:rounded-md file:border file:border-slate-300 file:bg-white file:px-2.5 file:py-1.5 file:text-xs" />
+          {existe ? "Remplacer le PDF (facultatif)" : `PDF : ${nom}`}
+          <input
+            type="file"
+            name="pdf"
+            accept="application/pdf"
+            required={!existe}
+            className="text-sm text-slate-700 file:mr-2 file:rounded-md file:border file:border-slate-300 file:bg-white file:px-2.5 file:py-1.5 file:text-xs"
+          />
         </label>
         <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
           Date de la dernière mise à jour
