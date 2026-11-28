@@ -4,6 +4,10 @@ import { lireCoordonnees } from "@/lib/coordonneesServeur";
 import { saisonARentrer } from "@/lib/rentree";
 import { evenementsSacem, lirePeriode } from "@/lib/sacemServeur";
 import { libelleLieu, libelleTypeEvenement } from "@/lib/saison";
+import { infosDeclaration, infosManquantes } from "@/lib/declarationSacem";
+import { DeclarationSacem } from "@/components/sacem/DeclarationSacem";
+
+const enEuros = (c: number | null) => (c == null ? "" : (c / 100).toFixed(2).replace(".", ",").replace(",00", ""));
 
 // Aujourd'hui à minuit UTC, pour repérer les représentations passées.
 const debutDuJour = () => {
@@ -17,7 +21,7 @@ const champClass =
 
 // Relevé des programmes pour la SACEM : toutes les représentations d'une période avec les
 // œuvres jouées, en PDF avec les coordonnées de l'école. Réservé à la direction.
-export default async function SacemPage({ searchParams }: { searchParams: Promise<{ debut?: string; fin?: string }> }) {
+export default async function SacemPage({ searchParams }: { searchParams: Promise<{ debut?: string; fin?: string; evenement?: string }> }) {
   const p = await searchParams;
   const { debut, fin, finIncluse } = lirePeriode(p.debut, p.fin, saisonARentrer(new Date()));
   const [evenements, coordonnees] = await Promise.all([evenementsSacem(debut, fin), lireCoordonnees()]);
@@ -36,6 +40,11 @@ export default async function SacemPage({ searchParams }: { searchParams: Promis
           Toutes les représentations de la période (heures musicales, concerts, auditions, autres) avec les œuvres saisies par les
           profs : titre, compositeur, arrangeur, interprètes et durée. Seules les représentations dont le programme est saisi
           figurent dans le PDF ; les réunions et les examens n&apos;y sont jamais.
+        </p>
+        <p className="mt-2 text-sm text-slate-500">
+          Le lendemain de chaque représentation, sa déclaration SACEM (organisateur, date, lieu, entrée, spectateurs, recettes et
+          dépenses, programme des œuvres) est envoyée sur la boîte de la direction et rangée dans le Drive, dossier « Déclarations
+          SACEM ». Complétez entrées, recettes et dépenses sous la représentation, puis renvoyez-la si besoin.
         </p>
       </div>
 
@@ -87,7 +96,7 @@ export default async function SacemPage({ searchParams }: { searchParams: Promis
           const oeuvres = e.inscriptions.reduce((m, i) => m + i.morceaux.length, 0);
           const passe = e.date < aujourdHui;
           return (
-            <li key={e.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 py-3">
+            <li key={e.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 py-3" id={`evenement-${e.id}`}>
               <div className="min-w-0">
                 <Link href={`/saison/${e.id}`} className="text-sm font-medium text-slate-800 hover:text-brand-accent hover:underline">
                   {dateCourte(e.date)} · {e.titre}
@@ -105,6 +114,24 @@ export default async function SacemPage({ searchParams }: { searchParams: Promis
                     ? "Programme non renseigné"
                     : "À venir, pas encore de programme"}
               </span>
+              <DeclarationSacem
+                ouvert={p.evenement === e.id}
+                d={{
+                  id: e.id,
+                  passe,
+                  aUnProgramme: e.inscriptions.length > 0,
+                  entreePayante: e.sacemEntreePayante,
+                  tarifs: e.sacemTarifs ?? "",
+                  entrees: e.sacemEntrees?.toString() ?? "",
+                  jauge: e.sacemJauge?.toString() ?? "",
+                  recettes: enEuros(e.sacemRecettesCentimes),
+                  recettesAnnexes: enEuros(e.sacemRecettesAnnexesCentimes),
+                  depenses: enEuros(e.sacemDepensesCentimes),
+                  envoyeeLe: e.sacemEnvoyeeLe ? e.sacemEnvoyeeLe.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" }) : null,
+                  url: e.sacemUrl,
+                  manquantes: passe || e.sacemEnvoyeeLe ? infosManquantes(infosDeclaration(e)) : [],
+                }}
+              />
             </li>
           );
         })}

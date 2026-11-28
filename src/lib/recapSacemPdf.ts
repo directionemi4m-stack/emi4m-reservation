@@ -5,6 +5,8 @@ import { decouperLignes } from "@/lib/bulletinsCham";
 import { minutesVersHeure } from "@/lib/agenda";
 import { formaterMinutage, libelleLieu, libelleTypeEvenement } from "@/lib/saison";
 import type { Coordonnees } from "@/lib/programmes";
+import type { InfosDeclaration } from "@/lib/declarationSacem";
+import { formaterEuros } from "@/lib/inventaire";
 
 export interface EvenementReleve {
   titre: string;
@@ -40,17 +42,22 @@ const dateCourte = (d: Date) => d.toLocaleDateString("fr-FR", { timeZone: "UTC" 
 
 // Le relevé des programmes à transmettre à la SACEM : en-tête avec les coordonnées de
 // l'école, puis chaque représentation (date, lieu) et ses œuvres (titre, compositeur,
-// arrangeur, interprètes, durée), et l'attestation finale.
+// arrangeur, interprètes, durée), et l'attestation finale. Avec `declaration`, c'est la
+// déclaration d'une seule représentation : on y ajoute l'entrée, la fréquentation et l'état
+// des recettes et dépenses.
 export async function genererReleveSacem(params: {
   coordonnees: Coordonnees;
   debut: Date;
   finIncluse: Date;
   evenements: EvenementReleve[];
+  declaration?: InfosDeclaration;
 }): Promise<Uint8Array> {
-  const { coordonnees: c, debut, finIncluse, evenements } = params;
-  const periode = `du ${dateCourte(debut)} au ${dateCourte(finIncluse)}`;
+  const { coordonnees: c, debut, finIncluse, evenements, declaration } = params;
+  const unique = declaration ? evenements[0] : undefined;
+  const periode = unique ? `du ${dateCourte(unique.date)}` : `du ${dateCourte(debut)} au ${dateCourte(finIncluse)}`;
+  const nomDocument = unique ? `Déclaration SACEM — ${unique.titre} ${periode}` : `Relevé des programmes ${periode}`;
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Relevé des programmes ${periode} — ${c.sigle}`);
+  pdf.setTitle(`${nomDocument} — ${c.sigle}`);
   pdf.setAuthor(c.sigle);
   const normale = await pdf.embedFont(StandardFonts.Helvetica);
   const grasse = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -79,8 +86,8 @@ export async function genererReleveSacem(params: {
   // En-tête : logo, titre, coordonnées de l'école.
   page.drawImage(logo, { x: MARGE, y: y - 54, width: (logo.width * 54) / logo.height, height: 54 });
   texte(page, `${c.sigle} · ${c.nom}`, MARGE + 66, y - 14, 9, grasse, GRIS);
-  texte(page, "Relevé des programmes", MARGE + 66, y - 34, 18, grasse);
-  texte(page, `Œuvres interprétées ${periode}`, MARGE + 66, y - 50, 10.5, normale, GRIS);
+  texte(page, unique ? "Déclaration SACEM" : "Relevé des programmes", MARGE + 66, y - 34, 18, grasse);
+  texte(page, unique ? `${unique.titre} · ${dateLongue(unique.date)}` : `Œuvres interprétées ${periode}`, MARGE + 66, y - 50, 10.5, normale, GRIS);
   y -= 72;
 
   const infos = [
@@ -101,6 +108,62 @@ export async function genererReleveSacem(params: {
     (l, i) => texte(page, l, MARGE + 290, y - 16 - i * 12, 9, normale)
   );
   y -= hauteurBloc + 18;
+
+  // Déclaration d'une représentation : la manifestation, l'entrée et la fréquentation,
+  // l'état des recettes et des dépenses (« à compléter » quand ce n'est pas encore saisi).
+  if (unique && declaration) {
+    const d = declaration;
+    const vide = "à compléter";
+    const euros = (v: number | null) => (v == null ? vide : formaterEuros(v));
+    const blocs: { titre: string; lignes: [string, string][] }[] = [
+      {
+        titre: "Manifestation",
+        lignes: [
+          ["Intitulé", unique.titre],
+          ["Nature", libelleTypeEvenement(unique.type)],
+          ["Date", `${dateLongue(unique.date)}${unique.heureDebutMinutes !== null ? ` à ${minutesVersHeure(unique.heureDebutMinutes)}` : ""}`],
+          ["Lieu", libelleLieu(unique.commune ?? undefined, unique.lieuPrecis) || vide],
+        ],
+      },
+      {
+        titre: "Entrée et fréquentation",
+        lignes: [
+          ["Entrée", d.entreePayante ? "payante" : "gratuite"],
+          ...(d.entreePayante ? ([["Prix des places", d.tarifs || vide]] as [string, string][]) : []),
+          ["Spectateurs", d.entrees == null ? vide : String(d.entrees)],
+          ["Jauge de la salle", d.jauge == null ? vide : `${d.jauge} places`],
+        ],
+      },
+      {
+        titre: "État des recettes et dépenses",
+        lignes: [
+          ["Recettes de billetterie (TTC)", d.entreePayante ? euros(d.recettesCentimes) : "aucune (entrée gratuite)"],
+          ["Recettes annexes (buvette…)", d.recettesAnnexesCentimes == null ? "aucune" : formaterEuros(d.recettesAnnexesCentimes)],
+          ["Budget des dépenses", euros(d.depensesCentimes)],
+        ],
+      },
+    ];
+    const largeurBloc = (LARGEUR - 2 * MARGE - 2 * 10) / 3;
+    const hauteur = 20 + Math.max(...blocs.map((b) => b.lignes.reduce((n, [, v]) => n + 12 + lignesDe(v, largeurBloc - 16, normale, 8.5).length * 10.5, 0))) + 8;
+    blocs.forEach((b, i) => {
+      const x = MARGE + i * (largeurBloc + 10);
+      page.drawRectangle({ x, y: y - hauteur, width: largeurBloc, height: hauteur, borderColor: BORD, borderWidth: 0.7 });
+      texte(page, b.titre, x + 8, y - 14, 9, grasse);
+      let yy = y - 30;
+      for (const [libelle, valeur] of b.lignes) {
+        texte(page, libelle, x + 8, yy, 7.5, normale, GRIS);
+        yy -= 11;
+        for (const l of lignesDe(valeur, largeurBloc - 16, normale, 8.5)) {
+          texte(page, l, x + 8, yy, 8.5, valeur === vide ? italique : normale, valeur === vide ? GRIS : ARDOISE);
+          yy -= 10.5;
+        }
+        yy -= 1;
+      }
+    });
+    y -= hauteur + 18;
+    texte(page, "Programme des œuvres interprétées", MARGE, y, 11, grasse);
+    y -= 8;
+  }
 
   const enteteTableau = () => {
     page.drawRectangle({ x: MARGE, y: y - 16, width: LARGEUR - 2 * MARGE, height: 16, color: ARDOISE });
@@ -160,13 +223,13 @@ export async function genererReleveSacem(params: {
   // Attestation.
   place(60);
   y -= 6;
-  texte(page, `Relevé établi d'après les programmes saisis par les professeurs dans l'appli ${c.sigle}.`, MARGE, y, 9, normale, GRIS);
+  texte(page, `${unique ? "Déclaration établie" : "Relevé établi"} d'après les programmes saisis par les professeurs dans l'appli ${c.sigle}.`, MARGE, y, 9, normale, GRIS);
   texte(page, `Certifié exact, le ${new Date().toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}${c.representant ? `, par ${c.representant}` : ""}.`, MARGE, y - 14, 9, normale);
   texte(page, "Signature :", MARGE + 330, y - 14, 9, normale);
 
   const pages = pdf.getPages();
   pages.forEach((p, i) => {
-    const pied = `${c.sigle} — Relevé des programmes ${periode} · page ${i + 1}/${pages.length}`;
+    const pied = `${c.sigle} — ${nomDocument} · page ${i + 1}/${pages.length}`;
     const l = normale.widthOfTextAtSize(nettoyer(pied, normale), 7.5);
     p.drawText(nettoyer(pied, normale), { x: (LARGEUR - l) / 2, y: 20, size: 7.5, font: normale, color: GRIS });
   });

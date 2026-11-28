@@ -779,7 +779,7 @@ export async function deposerSauvegarde(params: { nomFichier: string; contenu: B
 
 // --- Devis et factures ---
 
-export type DossierDevis = "Devis reçus" | "Devis émis" | "Factures émises" | "Achats d'occasion";
+export type DossierDevis = "Devis reçus" | "Devis émis" | "Factures émises" | "Achats d'occasion" | "Déclarations SACEM";
 
 // « Devis émis / 2026 / D-2026-001 Mairie de Lans.pdf » ; un sous-dossier facultatif
 // (« Devis reçus / 2026 / En attente »). Un fichier déjà déposé est remplacé sur place.

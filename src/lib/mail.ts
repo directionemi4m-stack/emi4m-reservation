@@ -564,6 +564,25 @@ export async function envoyerMailDocument(params: { a: string; sujet: string; me
   });
 }
 
+// Déclaration SACEM d'une représentation, en pièce jointe, à la boîte de la direction.
+export async function envoyerMailDeclarationSacem(params: { sujet: string; texte: string; url: string; pdf: Uint8Array; nomFichier: string }) {
+  const transport = creerTransporteur();
+  await transport.sendMail({
+    to: EMAIL_DIRECTION,
+    from: process.env.EMAIL_FROM,
+    subject: params.sujet,
+    text: `Bonjour,\n\n${params.texte}\n\n${params.url}\n\nEMI4M Réservation`,
+    html: htmlLienMotDePasse({
+      titre: "Déclaration SACEM",
+      intro: h(params.texte).replace(/\n/g, "<br>"),
+      url: params.url,
+      libelleBouton: "Compléter ou renvoyer",
+      mention: "La déclaration est en pièce jointe et rangée dans le Drive (Déclarations SACEM).",
+    }),
+    attachments: [{ filename: params.nomFichier, content: Buffer.from(params.pdf), contentType: "application/pdf" }],
+  });
+}
+
 // Contrats et avenants des profs : lien de signature envoyé à la présidence (sans compte dans
 // l'appli), valable pour tous les documents en attente.
 export async function envoyerMailPresidenceContrats(params: { email: string; nom: string; nombre: number; url: string; jours: number }) {

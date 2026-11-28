@@ -35,6 +35,7 @@ export default async function AchatsPage() {
 
       <ListeFactures
         biens={biens}
+        aujourdHui={new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" })}
         factures={factures.map((f) => ({
           id: f.id,
           date: f.date.toISOString().slice(0, 10),

@@ -7,6 +7,7 @@
     { "path": "/api/cron/sauvegarde", "schedule": "0 2 * * 0" },
     { "path": "/api/cron/rappels-conventions", "schedule": "30 7 * * *" },
     { "path": "/api/cron/rappels-factures", "schedule": "45 7 * * *" },
+    { "path": "/api/cron/declarations-sacem", "schedule": "15 7 * * *" },
     { "path": "/api/cron/statistiques-presences", "schedule": "0 16 * * *" }
   ]
 }

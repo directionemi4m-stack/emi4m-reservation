@@ -24,6 +24,7 @@ const TAILLE_MAX = 10 * 1024 * 1024;
 const estPdf = (o: Uint8Array) => Buffer.from(o.subarray(0, 5)).toString() === "%PDF-";
 const estJpeg = (o: Uint8Array) => o[0] === 0xff && o[1] === 0xd8 && o[2] === 0xff;
 const DATE_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const jourParis = () => new Date(`${new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" })}T00:00:00.000Z`);
 
 async function lireFichiers(formData: FormData) {
   return Promise.all(
@@ -81,6 +82,14 @@ interface ChampsFacture {
   objet: string | null;
   nomFichier: string;
   articleIds: string[];
+}
+
+// Date du paiement saisie (« 2026-11-20 »), jamais dans le futur ; null si vide ou invalide.
+function lireDatePaiement(formData: FormData): Date | null {
+  const t = champ(formData, "payeeLe");
+  if (!DATE_ISO.test(t)) return null;
+  const d = new Date(`${t}T00:00:00.000Z`);
+  return Number.isNaN(d.getTime()) || d > jourParis() ? null : d;
 }
 
 // Date et entreprise servent au classement (dossier de l'année, liste) : saisies à part
@@ -160,7 +169,7 @@ export async function archiverFacture(formData: FormData): Promise<EtatAction> {
         nomFichier,
         driveFileId: fichier.id,
         url: fichier.url,
-        payeeLe: formData.get("payee") === "1" ? jourParis() : null,
+        payeeLe: formData.get("payee") === "1" ? (lireDatePaiement(formData) ?? jourParis()) : null,
         articles: { connect: champs.articleIds.map((id) => ({ id })) },
       },
     });
@@ -203,14 +212,14 @@ export async function modifierFacture(_etat: EtatAction, formData: FormData): Pr
       montantCentimes: champs.montantCentimes,
       objet: champs.objet,
       nomFichier,
+      payeeLe: lireDatePaiement(formData),
       articles: { set: champs.articleIds.map((id) => ({ id })) },
     },
   });
+  await db.factureSante.updateMany({ where: { factureId: facture.id }, data: { payeeLe: lireDatePaiement(formData) } });
   revalider();
   return { succes: true, message: "Enregistré." };
 }
-
-const jourParis = () => new Date(`${new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" })}T00:00:00.000Z`);
 
 // Payée (aujourd'hui, ou à la date choisie) ou de nouveau à payer. Une facture de santé au
 // travail rangée ici garde le même état dans les deux pages.
@@ -218,8 +227,7 @@ export async function marquerFacturePayee(formData: FormData) {
   await exigerAdmin();
   const facture = await db.facture.findUnique({ where: { id: champ(formData, "id") }, select: { id: true } });
   if (!facture) return;
-  const date = champ(formData, "payeeLe");
-  const payeeLe = formData.get("annuler") === "1" ? null : DATE_ISO.test(date) ? new Date(`${date}T00:00:00.000Z`) : jourParis();
+  const payeeLe = formData.get("annuler") === "1" ? null : (lireDatePaiement(formData) ?? jourParis());
   await db.facture.update({ where: { id: facture.id }, data: { payeeLe, ...(payeeLe ? {} : { rappelPaiementLe: null }) } });
   await db.factureSante.updateMany({ where: { factureId: facture.id }, data: { payeeLe } });
   revalider();

@@ -74,6 +74,7 @@ export function AjoutFacture({
   const [montant, setMontant] = useState("");
   const [objet, setObjet] = useState("");
   const [payee, setPayee] = useState(false);
+  const [payeeLe, setPayeeLe] = useState("");
   const [articleIds, setArticleIds] = useState<string[]>(biensInitiaux);
   const [details, setDetails] = useState(biensInitiaux.length > 0);
   const [apercu, setApercu] = useState<string | null>(null);
@@ -96,6 +97,7 @@ export function AjoutFacture({
     setMontant("");
     setObjet("");
     setPayee(false);
+    setPayeeLe("");
     setArticleIds(biensInitiaux);
     setDetails(biensInitiaux.length > 0);
     setApercu(null);
@@ -153,7 +155,10 @@ export function AjoutFacture({
     donnees.set("nomFichier", normaliserNomFichier(nom));
     donnees.set("montant", montant);
     donnees.set("objet", objet);
-    if (payee) donnees.set("payee", "1");
+    if (payee) {
+      donnees.set("payee", "1");
+      donnees.set("payeeLe", payeeLe);
+    }
     articleIds.forEach((id) => donnees.append("articleIds", id));
     demarrerEnvoi(async () => {
       const r = await archiverFacture(donnees);
@@ -265,9 +270,27 @@ export function AjoutFacture({
           )}
 
           <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" checked={payee} onChange={(e) => setPayee(e.target.checked)} className="h-4 w-4" />
+            <input
+              type="checkbox"
+              checked={payee}
+              onChange={(e) => {
+                setPayee(e.target.checked);
+                if (e.target.checked && !payeeLe) setPayeeLe(new Date().toLocaleDateString("fr-CA"));
+              }}
+              className="h-4 w-4"
+            />
             Déjà payée
-            {!payee && <span className="text-xs text-slate-400">(sinon, rappel par mail dans 7 jours)</span>}
+            {payee ? (
+              <input
+                type="date"
+                aria-label="Date du paiement"
+                value={payeeLe}
+                onChange={(e) => setPayeeLe(e.target.value)}
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+              />
+            ) : (
+              <span className="text-xs text-slate-400">(sinon, rappel par mail dans 7 jours)</span>
+            )}
           </label>
 
           <div className="flex gap-2">

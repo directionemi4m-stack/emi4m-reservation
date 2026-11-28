@@ -808,6 +808,19 @@ model EvenementSaison {
   ongletSheetId     Int?
   creeLe            DateTime            @default(now())
 
+  // Déclaration SACEM, faite le lendemain de la représentation : entrée, fréquentation,
+  // recettes et dépenses (saisies par la direction), et le PDF envoyé et archivé.
+  sacemEntreePayante           Boolean   @default(false)
+  sacemTarifs                  String? // « 10 € ; 5 € tarif réduit »
+  sacemEntrees                 Int? // nombre de spectateurs
+  sacemJauge                   Int? // capacité de la salle
+  sacemRecettesCentimes        Int? // billetterie TTC
+  sacemRecettesAnnexesCentimes Int? // buvette, programmes…
+  sacemDepensesCentimes        Int? // budget des dépenses de la manifestation
+  sacemEnvoyeeLe               DateTime?
+  sacemDriveFileId             String?
+  sacemUrl                     String?
+
   inscriptions InscriptionHeureMusicale[]
   convention   ConventionSalle?
   // Plans de scène : la scène du concert (dimensions reprises par chaque nouveau passage).

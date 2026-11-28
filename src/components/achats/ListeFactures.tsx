@@ -33,20 +33,37 @@ function EtatPaiement({ facture }: { facture: FactureVue }) {
   );
 }
 
-function BoutonPaiement({ facture }: { facture: FactureVue }) {
+// À payer : date du paiement (aujourd'hui par défaut, modifiable) et bouton « Payée ».
+// Payée : retour à « à payer » ; la date se corrige dans « Modifier ».
+function BoutonPaiement({ facture, aujourdHui }: { facture: FactureVue; aujourdHui: string }) {
+  if (facture.payeeLe) {
+    return (
+      <form action={marquerFacturePayee}>
+        <input type="hidden" name="id" value={facture.id} />
+        <input type="hidden" name="annuler" value="1" />
+        <button type="submit" className="text-xs text-slate-500 hover:text-brand-slate">
+          Pas encore payée
+        </button>
+      </form>
+    );
+  }
   return (
-    <form action={marquerFacturePayee}>
+    <form action={marquerFacturePayee} className="flex items-center gap-1">
       <input type="hidden" name="id" value={facture.id} />
-      {facture.payeeLe && <input type="hidden" name="annuler" value="1" />}
-      <button
-        type="submit"
-        className={
-          facture.payeeLe
-            ? "text-xs text-slate-500 hover:text-brand-slate"
-            : "rounded-md bg-status-dispo px-2.5 py-1 text-xs font-semibold text-white hover:bg-status-dispo/90"
-        }
-      >
-        {facture.payeeLe ? "Pas encore payée" : "✓ Payée aujourd'hui"}
+      <label className="sr-only" htmlFor={`paye-${facture.id}`}>
+        Date du paiement
+      </label>
+      <input
+        id={`paye-${facture.id}`}
+        type="date"
+        name="payeeLe"
+        required
+        defaultValue={aujourdHui}
+        max={aujourdHui}
+        className="rounded-md border border-slate-300 px-1.5 py-0.5 text-xs"
+      />
+      <button type="submit" className="rounded-md bg-status-dispo px-2.5 py-1 text-xs font-semibold text-white hover:bg-status-dispo/90">
+        ✓ Payée
       </button>
     </form>
   );
@@ -87,7 +104,10 @@ function FormModification({ facture, biens, onFini }: { facture: FactureVue; bie
           />
         )}
       </div>
-      {libelle("Objet", <input name="objet" defaultValue={facture.objet ?? ""} className={champClass} />)}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+        {libelle("Objet", <input name="objet" defaultValue={facture.objet ?? ""} className={champClass} />)}
+        {libelle("Payée le (vide : à payer)", <input type="date" name="payeeLe" defaultValue={facture.payeeLe ?? ""} className={champClass} />)}
+      </div>
       <ChoixBiens biens={biens} choisis={articleIds} onChange={setArticleIds} />
       {libelle("Nom du fichier", <input name="nomFichier" defaultValue={facture.nomFichier} className={`${champClass} font-mono text-xs`} />)}
       {etat.message && <p className={`text-sm ${etat.succes ? "text-status-dispo" : "text-status-occupee"}`}>{etat.message}</p>}
@@ -103,7 +123,7 @@ function FormModification({ facture, biens, onFini }: { facture: FactureVue; bie
   );
 }
 
-function LigneFacture({ facture, biens }: { facture: FactureVue; biens: OptionBien[] }) {
+function LigneFacture({ facture, biens, aujourdHui }: { facture: FactureVue; biens: OptionBien[]; aujourdHui: string }) {
   const [edition, setEdition] = useState(false);
   if (edition) {
     return (
@@ -124,7 +144,7 @@ function LigneFacture({ facture, biens }: { facture: FactureVue; biens: OptionBi
       {facture.objet && <p className="text-sm text-slate-600">{facture.objet}</p>}
       {lies.length > 0 && <p className="text-xs text-slate-500">Inventaire : {lies.join(", ")}</p>}
       <div className="flex flex-wrap items-center gap-3">
-        <BoutonPaiement facture={facture} />
+        <BoutonPaiement facture={facture} aujourdHui={aujourdHui} />
         <a href={facture.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1 text-xs text-brand-accent hover:underline">
           <IconFileTypePdf size={14} aria-hidden />
           <span className="truncate font-mono">{facture.nomFichier}</span>
@@ -148,7 +168,7 @@ function LigneFacture({ facture, biens }: { facture: FactureVue; biens: OptionBi
   );
 }
 
-export function ListeFactures({ factures, biens }: { factures: FactureVue[]; biens: OptionBien[] }) {
+export function ListeFactures({ factures, biens, aujourdHui }: { factures: FactureVue[]; biens: OptionBien[]; aujourdHui: string }) {
   const annees = [...new Set(factures.map((f) => f.date.slice(0, 4)))].sort().reverse();
   const [annee, setAnnee] = useState(annees[0] ?? "");
   const [recherche, setRecherche] = useState("");
@@ -208,7 +228,7 @@ export function ListeFactures({ factures, biens }: { factures: FactureVue[]; bie
       ) : (
         <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg bg-white shadow-sm">
           {visibles.map((f) => (
-            <LigneFacture key={f.id} facture={f} biens={biens} />
+            <LigneFacture key={f.id} facture={f} biens={biens} aujourdHui={aujourdHui} />
           ))}
         </ul>
       )}
