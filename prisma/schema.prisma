@@ -821,6 +821,12 @@ model EvenementSaison {
   sacemDriveFileId             String?
   sacemUrl                     String?
 
+  // Rappels à la direction (notification) : matériel à préparer 2 jours avant, clés à
+  // récupérer la veille. On garde la date de l'événement pour laquelle chacun est parti :
+  // si l'événement change de date, le rappel repart pour la nouvelle.
+  rappelMaterielPour DateTime? @db.Date
+  rappelClesPour     DateTime? @db.Date
+
   inscriptions InscriptionHeureMusicale[]
   convention   ConventionSalle?
   // Plans de scène : la scène du concert (dimensions reprises par chaque nouveau passage).
