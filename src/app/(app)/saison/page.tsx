@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { jetonAgendaRappels } from "@/lib/agendaRappelsIcs";
+import { AbonnementAgendaRappels } from "@/components/saison/AbonnementAgendaRappels";
 import { acceptePassages } from "@/lib/programmes";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -54,6 +57,13 @@ export default async function SaisonPage({
     return { evenementSaisonId: e.id, demandeMairieLe: null, reponseMairieLe: null, commentaire: null, fichierUrl: null };
   };
   const enModification = estAdmin && modifier ? await db.evenementSaison.findUnique({ where: { id: modifier } }) : null;
+  let urlAgendaRappels: string | null = null;
+  if (estAdmin && process.env.AUTH_SECRET) {
+    const domaine = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    const h = await headers();
+    const base = domaine ? `https://${domaine}` : `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`;
+    urlAgendaRappels = `${base}/api/agenda/rappels?jeton=${jetonAgendaRappels(process.env.AUTH_SECRET)}`;
+  }
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -73,6 +83,8 @@ export default async function SaisonPage({
           ))}
         </div>
       </div>
+
+      {estAdmin && urlAgendaRappels && <AbonnementAgendaRappels url={urlAgendaRappels} />}
 
       {estAdmin &&
         (enModification ? (
