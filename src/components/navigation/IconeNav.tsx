@@ -1,5 +1,6 @@
 import {
   IconAddressBook,
+  IconBook2,
   IconBeach,
   IconBrandGoogleDrive,
   IconBuilding,
@@ -45,6 +46,7 @@ import type { CleIcone, CouleurTuile } from "@/lib/navigation";
 
 const ICONES: Record<CleIcone, typeof IconHome> = {
   accueil: IconHome,
+  reglement: IconBook2,
   calendrier: IconCalendar,
   presences: IconChecklist,
   horloge: IconClock,

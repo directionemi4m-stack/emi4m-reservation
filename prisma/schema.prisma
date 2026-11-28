@@ -1086,6 +1086,19 @@ model RegistreCles {
   majLe       DateTime @updatedAt
 }
 
+// --- Documents à consulter ---
+
+// Document de l'école que chacun peut consulter, sans signature (règlement intérieur…).
+// La direction dépose le PDF et indique la date de sa dernière mise à jour.
+model DocumentEcole {
+  cle        String   @id // « reglement-interieur »
+  titre      String
+  pdf        Bytes
+  nomFichier String
+  majLe      DateTime @db.Date // dernière mise à jour du document, saisie par la direction
+  deposeLe   DateTime @default(now()) // dernier dépôt du PDF dans l'appli
+}
+
 // --- Documents à lire et signer ---
 
 // Un document que chaque salarié doit lire et signer (consignes de sécurité, procédure
