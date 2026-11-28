@@ -144,3 +144,21 @@ export function devinerFacture(texte: string, fournisseursConnus: string[], aujo
 
   return { date, fournisseur, montantCentimes };
 }
+
+// --- Paiement ---
+
+export const JOURS_AVANT_RAPPEL_PAIEMENT = 7;
+const JOUR_MS = 86_400_000;
+
+// Les factures d'achat à rappeler aujourd'hui : pas encore payées, ajoutées depuis au moins
+// 7 jours, et pas déjà rappelées dans la semaine (un rappel par semaine tant qu'elle reste
+// à payer).
+export function facturesARappeler<F extends { payeeLe: Date | null; ajouteLe: Date; rappelPaiementLe: Date | null }>(
+  factures: F[],
+  maintenant: Date
+): F[] {
+  const limite = maintenant.getTime() - JOURS_AVANT_RAPPEL_PAIEMENT * JOUR_MS + 2 * 3_600_000; // marge : le cron peut passer un peu plus tôt
+  return factures.filter(
+    (f) => !f.payeeLe && f.ajouteLe.getTime() <= limite && (!f.rappelPaiementLe || f.rappelPaiementLe.getTime() <= limite)
+  );
+}

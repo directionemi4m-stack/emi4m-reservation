@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { devinerFacture, lireNomFacture, nomFichierFacture, normaliserNomFichier } from "./factures";
+import { devinerFacture, facturesARappeler, lireNomFacture, nomFichierFacture, normaliserNomFichier } from "./factures";
 
 const aujourdHui = new Date("2026-11-01T10:00:00Z");
 
@@ -61,5 +61,29 @@ Net à payer : 1 250,00 €`;
 
   it("ne propose rien plutôt que n'importe quoi", () => {
     expect(devinerFacture("", [], aujourdHui)).toEqual({ date: null, fournisseur: null, montantCentimes: null });
+  });
+});
+
+describe("facturesARappeler", () => {
+  const matin = new Date("2026-12-10T07:45:00Z");
+  const f = (ajoute: string, extra: Partial<{ payeeLe: Date; rappelPaiementLe: Date }> = {}) => ({
+    id: ajoute,
+    ajouteLe: new Date(ajoute),
+    payeeLe: extra.payeeLe ?? null,
+    rappelPaiementLe: extra.rappelPaiementLe ?? null,
+  });
+
+  it("rappelle une facture à payer 7 jours après son ajout", () => {
+    expect(facturesARappeler([f("2026-12-03T08:00:00Z")], matin)).toHaveLength(1);
+    expect(facturesARappeler([f("2026-12-04T08:00:00Z")], matin)).toHaveLength(0);
+  });
+
+  it("ne rappelle pas une facture payée", () => {
+    expect(facturesARappeler([f("2026-11-01T08:00:00Z", { payeeLe: new Date("2026-11-02") })], matin)).toHaveLength(0);
+  });
+
+  it("un rappel par semaine tant qu'elle n'est pas payée", () => {
+    expect(facturesARappeler([f("2026-11-01T08:00:00Z", { rappelPaiementLe: new Date("2026-12-05T07:45:00Z") })], matin)).toHaveLength(0);
+    expect(facturesARappeler([f("2026-11-01T08:00:00Z", { rappelPaiementLe: new Date("2026-12-03T07:45:10Z") })], matin)).toHaveLength(1);
   });
 });

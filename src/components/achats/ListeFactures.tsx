@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { IconFileTypePdf } from "@tabler/icons-react";
 import { useSoumission } from "@/lib/useSoumission";
-import { modifierFacture, supprimerFacture, type EtatAction } from "@/app/(app)/admin/achats/actions";
+import { marquerFacturePayee, modifierFacture, supprimerFacture, type EtatAction } from "@/app/(app)/admin/achats/actions";
 import { formaterEuros } from "@/lib/inventaire";
 import { ChoixBiens, type OptionBien } from "@/components/achats/AjoutFacture";
 
@@ -15,7 +15,41 @@ export interface FactureVue {
   objet: string | null;
   nomFichier: string;
   url: string;
+  payeeLe: string | null; // AAAA-MM-JJ
+  enRetard: boolean; // à payer depuis plus de 7 jours : le rappel est parti
   articleIds: string[];
+}
+
+function EtatPaiement({ facture }: { facture: FactureVue }) {
+  const retard = facture.enRetard;
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+        facture.payeeLe ? "bg-status-dispo/15 text-emerald-800" : retard ? "bg-status-occupee/15 text-red-800" : "bg-status-attente/15 text-amber-800"
+      }`}
+    >
+      {facture.payeeLe ? `Payée le ${dateFr(facture.payeeLe)}` : retard ? "À payer (rappel envoyé)" : "À payer"}
+    </span>
+  );
+}
+
+function BoutonPaiement({ facture }: { facture: FactureVue }) {
+  return (
+    <form action={marquerFacturePayee}>
+      <input type="hidden" name="id" value={facture.id} />
+      {facture.payeeLe && <input type="hidden" name="annuler" value="1" />}
+      <button
+        type="submit"
+        className={
+          facture.payeeLe
+            ? "text-xs text-slate-500 hover:text-brand-slate"
+            : "rounded-md bg-status-dispo px-2.5 py-1 text-xs font-semibold text-white hover:bg-status-dispo/90"
+        }
+      >
+        {facture.payeeLe ? "Pas encore payée" : "✓ Payée aujourd'hui"}
+      </button>
+    </form>
+  );
 }
 
 const champClass =
@@ -84,11 +118,13 @@ function LigneFacture({ facture, biens }: { facture: FactureVue; biens: OptionBi
       <div className="flex flex-wrap items-baseline gap-x-3">
         <span className="text-sm font-semibold text-slate-800">{facture.fournisseur}</span>
         <span className="text-xs text-slate-500">{dateFr(facture.date)}</span>
+        <EtatPaiement facture={facture} />
         {facture.montantCentimes != null && <span className="ml-auto text-sm text-slate-700">{formaterEuros(facture.montantCentimes)}</span>}
       </div>
       {facture.objet && <p className="text-sm text-slate-600">{facture.objet}</p>}
       {lies.length > 0 && <p className="text-xs text-slate-500">Inventaire : {lies.join(", ")}</p>}
       <div className="flex flex-wrap items-center gap-3">
+        <BoutonPaiement facture={facture} />
         <a href={facture.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1 text-xs text-brand-accent hover:underline">
           <IconFileTypePdf size={14} aria-hidden />
           <span className="truncate font-mono">{facture.nomFichier}</span>
@@ -116,20 +152,33 @@ export function ListeFactures({ factures, biens }: { factures: FactureVue[]; bie
   const annees = [...new Set(factures.map((f) => f.date.slice(0, 4)))].sort().reverse();
   const [annee, setAnnee] = useState(annees[0] ?? "");
   const [recherche, setRecherche] = useState("");
+  const [paiement, setPaiement] = useState<"" | "A_PAYER" | "PAYEE">("");
+  const aPayer = factures.filter((f) => !f.payeeLe);
 
   const visibles = useMemo(() => {
     const q = recherche.trim().toLowerCase();
     return factures.filter(
       (f) =>
         (!annee || f.date.startsWith(annee)) &&
+        (!paiement || (paiement === "PAYEE") === !!f.payeeLe) &&
         (!q || [f.fournisseur, f.objet, f.nomFichier].some((t) => t?.toLowerCase().includes(q)))
     );
-  }, [factures, annee, recherche]);
+  }, [factures, annee, recherche, paiement]);
   const total = visibles.reduce((s, f) => s + (f.montantCentimes ?? 0), 0);
 
   return (
     <section className="flex flex-col gap-2">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_1fr]">
+      {aPayer.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setPaiement(paiement === "A_PAYER" ? "" : "A_PAYER")}
+          className="w-fit rounded-md bg-status-attente/15 px-3 py-1.5 text-left text-sm text-amber-900 hover:bg-status-attente/25"
+        >
+          {aPayer.length} facture{aPayer.length > 1 ? "s" : ""} à payer · {formaterEuros(aPayer.reduce((s, f) => s + (f.montantCentimes ?? 0), 0))}
+          {paiement !== "A_PAYER" && <span className="ml-2 text-xs underline">Voir</span>}
+        </button>
+      )}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_auto_1fr]">
         <select value={annee} onChange={(e) => setAnnee(e.target.value)} className={`${champClass} py-1.5`}>
           <option value="">Toutes les années</option>
           {annees.map((a) => (
@@ -137,6 +186,11 @@ export function ListeFactures({ factures, biens }: { factures: FactureVue[]; bie
               {a}
             </option>
           ))}
+        </select>
+        <select value={paiement} onChange={(e) => setPaiement(e.target.value as typeof paiement)} className={`${champClass} py-1.5`}>
+          <option value="">Payées et à payer</option>
+          <option value="A_PAYER">À payer</option>
+          <option value="PAYEE">Payées</option>
         </select>
         <input
           type="search"

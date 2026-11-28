@@ -270,7 +270,7 @@ export async function modifierFactureSante(_etat: EtatAction, fd: FormData): Pro
   if ("erreur" in f) return { succes: false, message: f.erreur };
   await db.factureSante.update({ where: { id: existante.id }, data: f });
   if (existante.factureId) {
-    await db.facture.update({ where: { id: existante.factureId }, data: { date: f.date, montantCentimes: f.montantCentimes, objet: f.objet } });
+    await db.facture.update({ where: { id: existante.factureId }, data: { date: f.date, montantCentimes: f.montantCentimes, objet: f.objet, payeeLe: f.payeeLe } });
   }
   revalidatePath("/admin/sante", "layout");
   revalidatePath("/admin/achats");
@@ -283,6 +283,10 @@ export async function marquerFacturePayee(fd: FormData) {
   const annuler = fd.get("annuler") === "1";
   const aujourdHui = new Date(`${new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" })}T00:00:00.000Z`);
   await db.factureSante.updateMany({ where: { id }, data: { payeeLe: annuler ? null : aujourdHui } });
+  // Même état sur la copie rangée dans les factures d'achat (et son rappel de paiement).
+  const liee = await db.factureSante.findUnique({ where: { id }, select: { factureId: true } });
+  if (liee?.factureId) await db.facture.update({ where: { id: liee.factureId }, data: { payeeLe: annuler ? null : aujourdHui } });
+  revalidatePath("/admin/achats");
   revalidatePath("/admin/sante", "layout");
 }
 

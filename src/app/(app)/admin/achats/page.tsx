@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { AjoutFacture } from "@/components/achats/AjoutFacture";
 import { ListeFactures } from "@/components/achats/ListeFactures";
+import { JOURS_AVANT_RAPPEL_PAIEMENT } from "@/lib/factures";
 
 // Achats du quotidien : chaque facture est archivée en PDF dans le Drive, nommée
 // « AAAA-MM-JJ_Entreprise.pdf » après validation, et peut être rattachée à des biens de
@@ -15,6 +16,7 @@ export default async function AchatsPage() {
     }),
   ]);
 
+  const maintenant = new Date().getTime();
   const biens = articles.map((a) => ({ id: a.id, libelle: a.numeroImmo !== null ? `N°${a.numeroImmo} · ${a.designation}` : a.designation }));
   const fournisseurs = [...new Set(factures.map((f) => f.fournisseur))].sort((a, b) => a.localeCompare(b, "fr"));
 
@@ -22,7 +24,8 @@ export default async function AchatsPage() {
     <div className="flex flex-col gap-5">
       <p className="text-sm text-slate-500">
         Ajoutez le PDF scanné ou photographiez la facture, nommez le fichier (« année-mois-jour_entreprise » est pré-rempli,
-        modifiable) et archivez-le dans le Drive. Un achat d&apos;occasion à un particulier se fait dans l&apos;onglet « Occasion ».
+        modifiable) et archivez-le dans le Drive. Une facture pas encore payée vous est rappelée par mail au bout de 7 jours,
+        puis chaque semaine. Un achat d&apos;occasion à un particulier se fait dans l&apos;onglet « Occasion ».
       </p>
 
       <section className="flex flex-col gap-2 rounded-lg bg-white p-4 shadow-sm">
@@ -40,6 +43,8 @@ export default async function AchatsPage() {
           objet: f.objet,
           nomFichier: f.nomFichier,
           url: f.url,
+          payeeLe: f.payeeLe ? f.payeeLe.toISOString().slice(0, 10) : null,
+          enRetard: !f.payeeLe && maintenant - f.ajouteLe.getTime() >= JOURS_AVANT_RAPPEL_PAIEMENT * 86_400_000,
           articleIds: f.articles.map((a) => a.id),
         }))}
       />

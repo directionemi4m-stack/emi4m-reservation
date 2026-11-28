@@ -127,7 +127,7 @@ export async function archiverFactureSante(id: string): Promise<boolean> {
   const fichier = await deposerFacture({ annee: f.date.getUTCFullYear(), nomFichier, pdf: Buffer.from(f.pdf) });
   if (!fichier) return false;
   const facture = await db.facture.create({
-    data: { date: f.date, fournisseur, montantCentimes: f.montantCentimes, objet: f.objet, nomFichier, driveFileId: fichier.id, url: fichier.url },
+    data: { date: f.date, fournisseur, montantCentimes: f.montantCentimes, objet: f.objet, nomFichier, driveFileId: fichier.id, url: fichier.url, payeeLe: f.payeeLe },
   });
   await db.factureSante.update({ where: { id }, data: { factureId: facture.id, nomFichier } });
   return true;

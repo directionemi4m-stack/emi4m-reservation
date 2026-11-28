@@ -1024,6 +1024,8 @@ model Facture {
   driveFileId      String
   url              String
   ajouteLe         DateTime            @default(now())
+  payeeLe          DateTime?           @db.Date // vide : à payer (rappel 7 jours après l'ajout)
+  rappelPaiementLe DateTime? // dernier rappel envoyé, pour n'en faire qu'un par semaine
   articles         ArticleInventaire[]
   devisRecu        DevisRecu?
   attestationAchat AttestationAchat?

@@ -160,6 +160,7 @@ export async function archiverFacture(formData: FormData): Promise<EtatAction> {
         nomFichier,
         driveFileId: fichier.id,
         url: fichier.url,
+        payeeLe: formData.get("payee") === "1" ? jourParis() : null,
         articles: { connect: champs.articleIds.map((id) => ({ id })) },
       },
     });
@@ -207,6 +208,22 @@ export async function modifierFacture(_etat: EtatAction, formData: FormData): Pr
   });
   revalider();
   return { succes: true, message: "Enregistré." };
+}
+
+const jourParis = () => new Date(`${new Date().toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" })}T00:00:00.000Z`);
+
+// Payée (aujourd'hui, ou à la date choisie) ou de nouveau à payer. Une facture de santé au
+// travail rangée ici garde le même état dans les deux pages.
+export async function marquerFacturePayee(formData: FormData) {
+  await exigerAdmin();
+  const facture = await db.facture.findUnique({ where: { id: champ(formData, "id") }, select: { id: true } });
+  if (!facture) return;
+  const date = champ(formData, "payeeLe");
+  const payeeLe = formData.get("annuler") === "1" ? null : DATE_ISO.test(date) ? new Date(`${date}T00:00:00.000Z`) : jourParis();
+  await db.facture.update({ where: { id: facture.id }, data: { payeeLe, ...(payeeLe ? {} : { rappelPaiementLe: null }) } });
+  await db.factureSante.updateMany({ where: { factureId: facture.id }, data: { payeeLe } });
+  revalider();
+  revalidatePath("/admin/sante", "layout");
 }
 
 // Supprimer une facture l'envoie dans la corbeille du Drive (récupérable 30 jours).
