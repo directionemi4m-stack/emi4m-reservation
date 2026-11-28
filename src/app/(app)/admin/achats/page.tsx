@@ -24,7 +24,7 @@ export default async function AchatsPage() {
     <div className="flex flex-col gap-5">
       <p className="text-sm text-slate-500">
         Ajoutez le PDF scanné ou photographiez la facture, nommez le fichier (« année-mois-jour_entreprise » est pré-rempli,
-        modifiable) et archivez-le dans le Drive. Une facture pas encore payée vous est rappelée par mail au bout de 7 jours,
+        modifiable) et archivez-le dans le Drive. Une facture pas encore réglée vous est rappelée par mail au bout de 7 jours,
         puis chaque semaine. Un achat d&apos;occasion à un particulier se fait dans l&apos;onglet « Occasion ».
       </p>
 

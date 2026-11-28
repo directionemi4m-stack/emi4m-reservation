@@ -24,16 +24,16 @@ export async function envoyerRappelsFactures(urlBase: string) {
   const url = `${urlBase}/admin/achats`;
 
   await envoyerAlerteDirection({
-    sujet: `Factures d'achat : ${n} à payer`,
-    titre: "Factures d'achat à payer",
-    texte: `${n > 1 ? "Ces factures ne sont pas encore marquées payées" : "Cette facture n'est pas encore marquée payée"}, plus de 7 jours après leur ajout :\n${aRappeler.map(ligne).join("\n")}\n\nUne fois réglée, cochez « Payée » dans l'appli pour ne plus recevoir ce rappel.`,
+    sujet: `Factures d'achat : ${n} à régler`,
+    titre: "Factures d'achat à régler",
+    texte: `${n > 1 ? "Ces factures ne sont pas encore marquées réglées" : "Cette facture n'est pas encore marquée réglée"}, plus de 7 jours après leur ajout :\n${aRappeler.map(ligne).join("\n")}\n\nUne fois réglée, cliquez « Marquer réglée » dans l'appli (avec la date du règlement) pour ne plus recevoir ce rappel.`,
     url,
     libelleBouton: "Ouvrir les factures",
   });
   const direction = await db.user.findMany({ where: { role: "ADMIN", actif: true }, select: { id: true } });
   await envoyerPush(
     direction.map((u) => u.id),
-    { titre: "Factures à payer", corps: n > 1 ? `${n} factures d'achat ne sont pas encore payées.` : `La facture ${aRappeler[0].fournisseur} n'est pas encore payée.`, url: "/admin/achats" }
+    { titre: "Factures à régler", corps: n > 1 ? `${n} factures d'achat ne sont pas encore réglées.` : `La facture ${aRappeler[0].fournisseur} n'est pas encore réglée.`, url: "/admin/achats" }
   ).catch(() => 0);
   await db.facture.updateMany({ where: { id: { in: aRappeler.map((f) => f.id) } }, data: { rappelPaiementLe: maintenant } });
   return { envoye: true, factures: n };

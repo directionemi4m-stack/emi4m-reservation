@@ -212,26 +212,29 @@ export async function modifierFacture(_etat: EtatAction, formData: FormData): Pr
       montantCentimes: champs.montantCentimes,
       objet: champs.objet,
       nomFichier,
-      payeeLe: lireDatePaiement(formData),
       articles: { set: champs.articleIds.map((id) => ({ id })) },
     },
   });
-  await db.factureSante.updateMany({ where: { factureId: facture.id }, data: { payeeLe: lireDatePaiement(formData) } });
   revalider();
   return { succes: true, message: "Enregistré." };
 }
 
-// Payée (aujourd'hui, ou à la date choisie) ou de nouveau à payer. Une facture de santé au
-// travail rangée ici garde le même état dans les deux pages.
-export async function marquerFacturePayee(formData: FormData) {
+// Réglée à la date choisie (modifiable ensuite), ou de nouveau à régler. Une facture de
+// santé au travail rangée ici garde le même état dans les deux pages.
+export async function marquerFacturePayee(formData: FormData): Promise<EtatAction> {
   await exigerAdmin();
   const facture = await db.facture.findUnique({ where: { id: champ(formData, "id") }, select: { id: true } });
-  if (!facture) return;
-  const payeeLe = formData.get("annuler") === "1" ? null : (lireDatePaiement(formData) ?? jourParis());
+  if (!facture) return { succes: false, message: "Cette facture n'existe plus." };
+  let payeeLe: Date | null = null;
+  if (formData.get("annuler") !== "1") {
+    payeeLe = lireDatePaiement(formData);
+    if (!payeeLe) return { succes: false, message: "Date invalide : choisissez une date passée ou aujourd'hui." };
+  }
   await db.facture.update({ where: { id: facture.id }, data: { payeeLe, ...(payeeLe ? {} : { rappelPaiementLe: null }) } });
   await db.factureSante.updateMany({ where: { factureId: facture.id }, data: { payeeLe } });
   revalider();
   revalidatePath("/admin/sante", "layout");
+  return { succes: true, message: payeeLe ? "Date du règlement enregistrée." : "Remise à régler." };
 }
 
 // Supprimer une facture l'envoie dans la corbeille du Drive (récupérable 30 jours).

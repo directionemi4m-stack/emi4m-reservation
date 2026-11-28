@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { IconFileTypePdf } from "@tabler/icons-react";
 import { useSoumission } from "@/lib/useSoumission";
 import { marquerFacturePayee, modifierFacture, supprimerFacture, type EtatAction } from "@/app/(app)/admin/achats/actions";
@@ -20,52 +20,88 @@ export interface FactureVue {
   articleIds: string[];
 }
 
-function EtatPaiement({ facture }: { facture: FactureVue }) {
-  const retard = facture.enRetard;
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-        facture.payeeLe ? "bg-status-dispo/15 text-emerald-800" : retard ? "bg-status-occupee/15 text-red-800" : "bg-status-attente/15 text-amber-800"
-      }`}
-    >
-      {facture.payeeLe ? `Payée le ${dateFr(facture.payeeLe)}` : retard ? "À payer (rappel envoyé)" : "À payer"}
-    </span>
-  );
-}
+// Bloc « Règlement » de chaque facture, toujours au même endroit : l'état (réglée ou à
+// régler) et la date du règlement, modifiable directement. « Enregistrer la date »
+// n'apparaît que quand la date a changé.
+function Reglement({ facture, aujourdHui }: { facture: FactureVue; aujourdHui: string }) {
+  const [date, setDate] = useState(facture.payeeLe ?? aujourdHui);
+  const [message, setMessage] = useState<{ ok: boolean; texte: string } | null>(null);
+  const [enCours, demarrer] = useTransition();
+  const reglee = !!facture.payeeLe;
 
-// À payer : date du paiement (aujourd'hui par défaut, modifiable) et bouton « Payée ».
-// Payée : retour à « à payer » ; la date se corrige dans « Modifier ».
-function BoutonPaiement({ facture, aujourdHui }: { facture: FactureVue; aujourdHui: string }) {
-  if (facture.payeeLe) {
-    return (
-      <form action={marquerFacturePayee}>
-        <input type="hidden" name="id" value={facture.id} />
-        <input type="hidden" name="annuler" value="1" />
-        <button type="submit" className="text-xs text-slate-500 hover:text-brand-slate">
-          Pas encore payée
-        </button>
-      </form>
-    );
+  function envoyer(annuler: boolean) {
+    const donnees = new FormData();
+    donnees.set("id", facture.id);
+    if (annuler) donnees.set("annuler", "1");
+    else donnees.set("payeeLe", date);
+    demarrer(async () => {
+      const r = await marquerFacturePayee(donnees);
+      setMessage(r.message ? { ok: r.succes, texte: r.message } : null);
+      if (r.succes && annuler) setDate(aujourdHui);
+    });
   }
+
+  const teinte = reglee
+    ? "border-status-dispo bg-status-dispo/5"
+    : facture.enRetard
+      ? "border-status-occupee bg-status-occupee/5"
+      : "border-status-attente bg-status-attente/5";
   return (
-    <form action={marquerFacturePayee} className="flex items-center gap-1">
-      <input type="hidden" name="id" value={facture.id} />
-      <label className="sr-only" htmlFor={`paye-${facture.id}`}>
-        Date du paiement
-      </label>
-      <input
-        id={`paye-${facture.id}`}
-        type="date"
-        name="payeeLe"
-        required
-        defaultValue={aujourdHui}
-        max={aujourdHui}
-        className="rounded-md border border-slate-300 px-1.5 py-0.5 text-xs"
-      />
-      <button type="submit" className="rounded-md bg-status-dispo px-2.5 py-1 text-xs font-semibold text-white hover:bg-status-dispo/90">
-        ✓ Payée
-      </button>
-    </form>
+    <div className={`flex flex-col gap-1.5 rounded-md border-l-4 px-3 py-2 ${teinte}`}>
+      <p className="text-sm font-semibold">
+        {reglee ? (
+          <span className="text-emerald-800">✓ Réglée le {dateFr(facture.payeeLe!)}</span>
+        ) : (
+          <span className={facture.enRetard ? "text-red-800" : "text-amber-800"}>
+            À régler
+            {facture.enRetard && <span className="font-normal"> · ajoutée il y a plus de 7 jours, rappel envoyé</span>}
+          </span>
+        )}
+      </p>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <label htmlFor={`regle-${facture.id}`} className="text-slate-600">
+          {reglee ? "Date du règlement" : "Réglée le"}
+        </label>
+        <input
+          id={`regle-${facture.id}`}
+          type="date"
+          value={date}
+          max={aujourdHui}
+          onChange={(e) => {
+            setDate(e.target.value);
+            setMessage(null);
+          }}
+          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+        />
+        {reglee ? (
+          date !== facture.payeeLe && (
+            <button
+              type="button"
+              disabled={enCours || !date}
+              onClick={() => envoyer(false)}
+              className="rounded-md bg-brand-accent px-3 py-1 text-sm font-semibold text-white hover:bg-brand-accent/90 disabled:opacity-60"
+            >
+              {enCours ? "…" : "Enregistrer la date"}
+            </button>
+          )
+        ) : (
+          <button
+            type="button"
+            disabled={enCours || !date}
+            onClick={() => envoyer(false)}
+            className="rounded-md bg-status-dispo px-3 py-1 text-sm font-semibold text-white hover:bg-status-dispo/90 disabled:opacity-60"
+          >
+            {enCours ? "…" : "✓ Marquer réglée"}
+          </button>
+        )}
+        {reglee && (
+          <button type="button" disabled={enCours} onClick={() => envoyer(true)} className="ml-auto text-xs text-slate-500 underline hover:text-brand-slate">
+            Pas encore réglée
+          </button>
+        )}
+      </div>
+      {message && <p className={`text-xs ${message.ok ? "text-status-dispo" : "text-status-occupee"}`}>{message.texte}</p>}
+    </div>
   );
 }
 
@@ -104,10 +140,7 @@ function FormModification({ facture, biens, onFini }: { facture: FactureVue; bie
           />
         )}
       </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-        {libelle("Objet", <input name="objet" defaultValue={facture.objet ?? ""} className={champClass} />)}
-        {libelle("Payée le (vide : à payer)", <input type="date" name="payeeLe" defaultValue={facture.payeeLe ?? ""} className={champClass} />)}
-      </div>
+      {libelle("Objet", <input name="objet" defaultValue={facture.objet ?? ""} className={champClass} />)}
       <ChoixBiens biens={biens} choisis={articleIds} onChange={setArticleIds} />
       {libelle("Nom du fichier", <input name="nomFichier" defaultValue={facture.nomFichier} className={`${champClass} font-mono text-xs`} />)}
       {etat.message && <p className={`text-sm ${etat.succes ? "text-status-dispo" : "text-status-occupee"}`}>{etat.message}</p>}
@@ -134,17 +167,18 @@ function LigneFacture({ facture, biens, aujourdHui }: { facture: FactureVue; bie
   }
   const lies = facture.articleIds.map((id) => biens.find((b) => b.id === id)?.libelle).filter(Boolean);
   return (
-    <li className="flex flex-col gap-1 px-4 py-3">
+    <li className="flex flex-col gap-2 px-4 py-3">
       <div className="flex flex-wrap items-baseline gap-x-3">
         <span className="text-sm font-semibold text-slate-800">{facture.fournisseur}</span>
-        <span className="text-xs text-slate-500">{dateFr(facture.date)}</span>
-        <EtatPaiement facture={facture} />
-        {facture.montantCentimes != null && <span className="ml-auto text-sm text-slate-700">{formaterEuros(facture.montantCentimes)}</span>}
+        {facture.montantCentimes != null && <span className="ml-auto text-sm font-semibold text-slate-700">{formaterEuros(facture.montantCentimes)}</span>}
       </div>
-      {facture.objet && <p className="text-sm text-slate-600">{facture.objet}</p>}
-      {lies.length > 0 && <p className="text-xs text-slate-500">Inventaire : {lies.join(", ")}</p>}
+      <p className="-mt-1.5 text-xs text-slate-500">
+        Facture du {dateFr(facture.date)}
+        {facture.objet && <span className="text-slate-600"> · {facture.objet}</span>}
+        {lies.length > 0 && <span> · Inventaire : {lies.join(", ")}</span>}
+      </p>
+      <Reglement facture={facture} aujourdHui={aujourdHui} />
       <div className="flex flex-wrap items-center gap-3">
-        <BoutonPaiement facture={facture} aujourdHui={aujourdHui} />
         <a href={facture.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1 text-xs text-brand-accent hover:underline">
           <IconFileTypePdf size={14} aria-hidden />
           <span className="truncate font-mono">{facture.nomFichier}</span>
@@ -194,7 +228,7 @@ export function ListeFactures({ factures, biens, aujourdHui }: { factures: Factu
           onClick={() => setPaiement(paiement === "A_PAYER" ? "" : "A_PAYER")}
           className="w-fit rounded-md bg-status-attente/15 px-3 py-1.5 text-left text-sm text-amber-900 hover:bg-status-attente/25"
         >
-          {aPayer.length} facture{aPayer.length > 1 ? "s" : ""} à payer · {formaterEuros(aPayer.reduce((s, f) => s + (f.montantCentimes ?? 0), 0))}
+          {aPayer.length} facture{aPayer.length > 1 ? "s" : ""} à régler · {formaterEuros(aPayer.reduce((s, f) => s + (f.montantCentimes ?? 0), 0))}
           {paiement !== "A_PAYER" && <span className="ml-2 text-xs underline">Voir</span>}
         </button>
       )}
@@ -208,9 +242,9 @@ export function ListeFactures({ factures, biens, aujourdHui }: { factures: Factu
           ))}
         </select>
         <select value={paiement} onChange={(e) => setPaiement(e.target.value as typeof paiement)} className={`${champClass} py-1.5`}>
-          <option value="">Payées et à payer</option>
-          <option value="A_PAYER">À payer</option>
-          <option value="PAYEE">Payées</option>
+          <option value="">Réglées et à régler</option>
+          <option value="A_PAYER">À régler</option>
+          <option value="PAYEE">Réglées</option>
         </select>
         <input
           type="search"

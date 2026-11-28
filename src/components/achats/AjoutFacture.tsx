@@ -279,11 +279,11 @@ export function AjoutFacture({
               }}
               className="h-4 w-4"
             />
-            Déjà payée
+            Déjà réglée
             {payee ? (
               <input
                 type="date"
-                aria-label="Date du paiement"
+                aria-label="Date du règlement"
                 value={payeeLe}
                 onChange={(e) => setPayeeLe(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1 text-xs"
